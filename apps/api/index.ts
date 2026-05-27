@@ -88,7 +88,7 @@ const getGroupBySlug = async (slug: string) => {
 }
 
 app.get("/health", (_req, res) => {
-  res.json({ ok: true, app: "SplitIt API" });
+  res.json({ ok: true, app: "SplitIt API v1.0.0" });
 });
 
 app.get("/db/health", async (_req, res) => {

@@ -36,11 +36,11 @@ const patchPaymentSchema = z.object({
   note: z.string().max(200).optional()
 });
 
-function toNumber(value: unknown): number {
+const toNumber = (value: unknown): number => {
   return Number(value);
 }
 
-function serializeGroup(group: any) {
+const serializeGroup = (group: any) => {
   return {
     ...group,
     payments: group.payments?.map(serializePayment) ?? [],
@@ -53,14 +53,14 @@ function serializeGroup(group: any) {
   };
 }
 
-function serializePayment(payment: any) {
+const serializePayment = (payment: any) => {
   return {
     ...payment,
     amount: toNumber(payment.amount)
   };
 }
 
-async function getGroupBySlug(slug: string) {
+const getGroupBySlug = async (slug: string) => {
   return prisma.group.findUnique({
     where: { slug },
     include: {
@@ -76,6 +76,17 @@ async function getGroupBySlug(slug: string) {
 
 app.get("/health", (_req, res) => {
   res.json({ ok: true, app: "SplitIt API" });
+});
+
+
+app.get("/db/health", async (_req, res) => {
+    try {
+        const total = await prisma.group.count();
+        res.json({ ok: true, app: "SplitIt DB", database: "connected",stats: {groups: total} });
+    } catch (error) {
+        console.error("Database connection error:", error);
+        return res.status(500).json({ ok: false, app: "SplitIt API", error: "Database connection failed" });
+    } 
 });
 
 app.post("/groups", async (req, res, next) => {
