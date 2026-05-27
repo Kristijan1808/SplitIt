@@ -13,7 +13,20 @@ const prisma = new PrismaClient();
 const PORT = Number(process.env.PORT ?? 4000);
 const WEB_ORIGIN = process.env.WEB_ORIGIN ?? "http://localhost:5173";
 
-app.use(cors({ origin: WEB_ORIGIN }));
+app.use(cors({ 
+    origin: WEB_ORIGIN,
+    methods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"] 
+}));
+
+app.use((req, res, next) => {
+  if (req.method === "OPTIONS") {
+    res.sendStatus(204);
+    return;
+  }
+  next();
+});
+
 app.use(express.json());
 
 const createGroupSchema = z.object({
