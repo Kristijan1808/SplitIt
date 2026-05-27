@@ -12,7 +12,7 @@ export function applyTheme(theme: Theme) {
       const link = document.createElement("link");
       link.id = DARK_STYLE_ID;
       link.rel = "stylesheet";
-      link.href = "/src/style-dark.css";
+      link.href = "/style-dark.css";
       document.head.appendChild(link);
     }
 
