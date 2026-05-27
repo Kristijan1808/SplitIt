@@ -5,7 +5,6 @@ import { PrismaClient } from "@prisma/client";
 import { nanoid } from "nanoid";
 import { z } from "zod";
 import { calculateSettlements } from "@splitit/shared";
-import type { Payment, Person } from "@splitit/shared";
 
 
 const app = express();
@@ -370,10 +369,10 @@ app.get("/groups/:slug/settlements", async (req, res, next) => {
     const group = await getGroupBySlug(req.params.slug);
     if (!group) return res.status(404).json({ error: "Group not found" });
 
-    const people = group.people.map((person:Person) => ({
+    const people = group.people.map((person) => ({
       id: person.id,
       name: person.name,
-      paid: person.payments.reduce((sum: number, payment: Payment) => sum + Number(payment.amount), 0)
+      paid: person.payments.reduce((sum: number, payment) => sum + Number(payment.amount), 0)
     }));
 
     res.json(calculateSettlements(people));
