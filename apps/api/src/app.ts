@@ -4,7 +4,8 @@ import cors from "cors";
 import { PrismaClient } from "@prisma/client";
 import { nanoid } from "nanoid";
 import { z } from "zod";
-import { calculateSettlements, Payment,Person } from "@splitit/shared";
+import { calculateSettlements } from "@splitit/shared";
+import type { Payment, Person } from "@splitit/shared";
 
 
 const app = express();
