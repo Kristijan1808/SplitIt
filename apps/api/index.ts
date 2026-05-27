@@ -1,3 +1,5 @@
 import app  from "../api/src/app.js";
 
-export default app;
+app.listen( () => {
+  console.log(`SplitIt API running`);
+});
