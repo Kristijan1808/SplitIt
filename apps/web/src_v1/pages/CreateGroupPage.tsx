@@ -1,16 +1,13 @@
 import { FormEvent, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { ArrowLeft, Plus, Trash2 } from "lucide-react";
-import type { GroupAccessType } from "@splitit/shared";
 import { api } from "../api";
-import { isLoggedIn } from "../auth";
 import { ThemeToggle } from "../components/ThemeToggle";
 
 export function CreateGroupPage() {
   const navigate = useNavigate();
   const [name, setName] = useState("Weekend trip");
   const [people, setPeople] = useState([""]);
-  const [accessType, setAccessType] = useState<GroupAccessType>("ANONYMOUS_ONLY");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -28,14 +25,8 @@ export function CreateGroupPage() {
     setError("");
 
     try {
-      if (accessType === "REGISTERED_ONLY" && !isLoggedIn()) {
-        navigate(`/login?redirect=${encodeURIComponent("/new")}`);
-        return;
-      }
-
       const group = await api.createGroup({
         name,
-        accessType,
         people: people.map((p) => p.trim()).filter(Boolean)
       });
 
@@ -71,47 +62,6 @@ export function CreateGroupPage() {
             Group name
             <input value={name} onChange={(e) => setName(e.target.value)} required />
           </label>
-
-          <div>
-            <label>Group access</label>
-            <div className="accessOptions">
-              <label className={`accessOption ${accessType === "ANONYMOUS_ONLY" ? "selected" : ""}`}>
-                <input
-                  type="radio"
-                  name="accessType"
-                  value="ANONYMOUS_ONLY"
-                  checked={accessType === "ANONYMOUS_ONLY"}
-                  onChange={() => setAccessType("ANONYMOUS_ONLY")}
-                />
-                <strong>Full anonymous</strong>
-                <small>Anyone with the link can open and edit. No login needed.</small>
-              </label>
-
-              <label className={`accessOption ${accessType === "REGISTERED_ONLY" ? "selected" : ""}`}>
-                <input
-                  type="radio"
-                  name="accessType"
-                  value="REGISTERED_ONLY"
-                  checked={accessType === "REGISTERED_ONLY"}
-                  onChange={() => setAccessType("REGISTERED_ONLY")}
-                />
-                <strong>Registered users only</strong>
-                <small>Opening the link requires login. Logged-in users are added as group members.</small>
-              </label>
-
-              <label className={`accessOption ${accessType === "MIXED" ? "selected" : ""}`}>
-                <input
-                  type="radio"
-                  name="accessType"
-                  value="MIXED"
-                  checked={accessType === "MIXED"}
-                  onChange={() => setAccessType("MIXED")}
-                />
-                <strong>Both</strong>
-                <small>Anonymous link access stays enabled, and logged-in users are saved as members.</small>
-              </label>
-            </div>
-          </div>
 
           <div>
             <label>People</label>

@@ -1,10 +1,8 @@
 import { Link } from "react-router-dom";
-import { LogOut, Plus, WalletCards } from "lucide-react";
+import { Plus, WalletCards } from "lucide-react";
 import { ThemeToggle } from "../components/ThemeToggle";
-import { clearAuth, getAuthUser } from "../auth";
 
 export function HomePage() {
-  const user = getAuthUser();
   const recentGroups = JSON.parse(localStorage.getItem("splitit:groups") ?? "[]") as Array<{
     slug: string;
     name: string;
@@ -13,19 +11,6 @@ export function HomePage() {
   return (
     <main className="page">
       <div className="topBar">
-        {user ? (
-          <button
-            className="secondaryButton"
-            onClick={() => {
-              clearAuth();
-              window.location.reload();
-            }}
-          >
-            <LogOut size={18} /> {user.username}
-          </button>
-        ) : (
-          <Link className="secondaryButton" to="/login">Log in</Link>
-        )}
         <ThemeToggle />
       </div>
       <section className="hero">

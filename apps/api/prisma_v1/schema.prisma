@@ -1,0 +1,65 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Group {
+  id        String    @id @default(uuid())
+  name      String
+  slug      String    @unique
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  people    Person[]
+  payments  Payment[]
+  history   History[]
+
+  @@map("groups")
+}
+
+model Person {
+  id        String    @id @default(uuid())
+  name      String
+  groupId   String
+  createdAt DateTime  @default(now())
+
+  group     Group     @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  payments  Payment[]
+
+  @@map("people")
+}
+
+model Payment {
+  id        String    @id @default(uuid())
+  amount    Decimal   @db.Decimal(12, 2)
+  note      String?
+  personId  String
+  groupId   String
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  person    Person    @relation(fields: [personId], references: [id], onDelete: Cascade)
+  group     Group     @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@map("payments")
+}
+
+model History {
+  id        String    @id @default(uuid())
+  groupId   String
+  action    String
+  entity    String
+  entityId  String?
+  message   String
+  oldValue  String?
+  newValue  String?
+  createdAt DateTime  @default(now())
+
+  group     Group     @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@map("history")
+}

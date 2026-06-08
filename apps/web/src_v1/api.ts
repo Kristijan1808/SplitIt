@@ -1,52 +1,30 @@
 import type {
   AddPaymentRequest,
   AddPersonRequest,
-  AuthResponse,
   CreateGroupRequest,
   Group,
   HistoryItem,
-  LoginRequest,
   PatchPaymentRequest,
-  RegisterRequest,
   SettlementResult
 } from "@splitit/shared";
-import { getAuthToken } from "./auth";
 
 const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:4000";
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
-  const token = getAuthToken();
-
   const response = await fetch(`${API_URL}${path}`, {
-    ...options,
-    headers: {
-      "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...(options?.headers ?? {})
-    }
+    headers: { "Content-Type": "application/json" },
+    ...options
   });
 
   if (!response.ok) {
     const error = await response.json().catch(() => ({ error: "Request failed" }));
-    throw new Error(error.error ?? error.message ?? "Request failed");
+    throw new Error(error.error ?? "Request failed");
   }
 
   return response.json();
 }
 
 export const api = {
-  login: (body: LoginRequest) =>
-    request<AuthResponse>("/auth/login", {
-      method: "POST",
-      body: JSON.stringify(body)
-    }),
-
-  register: (body: RegisterRequest) =>
-    request<AuthResponse>("/auth/register", {
-      method: "POST",
-      body: JSON.stringify(body)
-    }),
-
   createGroup: (body: CreateGroupRequest) =>
     request<Group>("/groups", {
       method: "POST",

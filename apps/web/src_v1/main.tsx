@@ -5,7 +5,6 @@ import "./styles.css";
 import { HomePage } from "./pages/HomePage";
 import { CreateGroupPage } from "./pages/CreateGroupPage";
 import { GroupPage } from "./pages/GroupPage";
-import { LoginPage } from "./pages/LoginPage";
 
 const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:4000";
 const MAX_RETRIES = 10;

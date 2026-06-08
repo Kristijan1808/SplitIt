@@ -118,27 +118,3 @@ select:focus {
 small {
   color: #94a3b8;
 }
-/* Auth and access dark overrides */
-.accessOption {
-  background: #061b13;
-  border-color: var(--line);
-}
-
-.accessOption:hover,
-.accessOption.selected {
-  border-color: rgba(34, 197, 94, 0.55);
-  box-shadow: 0 14px 32px rgba(0, 0, 0, 0.22);
-}
-
-.accessOption strong,
-.loadingTitle {
-  color: #d9fff0;
-}
-
-.screenLoader {
-  background: rgba(2, 6, 23, 0.58);
-}
-
-.toastError {
-  background: #7f1d1d;
-}
