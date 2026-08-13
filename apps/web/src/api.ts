@@ -59,6 +59,11 @@ export const api = {
     body: JSON.stringify(body)
   }),
 
+  lockGroup: (slug: string, locked: boolean) => request<Group>(`/groups/${slug}/lock`, {
+    method: "PATCH",
+    body: JSON.stringify({ locked })
+  }),
+
   getGroup: (slug: string) => request<Group>(`/groups/${slug}`),
 
   updateGroup: (slug: string, name: string) =>

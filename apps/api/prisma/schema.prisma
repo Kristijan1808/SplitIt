@@ -30,6 +30,8 @@ model Group {
   id          String          @id @default(uuid())
   name        String
   slug        String          @unique
+  code        String          @unique
+  locked      Boolean         @default(false)
   accessType  GroupAccessType @default(ANONYMOUS_ONLY)
   passwordHash String         @default("")
   ownerUserId String?

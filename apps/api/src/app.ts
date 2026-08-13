@@ -35,8 +35,12 @@ const createGroupSchema = z.object({
 });
 
 const joinGroupSchema = z.object({
-  name: z.string().min(1).max(80),
+  code: z.string().trim().regex(/^[A-Z0-9]{6}$/i).optional(),
+  name: z.string().trim().min(1).max(80).optional(),
   password: z.string().min(1).max(80)
+}).refine((value) => Boolean(value.code || value.name), {
+  message: "Either group code or name is required",
+  path: ["code"]
 });
 
 const addPersonSchema = z.object({
@@ -44,11 +48,18 @@ const addPersonSchema = z.object({
 });
 
 const addPaymentSchema = z.object({
-  personId: z.string().min(1),
-  amount: z.number().positive(),
+  personId: z.string().min(1).optional(),
+  amount: z.number().positive().optional(),
   excludedAmount: z.number().min(0).optional(),
   note: z.string().max(200).optional(),
-  participantIds: z.array(z.string().min(1)).optional()
+  participantIds: z.array(z.string().min(1)).optional(),
+  payerAmounts: z.array(z.object({
+    personId: z.string().min(1),
+    amount: z.number().positive()
+  })).optional()
+}).refine((value) => Boolean(value.payerAmounts && value.payerAmounts.length > 0) || Boolean(value.personId && value.amount), {
+  message: "Either a single payer or multiple payer amounts must be provided",
+  path: ["personId"]
 });
 
 const patchPaymentSchema = z.object({
@@ -103,6 +114,21 @@ const getUserFromRequest = (req: express.Request): AuthUser | null => {
 
 const normalizeUsername = (username: string) => username.trim().toLowerCase();
 
+const generateGroupCode = () => {
+  const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+  return Array.from({ length: 6 }, () => alphabet[Math.floor(Math.random() * alphabet.length)]).join("");
+};
+
+const generateUniqueGroupCode = async () => {
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    const code = generateGroupCode();
+    const existing = await prisma.group.findUnique({ where: { code } });
+    if (!existing) return code;
+  }
+
+  throw new Error("Unable to generate a unique group code");
+};
+
 function serializePayment(payment: any) {
   return {
     ...payment,
@@ -119,6 +145,8 @@ const serializeGroup = (group: any, currentUser?: AuthUser | null) => {
 
   return {
     ...restGroup,
+    code: group.code,
+    locked: Boolean(group.locked),
     currentUserRole: currentMembership?.role ?? null,
     payments: group.payments?.map(serializePayment) ?? [],
     people: group.people?.map((person: any) => ({
@@ -300,18 +328,15 @@ app.post("/groups", async (req, res, next) => {
       return res.status(401).json({ error: "You must login to create a registered-only group" });
     }
 
-    const existing = await prisma.group.findFirst({ where: { name: { equals: body.name.trim(), mode: "insensitive" } } });
-    if (existing) {
-      return res.status(409).json({ error: "A group with that name already exists" });
-    }
-
     const passwordHash = await bcrypt.hash(body.password.trim(), 12);
     const uniquePeople = [...new Set(body.people.map((name) => name.trim()).filter(Boolean))];
+    const code = await generateUniqueGroupCode();
 
     const group = await prisma.group.create({
       data: {
         name: body.name.trim(),
         slug: nanoid(12),
+        code,
         accessType: body.accessType,
         passwordHash,
         ownerUserId: currentUser?.id ?? null,
@@ -346,7 +371,9 @@ app.post("/groups/join", async (req, res, next) => {
     const body = joinGroupSchema.parse(req.body);
     const currentUser = getUserFromRequest(req);
 
-    const group = await prisma.group.findFirst({ where: { name: { equals: body.name.trim(), mode: "insensitive" } } });
+    const group = body.code
+      ? await prisma.group.findUnique({ where: { code: body.code.toUpperCase() } })
+      : await prisma.group.findFirst({ where: { name: { equals: body.name?.trim() ?? "", mode: "insensitive" } } });
     if (!group) return res.status(404).json({ error: "Group not found" });
 
     const passwordHash = (group as { passwordHash?: string }).passwordHash ?? "";
@@ -517,33 +544,58 @@ app.post("/groups/:slug/payments", async (req, res, next) => {
     const access = await ensureCanEditGroup(group, req);
     if (!access.allowed) return res.status(access.status).json({ error: access.error });
 
-    const person = await prisma.person.findFirst({ where: { id: body.personId, groupId: group.id } });
-    if (!person) return res.status(404).json({ error: "Person not found" });
-
-    const excludedAmount = body.excludedAmount ?? 0;
-    const validParticipantIds = (body.participantIds ?? []).filter(Boolean);
     const allParticipantIds = await prisma.person.findMany({ where: { groupId: group.id }, select: { id: true } });
-    const participantIds = validParticipantIds.length > 0
-      ? validParticipantIds.filter((participantId) => allParticipantIds.some((entry) => entry.id === participantId))
-      : allParticipantIds.map((entry) => entry.id);
+    const validParticipantIds = (body.participantIds ?? []).filter((participantId) => allParticipantIds.some((entry) => entry.id === participantId));
+    const participantIds = validParticipantIds.length > 0 ? validParticipantIds : allParticipantIds.map((entry) => entry.id);
 
-    if (excludedAmount > body.amount) {
-      return res.status(400).json({
-        error: "Excluded amount cannot be bigger than payment amount"
+    const paymentEntries = body.payerAmounts && body.payerAmounts.length > 0
+      ? body.payerAmounts
+      : [{ personId: body.personId!, amount: body.amount! }];
+
+    const createdPayments = [] as Array<{ id: string; amount: number; personId: string; note?: string | null; excludedAmount: number; participantIds: string[] }>;
+
+    for (const entry of paymentEntries) {
+      const person = await prisma.person.findFirst({ where: { id: entry.personId, groupId: group.id } });
+      if (!person) return res.status(404).json({ error: `Person not found: ${entry.personId}` });
+
+      const excludedAmount = body.excludedAmount ?? 0;
+      if (excludedAmount > entry.amount) {
+        return res.status(400).json({ error: "Excluded amount cannot be bigger than payment amount" });
+      }
+
+      const payment = await prisma.payment.create({
+        data: {
+          groupId: group.id,
+          personId: person.id,
+          amount: entry.amount,
+          excludedAmount,
+          note: body.note,
+          participantIds
+        }
+      });
+
+      createdPayments.push({
+        id: payment.id,
+        amount: entry.amount,
+        personId: person.id,
+        note: body.note,
+        excludedAmount,
+        participantIds
       });
     }
 
-    const payment = await prisma.payment.create({
-      data: {
-        groupId: group.id,
-        personId: person.id,
-        amount: body.amount,
-        excludedAmount,
-        note: body.note,
-        participantIds
-      }
-    });
-    await prisma.history.create({ data: { groupId: group.id, action: "CREATE", entity: "PAYMENT", entityId: payment.id, message: `${person.name} added ${body.amount.toFixed(2)} (${excludedAmount.toFixed(2)} excluded)`, newValue: String(body.amount) } });
+    for (const payment of createdPayments) {
+      await prisma.history.create({
+        data: {
+          groupId: group.id,
+          action: "CREATE",
+          entity: "PAYMENT",
+          entityId: payment.id,
+          message: `${payment.personId} added ${payment.amount.toFixed(2)} (${payment.excludedAmount.toFixed(2)} excluded)`,
+          newValue: String(payment.amount)
+        }
+      });
+    }
 
     const updated = await getGroupBySlug(req.params.slug);
     res.status(201).json(serializeGroup(updated, access.user));
@@ -653,6 +705,45 @@ app.get("/groups/:slug/history", async (req, res, next) => {
     if (!access.allowed) return res.status(access.status).json({ error: access.error });
 
     res.json(group.history);
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.patch("/groups/:slug/lock", async (req, res, next) => {
+  try {
+    const schema = z.object({ locked: z.boolean() });
+    const body = schema.parse(req.body);
+
+    const group = await prisma.group.findUnique({ where: { slug: req.params.slug } });
+    if (!group) return res.status(404).json({ error: "Group not found" });
+
+    const currentUser = getUserFromRequest(req);
+    if (!currentUser || group.ownerUserId !== currentUser.id) {
+      return res.status(403).json({ error: "Only the group owner can lock or unlock it" });
+    }
+
+    const nextGroup = await prisma.group.update({
+      where: { slug: req.params.slug },
+      data: {
+        locked: body.locked,
+        history: {
+          create: {
+            action: body.locked ? "LOCK" : "UNLOCK",
+            entity: "GROUP",
+            message: body.locked ? "Group was locked" : "Group was unlocked"
+          }
+        }
+      },
+      include: {
+        people: { include: { payments: true } },
+        payments: true,
+        history: { orderBy: { createdAt: "desc" } },
+        members: { include: { user: { select: { username: true } } } }
+      }
+    });
+
+    res.json(serializeGroup(nextGroup, currentUser));
   } catch (error) {
     next(error);
   }

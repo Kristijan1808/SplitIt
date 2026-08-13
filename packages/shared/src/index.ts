@@ -69,6 +69,8 @@ export type Group = {
   id: ID;
   name: string;
   slug: string;
+  code: string;
+  locked: boolean;
   accessType: GroupAccessType;
   ownerUserId?: string | null;
   currentUserRole?: UserRole | null;
@@ -88,7 +90,8 @@ export type CreateGroupRequest = {
 };
 
 export type JoinGroupRequest = {
-  name: string;
+  code?: string;
+  name?: string;
   password: string;
 };
 

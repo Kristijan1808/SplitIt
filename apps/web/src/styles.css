@@ -8,9 +8,9 @@
   --mint: #eefaf3;
   --mint-strong: #dff4e8;
 
-  --surface: rgba(255, 255, 255, 0.72);
-  --surface-solid: #f4fbf7;
-  --surface-hover: #edf8f1;
+  --surface: #f4f7f6;
+  --surface-solid: #eef3f1;
+  --surface-hover: #e7efe9;
 
   --black: #081c15;
   --white: #ffffff;
@@ -20,30 +20,28 @@
   --shadow-soft: 0 12px 40px rgba(15, 61, 46, 0.08);
   --shadow-card: 0 20px 60px rgba(2, 6, 23, 0.08);
 
-  font-family:
-    Inter,
-    ui-sans-serif,
-    system-ui,
-    -apple-system,
-    BlinkMacSystemFont,
-    "Segoe UI",
-    sans-serif;
+  --page-bg: #f3f6f4;
+  --panel-bg: #f7faf8;
+  --panel-alt: #edf4f1;
 
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   color: var(--black);
+}
 
-  background:
-    radial-gradient(circle at top left,
-      rgba(34, 197, 94, 0.18),
-      transparent 35%),
-    radial-gradient(circle at bottom right,
-      rgba(15, 61, 46, 0.10),
-      transparent 30%),
-    linear-gradient(
-      135deg,
-      #eef7f1 0%,
-      #f5faf7 40%,
-      #edf6f0 100%
-    );
+:root[data-theme="dark"] {
+  --page-bg: #101b1a;
+  --panel-bg: #1a2b29;
+  --panel-alt: #152422;
+  --black: #dfeae7;
+  --gray: #bfd4d0;
+  --line: rgba(180, 209, 202, 0.18);
+  --surface: #1a2b29;
+  --surface-solid: #162725;
+  --surface-hover: #213632;
+  --green-950: #edfdf4;
+  --green-900: #d9fbe8;
+  --green-700: #6ee7a8;
+  --green-500: #22c55e;
 }
 
 * {
@@ -51,19 +49,7 @@
 }
 
 html {
-  background:
-    radial-gradient(circle at top left,
-      rgba(34, 197, 94, 0.18),
-      transparent 35%),
-    radial-gradient(circle at bottom right,
-      rgba(15, 61, 46, 0.10),
-      transparent 30%),
-    linear-gradient(
-      135deg,
-      #eef7f1 0%,
-      #f5faf7 40%,
-      #edf6f0 100%
-    );
+  background: var(--page-bg);
 }
 
 body {
@@ -71,6 +57,7 @@ body {
   min-height: 100vh;
   color: var(--black);
   overflow-x: hidden;
+  background: var(--page-bg);
 }
 
 body::before,
@@ -196,17 +183,18 @@ select {
 }
 
 h1 {
-  font-size: clamp(44px, 8vw, 78px);
-  line-height: 0.92;
-  margin: 0;
+  font-size: clamp(28px, 5vw, 42px);
+  line-height: 1.05;
+  margin: 0 0 16px;
   color: var(--green-950);
   letter-spacing: -0.04em;
 }
 
 h2 {
-  margin: 0 0 18px;
+  margin: 0 0 20px;
   color: var(--green-950);
   letter-spacing: -0.02em;
+  font-size: clamp(20px, 2.4vw, 28px);
 }
 
 .heroText {
@@ -220,20 +208,10 @@ h2 {
 .groupHeader {
   position: relative;
   overflow: hidden;
-
-  background:
-    linear-gradient(
-      145deg,
-      rgba(255, 255, 255, 0.82),
-      rgba(238, 250, 243, 0.68)
-    );
-
+  background: var(--panel-bg);
   backdrop-filter: blur(22px);
-
-  border: 1px solid rgba(255, 255, 255, 0.7);
-
+  border: 1px solid var(--line);
   border-radius: 32px;
-
   padding: 24px;
 
   box-shadow:
@@ -282,14 +260,7 @@ h2 {
   position: absolute;
   inset: 0;
   pointer-events: none;
-
-  background:
-    linear-gradient(
-      120deg,
-      rgba(255, 255, 255, 0.65),
-      transparent 35%,
-      rgba(34, 197, 94, 0.06)
-    );
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.08), transparent 40%);
 }
 
 .card > *,
@@ -353,8 +324,8 @@ h2 {
 .secondaryButton {
   padding: 12px 16px;
 
-  background:
-    rgba(255, 255, 255, 0.68);
+  /* background: */
+    /* rgba(255, 255, 255, 0.68) */
 
   color: var(--green-900);
 
@@ -406,8 +377,8 @@ h2 {
 label {
   display: grid;
   gap: 8px;
-  font-weight: 800;
-  color: var(--green-950);
+  font-weight: 400;
+  color: var(--black);
 }
 
 input,
@@ -420,14 +391,18 @@ select {
 
   padding: 14px 16px;
 
-  background:
-    rgba(255, 255, 255, 0.82);
+  background: var(--panel-alt);
 
   outline: none;
 
   color: var(--black);
 
   backdrop-filter: blur(10px);
+}
+
+input::placeholder,
+select::placeholder {
+  color: var(--gray);
 }
 
 .copy:hover,.refresh:hover{
@@ -476,14 +451,8 @@ select:focus {
 
   border-radius: 22px;
 
-  background:
-    linear-gradient(
-      135deg,
-      rgba(255, 255, 255, 0.78),
-      rgba(238, 250, 243, 0.7)
-    );
-
-  border: 1px solid rgba(15, 61, 46, 0.06);
+  background: var(--panel-alt);
+  border: 1px solid var(--line);
 
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.85),
@@ -505,12 +474,8 @@ select:focus {
 .paymentRow:hover,
 .personRow:hover {
   transform: translateY(-2px);
-
-  background: rgb(160, 204, 176);
-  color:#14543f;
-  box-shadow:
-    0 14px 32px rgba(15, 61, 46, 0.08),
-    inset 0 1px 0 rgba(255, 255, 255, 0.95);
+  background: var(--surface-hover);
+  box-shadow: 0 14px 32px rgba(15, 61, 46, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.15);
 }
 
 .groupRow,

@@ -1,8 +1,8 @@
 import { FormEvent, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { ArrowLeft, Plus } from "lucide-react";
+import { ArrowLeft, Copy, Plus } from "lucide-react";
 import { ThemeToggle } from "../components/ThemeToggle";
-import { createGroup } from "../storage";
+import { api } from "../api";
 
 export function CreateGroupPage() {
   const navigate = useNavigate();
@@ -10,6 +10,8 @@ export function CreateGroupPage() {
   const [password, setPassword] = useState("");
   const [people, setPeople] = useState([""]);
   const [error, setError] = useState("");
+  const [createdCode, setCreatedCode] = useState<string | null>(null);
+  const [createdSlug, setCreatedSlug] = useState<string | null>(null);
 
   function updatePerson(index: number, value: string) {
     setPeople((current) => current.map((person, i) => (i === index ? value : person)));
@@ -19,17 +21,19 @@ export function CreateGroupPage() {
     setPeople((current) => current.filter((_, i) => i !== index));
   }
 
-  function submit(event: FormEvent) {
+  async function submit(event: FormEvent) {
     event.preventDefault();
     setError("");
 
     try {
-      const group = createGroup({
+      const group = await api.createGroup({
         name,
         password,
-        participants: people
+        people,
+        accessType: "ANONYMOUS_ONLY"
       });
-      navigate(`/g/${group.slug}`);
+      setCreatedCode(group.code);
+      setCreatedSlug(group.slug);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not create group");
     }
@@ -46,48 +50,70 @@ export function CreateGroupPage() {
 
       <section className="card">
         <h1>Create group</h1>
-        <p className="muted">Choose a unique name, set a password, and add participants.</p>
+        <p className="muted">Group names may repeat. Every group gets its own 6-character code.</p>
 
-        <form onSubmit={submit} className="form">
-          <label>
-            Group name
-            <input value={name} onChange={(event) => setName(event.target.value)} required />
-          </label>
+        {!createdCode ? (
+          <form onSubmit={submit} className="form">
+            <label>
+              Group name
+              <input value={name} onChange={(event) => setName(event.target.value)} required />
+            </label>
 
-          <label>
-            Password
-            <input type="password" value={password} onChange={(event) => setPassword(event.target.value)} required />
-          </label>
+            <label>
+              Password
+              <input type="password" value={password} onChange={(event) => setPassword(event.target.value)} required />
+            </label>
 
-          <div>
-            <label>Participants</label>
-            <div className="peopleInputs">
-              {people.map((person, index) => (
-                <div className="inlineInput" key={index}>
-                  <input
-                    placeholder={`Participant ${index + 1}`}
-                    value={person}
-                    onChange={(event) => updatePerson(index, event.target.value)}
-                  />
-                  {people.length > 1 && (
-                    <button type="button" className="iconButton" onClick={() => removePerson(index)}>
-                      ×
-                    </button>
-                  )}
-                </div>
-              ))}
+            <div>
+              <label>Participants</label>
+              <div className="peopleInputs">
+                {people.map((person, index) => (
+                  <div className="inlineInput" key={index}>
+                    <input
+                      placeholder={`Participant ${index + 1}`}
+                      value={person}
+                      onChange={(event) => updatePerson(index, event.target.value)}
+                    />
+                    {people.length > 1 && (
+                      <button type="button" className="iconButton" onClick={() => removePerson(index)}>
+                        ×
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+              <button type="button" className="secondaryButton" onClick={() => setPeople([...people, ""])}>
+                <Plus size={18} /> Add participant
+              </button>
             </div>
-            <button type="button" className="secondaryButton" onClick={() => setPeople([...people, ""])}>
-              <Plus size={18} /> Add participant
+
+            {error && <p className="error">{error}</p>}
+
+            <button className="primaryButton" type="submit">
+              Create group
             </button>
+          </form>
+        ) : (
+          <div className="form">
+            <div className="createdCodeBox">
+              <small>Group code</small>
+              <strong>{createdCode}</strong>
+            </div>
+
+            <div className="actionsRow">
+              <button
+                type="button"
+                className="primaryButton"
+                onClick={() => navigator.clipboard.writeText(`${window.location.origin}/join?code=${createdCode}`)}
+              >
+                <Copy size={18} /> Copy group link
+              </button>
+              <button type="button" className="secondaryButton" onClick={() => navigate(`/g/${createdSlug}`)}>
+                Open group
+              </button>
+            </div>
           </div>
-
-          {error && <p className="error">{error}</p>}
-
-          <button className="primaryButton" type="submit">
-            Create group
-          </button>
-        </form>
+        )}
       </section>
     </main>
   );
