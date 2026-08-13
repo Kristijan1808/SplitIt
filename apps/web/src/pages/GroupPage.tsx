@@ -1,60 +1,80 @@
-import { FormEvent, useMemo, useState } from "react";
-import { Link, useParams } from "react-router-dom";
-import { ArrowLeft, Copy, Lock, Plus, Trash2 } from "lucide-react";
-import { calculateSettlements } from "@splitit/shared";
-import { api } from "../api";
-import { getAuthUser } from "../auth";
-import { useAsync } from "../hooks";
+import { FormEvent, useEffect, useMemo, useState } from "react";
+import { Link, useNavigate, useParams } from "react-router-dom";
+import { ArrowLeft, Plus, Trash2 } from "lucide-react";
 import { ThemeToggle } from "../components/ThemeToggle";
+import { api } from "../api";
+import { calculateSettlements } from "@splitit/shared";
+import type { Group } from "@splitit/shared";
 
 export const GroupPage = () => {
+  const navigate = useNavigate();
   const { slug = "" } = useParams();
-  const { data: group, loading, error, reload, setData } = useAsync(
-    () => api.getGroup(slug),
-    [slug]
-  );
-
+  const [group, setGroup] = useState<Group | null>(null);
   const [personName, setPersonName] = useState("");
   const [paymentPersonId, setPaymentPersonId] = useState("");
   const [amount, setAmount] = useState("");
-  const [excludedAmount, setExcludedAmount] = useState("");
   const [note, setNote] = useState("");
-  const [saving, setSaving] = useState(false);
+  const [selectedParticipants, setSelectedParticipants] = useState<string[]>([]);
   const [actionError, setActionError] = useState("");
+  const [saving, setSaving] = useState(false);
 
-  const currentUser = getAuthUser();
-  const loginRedirect = `/login?redirect=${encodeURIComponent(`/g/${slug}`)}`;
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const currentGroup = await api.getGroup(slug);
+        setGroup(currentGroup);
+        setPaymentPersonId(currentGroup.people[0]?.id ?? "");
+        setSelectedParticipants(currentGroup.people.map((person) => person.id));
+      } catch {
+        navigate("/");
+      }
+    };
 
-  const getSplitAmount = (payment: { amount: number; excludedAmount?: number }) =>
-    Math.max(payment.amount - (payment.excludedAmount ?? 0), 0);
+    void load();
+  }, [slug, navigate]);
 
-  const result = useMemo(() => {
-    if (!group) return null;
+  const balances = useMemo(() => {
+    if (!group) return [];
+
+    const entries = group.people.map((person) => ({
+      id: person.id,
+      name: person.name,
+      paid: person.payments.reduce((sum, payment) => sum + payment.amount, 0),
+      balance: 0
+    }));
+
+    const totalPaid = entries.reduce((sum, entry) => sum + entry.paid, 0);
+    const share = totalPaid / Math.max(entries.length, 1);
+
+    return entries.map((entry) => ({ ...entry, balance: Number((entry.paid - share).toFixed(2)) }));
+  }, [group]);
+
+  const settlements = useMemo(() => {
+    if (!group) return [];
 
     return calculateSettlements(
       group.people.map((person) => ({
         id: person.id,
         name: person.name,
-        paid: person.payments.reduce(
-          (sum, payment) => sum + getSplitAmount(payment),
-          0
-        )
+        paid: person.payments.reduce((sum, payment) => sum + payment.amount, 0)
       }))
-    );
+    ).settlements;
   }, [group]);
 
-  const executeAction = async (callback: () => Promise<void>) => {
+  const setGroupState = (nextGroup: Group) => {
+    setGroup(nextGroup);
+    setPaymentPersonId(nextGroup.people[0]?.id ?? "");
+    setSelectedParticipants(nextGroup.people.map((person) => person.id));
+  };
+
+  const executeAction = async (callback: () => Promise<Group>) => {
     try {
       setSaving(true);
       setActionError("");
-      await callback();
+      const nextGroup = await callback();
+      setGroupState(nextGroup);
     } catch (error) {
-      console.error(error);
-      setActionError(
-        error instanceof Error
-          ? error.message
-          : "Something went wrong. Try again."
-      );
+      setActionError(error instanceof Error ? error.message : "Something went wrong.");
       window.setTimeout(() => setActionError(""), 3500);
     } finally {
       setSaving(false);
@@ -63,141 +83,61 @@ export const GroupPage = () => {
 
   const addPerson = async (event: FormEvent) => {
     event.preventDefault();
-    if (!personName.trim()) return;
+    if (!personName.trim() || !group) return;
 
     await executeAction(async () => {
-      setData(await api.addPerson(slug, { name: personName }));
+      const nextGroup = await api.addPerson(slug, { name: personName });
       setPersonName("");
+      return nextGroup;
     });
   };
 
   const addPayment = async (event: FormEvent) => {
     event.preventDefault();
 
-    const selectedPerson = paymentPersonId || group?.people[0]?.id;
-    if (!selectedPerson) return;
-
+    if (!group) return;
     const paymentAmount = Number(amount);
-    const paymentExcludedAmount = Number(excludedAmount || 0);
 
-    if (paymentExcludedAmount < 0 || paymentExcludedAmount > paymentAmount) {
-      setActionError("Excluded amount must be between 0 and payment amount.");
-      window.setTimeout(() => setActionError(""), 3500);
+    if (!paymentAmount || paymentAmount <= 0) {
+      setActionError("Amount must be greater than zero.");
       return;
     }
 
     await executeAction(async () => {
-      setData(
-        await api.addPayment(slug, {
-          personId: selectedPerson,
-          amount: paymentAmount,
-          excludedAmount: paymentExcludedAmount,
-          note
-        })
-      );
-
+      const nextGroup = await api.addPayment(slug, {
+        amount: paymentAmount,
+        note,
+        personId: paymentPersonId,
+        participantIds: selectedParticipants
+      });
       setAmount("");
-      setExcludedAmount("");
       setNote("");
-      setPaymentPersonId("");
+      setSelectedParticipants(nextGroup.people.map((person) => person.id));
+      setPaymentPersonId(nextGroup.people[0]?.id ?? "");
+      return nextGroup;
     });
   };
 
-  const editPayment = async (
-    paymentId: string,
-    currentAmount: number,
-    currentExcludedAmount = 0,
-    currentNote?: string | null
-  ) => {
-    const newAmount = Number(prompt("New amount", String(currentAmount)));
-    if (!newAmount || newAmount <= 0) return;
-
-    const newExcludedAmount = Number(
-      prompt("Excluded amount", String(currentExcludedAmount)) ?? "0"
+  const toggleParticipant = (participantId: string) => {
+    setSelectedParticipants((current) =>
+      current.includes(participantId)
+        ? current.filter((id) => id !== participantId)
+        : [...current, participantId]
     );
-
-    if (newExcludedAmount < 0 || newExcludedAmount > newAmount) {
-      setActionError("Excluded amount must be between 0 and payment amount.");
-      window.setTimeout(() => setActionError(""), 3500);
-      return;
-    }
-
-    const newNote = prompt("Note", currentNote ?? "") ?? "";
-
-    await executeAction(async () => {
-      setData(
-        await api.updatePayment(slug, paymentId, {
-          amount: newAmount,
-          excludedAmount: newExcludedAmount,
-          note: newNote
-        })
-      );
-    });
   };
 
-  if (loading) {
-    return (
-      <main className="page">
-        <section className="loadingScreen">
-          <div className="spinner" />
-          <p className="eyebrow">Opening group</p>
-          <h1>Fetching data...</h1>
-        </section>
-      </main>
-    );
+  const selectedParticipantNames = (group?.people ?? [])
+    .filter((person) => selectedParticipants.includes(person.id))
+    .map((person) => person.name)
+    .join(", ");
+
+  if (!group) {
+    return null;
   }
-
-  if (error || !group) {
-    const needsLogin = error?.toLowerCase().includes("login");
-
-    return (
-      <main className="page">
-        <div className="topBar">
-          <ThemeToggle />
-        </div>
-
-        <section className="card authCard">
-          <p className="eyebrow">
-            {needsLogin ? "Login required" : "Group unavailable"}
-          </p>
-
-          <h1>
-            {needsLogin ? "This group is protected" : "Could not open group"}
-          </h1>
-
-          <p className="muted">{error || "Group not found"}</p>
-
-          {needsLogin ? (
-            <Link className="primaryButton" to={loginRedirect}>
-              <Lock size={18} /> Login to open group
-            </Link>
-          ) : (
-            <button className="primaryButton" onClick={reload}>
-              Try again
-            </button>
-          )}
-        </section>
-      </main>
-    );
-  }
-
-  const accessDescription = {
-    ANONYMOUS_ONLY: "Anyone with this link can view and edit. No login needed.",
-    REGISTERED_ONLY:
-      "Only logged-in group members can access and edit. Opening the link joins logged-in users.",
-    MIXED: "Anonymous link access is enabled. Logged-in users are saved as members."
-  }[group.accessType];
 
   return (
     <main className="page wide">
-      {saving && (
-        <div className="screenLoader">
-          <div className="spinner large" />
-          <p className="loadingTitle">Updating group...</p>
-          <small className="muted">Syncing latest data</small>
-        </div>
-      )}
-
+      {saving && <div className="screenLoader"><div className="spinner large" /></div>}
       {actionError && <div className="toastError">{actionError}</div>}
 
       <div className="topBar">
@@ -210,187 +150,107 @@ export const GroupPage = () => {
 
       <section className="groupHeader">
         <div>
-          <p className="eyebrow">{group.accessType.replaceAll("_", " ")}</p>
+          <p className="eyebrow">Shared group</p>
           <h1>{group.name}</h1>
-          <p className="muted">{accessDescription}</p>
-
-          {currentUser && (
-            <p className="muted">
-              Logged in as <strong>{currentUser.username}</strong>
-              {group.currentUserRole ? ` · ${group.currentUserRole}` : ""}
-            </p>
-          )}
+          <p className="muted">Stored in the database and shared with anyone who joins it.</p>
         </div>
-
-        <button
-          className="secondaryButton copy"
-          onClick={() => navigator.clipboard.writeText(window.location.href)}
-        >
-          <Copy size={18} /> Copy link
-        </button>
       </section>
 
       <div className="grid">
         <section className="card">
-          <h2>Add payment</h2>
-
+          <h2>Add expense</h2>
           <form className="form" onSubmit={addPayment}>
             <label>
-              Who paid?
-              <select
-                value={paymentPersonId}
-                onChange={(e) => setPaymentPersonId(e.target.value)}
-              >
+              Paid by
+              <select value={paymentPersonId} onChange={(event) => setPaymentPersonId(event.target.value)}>
                 {group.people.map((person) => (
-                  <option key={person.id} value={person.id}>
-                    {person.name}
-                  </option>
+                  <option key={person.id} value={person.id}>{person.name}</option>
                 ))}
               </select>
             </label>
 
             <label>
               Amount
-              <input
-                type="number"
-                min="0.01"
-                step="0.01"
-                value={amount}
-                onChange={(e) => setAmount(e.target.value)}
-                required
-              />
-            </label>
-
-            <label>
-              Excluded amount
-              <input
-                type="number"
-                min="0"
-                step="0.01"
-                placeholder="Amount not included in split"
-                value={excludedAmount}
-                onChange={(e) => setExcludedAmount(e.target.value)}
-              />
+              <input type="number" min="0.01" step="0.01" value={amount} onChange={(event) => setAmount(event.target.value)} required />
             </label>
 
             <label>
               Note
-              <input
-                placeholder="Dinner, tickets..."
-                value={note}
-                onChange={(e) => setNote(e.target.value)}
-              />
+              <input value={note} onChange={(event) => setNote(event.target.value)} placeholder="Dinner, groceries..." />
             </label>
 
-            <button className="primaryButton">
-              <Plus size={18} /> Add payment
+            <div>
+              <label>Split with</label>
+              <div className="peopleInputs">
+                {group.people.map((person) => (
+                  <label key={person.id} className="accessOption">
+                    <input
+                      type="checkbox"
+                      checked={selectedParticipants.includes(person.id)}
+                      onChange={() => toggleParticipant(person.id)}
+                    />
+                    <strong>{person.name}</strong>
+                  </label>
+                ))}
+              </div>
+              <p className="muted">Default selection is everyone. You can deselect participants before saving.</p>
+              <p className="muted">Split: {selectedParticipantNames || "No one"}</p>
+            </div>
+
+            <button className="primaryButton" type="submit">
+              <Plus size={18} /> Add expense
             </button>
           </form>
         </section>
 
         <section className="card resultCard">
-          <h2>Split result</h2>
-
-          {result && (
-            <>
-              <div className="stats">
-                <div>
-                  <small>Total to split</small>
-                  <strong>{result.total.toFixed(2)}</strong>
+          <h2>Balances</h2>
+          <div className="stats">
+            <div>
+              <small>Total spent</small>
+              <strong>{balances.reduce((sum, balance) => sum + balance.paid, 0).toFixed(2)}</strong>
+            </div>
+            <div>
+              <small>Each share</small>
+              <strong>{(balances.reduce((sum, balance) => sum + balance.paid, 0) / Math.max(balances.length, 1)).toFixed(2)}</strong>
+            </div>
+          </div>
+          {settlements.length === 0 ? (
+            <p className="success">Everything is balanced.</p>
+          ) : (
+            <div className="list">
+              {settlements.map((settlement, index) => (
+                <div className="settlement" key={index}>
+                  <span>{settlement.from}</span>
+                  <strong>→ {settlement.to}</strong>
+                  <em>{settlement.amount.toFixed(2)}</em>
                 </div>
-
-                <div>
-                  <small>Each share</small>
-                  <strong>{result.share.toFixed(2)}</strong>
-                </div>
-              </div>
-
-              {result.settlements.length === 0 ? (
-                <p className="success">Everything is balanced.</p>
-              ) : (
-                <div className="list">
-                  {result.settlements.map((settlement, index) => (
-                    <div className="settlement" key={index}>
-                      <span>{settlement.from}</span>
-                      <strong>→ {settlement.to}</strong>
-                      <em>{settlement.amount.toFixed(2)}</em>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </>
+              ))}
+            </div>
           )}
         </section>
       </div>
 
       <div className="grid">
         <section className="card">
-          <h2>People</h2>
-
-          <form
-            onSubmit={addPerson}
-            className="inlineInput"
-            style={{ marginBottom: 16 }}
-          >
-            <input
-              id="addperson"
-              placeholder="Add person"
-              value={personName}
-              onChange={(e) => setPersonName(e.target.value)}
-            />
-
-            <button className="iconButton">
-              <Plus size={18} />
-            </button>
+          <h2>Participants</h2>
+          <form onSubmit={addPerson} className="inlineInput" style={{ marginBottom: 16 }}>
+            <input placeholder="Add participant" value={personName} onChange={(event) => setPersonName(event.target.value)} />
+            <button className="iconButton" type="submit"><Plus size={18} /></button>
           </form>
-
           <div className="list">
             {group.people.map((person) => {
-              const paid = person.payments.reduce(
-                (sum, payment) => sum + getSplitAmount(payment),
-                0
-              );
-
-              const rawPaid = person.payments.reduce(
-                (sum, payment) => sum + payment.amount,
-                0
-              );
-
-              const excluded = person.payments.reduce(
-                (sum, payment) => sum + (payment.excludedAmount ?? 0),
-                0
-              );
-
-              const balance =
-                result?.balances.find((b) => b.personId === person.id)
-                  ?.balance ?? 0;
+              const amountPaid = group.payments
+                .filter((payment) => payment.personId === person.id)
+                .reduce((sum, payment) => sum + payment.amount, 0);
+              const balance = balances.find((entry) => entry.id === person.id)?.balance ?? 0;
 
               return (
                 <div className="personRow" key={person.id}>
                   <div className="contentRow">
                     <strong>{person.name}</strong>
-
-                    <span className="margin-left-4">
-                      <small>
-                        Split paid {paid.toFixed(2)} · Total paid{" "}
-                        {rawPaid.toFixed(2)}
-                        {excluded > 0 ? ` · Excluded ${excluded.toFixed(2)}` : ""}
-                        {" · Balance "}
-                        {balance.toFixed(2)}
-                      </small>
-                    </span>
+                    <span className="margin-left-4"><small>Spent {amountPaid.toFixed(2)} · Balance {balance.toFixed(2)}</small></span>
                   </div>
-
-                  <button
-                    className="iconButton danger"
-                    onClick={() =>
-                      executeAction(async () =>
-                        setData(await api.deletePerson(slug, person.id))
-                      )
-                    }
-                  >
-                    <Trash2 size={18} />
-                  </button>
                 </div>
               );
             })}
@@ -398,60 +258,29 @@ export const GroupPage = () => {
         </section>
 
         <section className="card">
-          <h2>Payments</h2>
-
+          <h2>Expenses</h2>
           <div className="list">
             {group.payments.length === 0 ? (
-              <p className="muted">No payments yet.</p>
+              <p className="muted">No expenses yet.</p>
             ) : (
               group.payments.map((payment) => {
-                const person = group.people.find(
-                  (p) => p.id === payment.personId
-                );
-
-                const splitAmount = getSplitAmount(payment);
+                const payer = group.people.find((person) => person.id === payment.personId);
+                const participantIds = payment.participantIds ?? [];
+                const splitNames = group.people
+                  .filter((person) => participantIds.includes(person.id))
+                  .map((person) => person.name)
+                  .join(", ");
+                const share = payment.amount / Math.max(participantIds.length || group.people.length, 1);
 
                 return (
-                  <div
-                    className="paymentRow"
-                    key={payment.id}
-                    onClick={() =>
-                      editPayment(
-                        payment.id,
-                        payment.amount,
-                        payment.excludedAmount ?? 0,
-                        payment.note
-                      )
-                    }
-                  >
+                  <div className="paymentRow" key={payment.id}>
                     <div className="contentRow">
-                      <strong>
-                        {person?.name ?? "Unknown"} paid{" "}
-                        {payment.amount.toFixed(2)}
-                      </strong>
-
+                      <strong>{payer?.name ?? "Someone"} paid {payment.amount.toFixed(2)}</strong>
                       <span className="margin-left-4">
-                        <small>
-                          Split amount {splitAmount.toFixed(2)}
-                          {payment.excludedAmount
-                            ? ` · Excluded ${payment.excludedAmount.toFixed(2)}`
-                            : ""}
-                          {payment.note ? ` · ${payment.note}` : " · No note"}
-                          {" · click to edit"}
-                        </small>
+                        <small>{payment.note || "No note"} · Split {splitNames || "everyone"} · {share.toFixed(2)} each</small>
                       </span>
                     </div>
-
-                    <button
-                      className="iconButton danger"
-                      onClick={(event) => {
-                        event.stopPropagation();
-
-                        executeAction(async () =>
-                          setData(await api.deletePayment(slug, payment.id))
-                        );
-                      }}
-                    >
+                    <button className="iconButton danger" onClick={() => executeAction(async () => api.deletePayment(slug, payment.id))}>
                       <Trash2 size={18} />
                     </button>
                   </div>
@@ -461,38 +290,6 @@ export const GroupPage = () => {
           </div>
         </section>
       </div>
-
-      {group.members && group.members.length > 0 && (
-        <section className="card">
-          <h2>Members</h2>
-
-          <div className="list">
-            {group.members.map((member) => (
-              <div className="groupRow" key={member.id}>
-                <span>{member.username ?? member.userId}</span>
-                <small>{member.role}</small>
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
-
-      <section className="card">
-        <h2>History</h2>
-
-        <button className="secondaryButton compact refresh" onClick={reload}>
-          Refresh
-        </button>
-
-        <div className="timeline">
-          {group.history.map((item) => (
-            <div className="historyItem" key={item.id}>
-              <strong>{item.message}</strong>
-              <small>{new Date(item.createdAt).toLocaleString()}</small>
-            </div>
-          ))}
-        </div>
-      </section>
     </main>
   );
 };

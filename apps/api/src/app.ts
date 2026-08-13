@@ -29,8 +29,14 @@ app.use(express.json());
 
 const createGroupSchema = z.object({
   name: z.string().min(1).max(80),
+  password: z.string().min(1).max(80),
   people: z.array(z.string().min(1).max(60)).min(1),
   accessType: z.enum(["ANONYMOUS_ONLY", "REGISTERED_ONLY", "MIXED"]).default("ANONYMOUS_ONLY")
+});
+
+const joinGroupSchema = z.object({
+  name: z.string().min(1).max(80),
+  password: z.string().min(1).max(80)
 });
 
 const addPersonSchema = z.object({
@@ -38,10 +44,11 @@ const addPersonSchema = z.object({
 });
 
 const addPaymentSchema = z.object({
-  personId: z.string().uuid(),
+  personId: z.string().min(1),
   amount: z.number().positive(),
   excludedAmount: z.number().min(0).optional(),
-  note: z.string().max(200).optional()
+  note: z.string().max(200).optional(),
+  participantIds: z.array(z.string().min(1)).optional()
 });
 
 const patchPaymentSchema = z.object({
@@ -105,12 +112,13 @@ function serializePayment(payment: any) {
 }
 
 const serializeGroup = (group: any, currentUser?: AuthUser | null) => {
+  const { passwordHash, ...restGroup } = group;
   const currentMembership = currentUser
     ? group.members?.find((member: any) => member.userId === currentUser.id)
     : null;
 
   return {
-    ...group,
+    ...restGroup,
     currentUserRole: currentMembership?.role ?? null,
     payments: group.payments?.map(serializePayment) ?? [],
     people: group.people?.map((person: any) => ({
@@ -292,6 +300,12 @@ app.post("/groups", async (req, res, next) => {
       return res.status(401).json({ error: "You must login to create a registered-only group" });
     }
 
+    const existing = await prisma.group.findFirst({ where: { name: { equals: body.name.trim(), mode: "insensitive" } } });
+    if (existing) {
+      return res.status(409).json({ error: "A group with that name already exists" });
+    }
+
+    const passwordHash = await bcrypt.hash(body.password.trim(), 12);
     const uniquePeople = [...new Set(body.people.map((name) => name.trim()).filter(Boolean))];
 
     const group = await prisma.group.create({
@@ -299,6 +313,7 @@ app.post("/groups", async (req, res, next) => {
         name: body.name.trim(),
         slug: nanoid(12),
         accessType: body.accessType,
+        passwordHash,
         ownerUserId: currentUser?.id ?? null,
         members: currentUser
           ? { create: { userId: currentUser.id, role: "OWNER" } }
@@ -321,6 +336,35 @@ app.post("/groups", async (req, res, next) => {
     });
 
     res.status(201).json(serializeGroup(group, currentUser));
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.post("/groups/join", async (req, res, next) => {
+  try {
+    const body = joinGroupSchema.parse(req.body);
+    const currentUser = getUserFromRequest(req);
+
+    const group = await prisma.group.findFirst({ where: { name: { equals: body.name.trim(), mode: "insensitive" } } });
+    if (!group) return res.status(404).json({ error: "Group not found" });
+
+    const passwordHash = (group as { passwordHash?: string }).passwordHash ?? "";
+    const validPassword = await bcrypt.compare(body.password, passwordHash);
+    if (!validPassword) {
+      return res.status(401).json({ error: "Invalid password" });
+    }
+
+    if (currentUser) {
+      await prisma.groupMember.upsert({
+        where: { groupId_userId: { groupId: group.id, userId: currentUser.id } },
+        update: {},
+        create: { groupId: group.id, userId: currentUser.id, role: "MEMBER" }
+      });
+    }
+
+    const refreshed = await getGroupBySlug(group.slug);
+    res.json(serializeGroup(refreshed, currentUser));
   } catch (error) {
     next(error);
   }
@@ -389,6 +433,17 @@ app.post("/groups/:slug/people", async (req, res, next) => {
 
     const access = await ensureCanEditGroup(group, req);
     if (!access.allowed) return res.status(access.status).json({ error: access.error });
+
+    const existingPerson = await prisma.person.findFirst({
+      where: {
+        groupId: group.id,
+        name: { equals: body.name.trim(), mode: "insensitive" }
+      }
+    });
+
+    if (existingPerson) {
+      return res.status(409).json({ error: "A participant with that name already exists in this group" });
+    }
 
     await prisma.person.create({ data: { name: body.name.trim(), groupId: group.id } });
     await prisma.history.create({ data: { groupId: group.id, action: "CREATE", entity: "PERSON", message: `${body.name.trim()} was added` } });
@@ -466,22 +521,28 @@ app.post("/groups/:slug/payments", async (req, res, next) => {
     if (!person) return res.status(404).json({ error: "Person not found" });
 
     const excludedAmount = body.excludedAmount ?? 0;
+    const validParticipantIds = (body.participantIds ?? []).filter(Boolean);
+    const allParticipantIds = await prisma.person.findMany({ where: { groupId: group.id }, select: { id: true } });
+    const participantIds = validParticipantIds.length > 0
+      ? validParticipantIds.filter((participantId) => allParticipantIds.some((entry) => entry.id === participantId))
+      : allParticipantIds.map((entry) => entry.id);
 
-if (excludedAmount > body.amount) {
-  return res.status(400).json({
-    error: "Excluded amount cannot be bigger than payment amount"
-  });
-}
-
-  const payment = await prisma.payment.create({
-    data: {
-      groupId: group.id,
-      personId: person.id,
-      amount: body.amount,
-      excludedAmount,
-      note: body.note
+    if (excludedAmount > body.amount) {
+      return res.status(400).json({
+        error: "Excluded amount cannot be bigger than payment amount"
+      });
     }
-  });
+
+    const payment = await prisma.payment.create({
+      data: {
+        groupId: group.id,
+        personId: person.id,
+        amount: body.amount,
+        excludedAmount,
+        note: body.note,
+        participantIds
+      }
+    });
     await prisma.history.create({ data: { groupId: group.id, action: "CREATE", entity: "PAYMENT", entityId: payment.id, message: `${person.name} added ${body.amount.toFixed(2)} (${excludedAmount.toFixed(2)} excluded)`, newValue: String(body.amount) } });
 
     const updated = await getGroupBySlug(req.params.slug);

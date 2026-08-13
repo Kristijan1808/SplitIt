@@ -5,6 +5,7 @@ import type {
   CreateGroupRequest,
   Group,
   HistoryItem,
+  JoinGroupRequest,
   LoginRequest,
   PatchPaymentRequest,
   RegisterRequest,
@@ -52,6 +53,11 @@ export const api = {
       method: "POST",
       body: JSON.stringify(body)
     }),
+
+  joinGroup: (body: JoinGroupRequest) => request<Group>("/groups/join", {
+    method: "POST",
+    body: JSON.stringify(body)
+  }),
 
   getGroup: (slug: string) => request<Group>(`/groups/${slug}`),
 

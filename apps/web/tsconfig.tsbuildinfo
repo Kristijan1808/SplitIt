@@ -1,0 +1,1 @@
+{"root":["./src/api.ts","./src/auth.ts","./src/hooks.ts","./src/main.tsx","./src/storage.test.ts","./src/storage.ts","./src/theme.ts","./src/vite-env.d.ts","./src/components/themetoggle.tsx","./src/pages/creategrouppage.tsx","./src/pages/grouppage.old.tsx","./src/pages/grouppage.tsx","./src/pages/homepage.tsx","./src/pages/loginpage.tsx"],"version":"5.9.3"}

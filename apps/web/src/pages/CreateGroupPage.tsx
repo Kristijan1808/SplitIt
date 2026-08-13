@@ -1,18 +1,15 @@
 import { FormEvent, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { ArrowLeft, Plus, Trash2 } from "lucide-react";
-import type { GroupAccessType } from "@splitit/shared";
-import { api } from "../api";
-import { isLoggedIn } from "../auth";
+import { ArrowLeft, Plus } from "lucide-react";
 import { ThemeToggle } from "../components/ThemeToggle";
+import { createGroup } from "../storage";
 
 export function CreateGroupPage() {
   const navigate = useNavigate();
   const [name, setName] = useState("Weekend trip");
+  const [password, setPassword] = useState("");
   const [people, setPeople] = useState([""]);
-  const [accessType, setAccessType] = useState<GroupAccessType>("ANONYMOUS_ONLY");
   const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
 
   function updatePerson(index: number, value: string) {
     setPeople((current) => current.map((person, i) => (i === index ? value : person)));
@@ -22,34 +19,19 @@ export function CreateGroupPage() {
     setPeople((current) => current.filter((_, i) => i !== index));
   }
 
-  async function submit(event: FormEvent) {
+  function submit(event: FormEvent) {
     event.preventDefault();
-    setLoading(true);
     setError("");
 
     try {
-      if (accessType === "REGISTERED_ONLY" && !isLoggedIn()) {
-        navigate(`/login?redirect=${encodeURIComponent("/new")}`);
-        return;
-      }
-
-      const group = await api.createGroup({
+      const group = createGroup({
         name,
-        accessType,
-        people: people.map((p) => p.trim()).filter(Boolean)
+        password,
+        participants: people
       });
-
-      const recent = JSON.parse(localStorage.getItem("splitit:groups") ?? "[]");
-      localStorage.setItem(
-        "splitit:groups",
-        JSON.stringify([{ slug: group.slug, name: group.name }, ...recent].slice(0, 20))
-      );
-
       navigate(`/g/${group.slug}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not create group");
-    } finally {
-      setLoading(false);
     }
   }
 
@@ -64,83 +46,46 @@ export function CreateGroupPage() {
 
       <section className="card">
         <h1>Create group</h1>
-        <p className="muted">Add names now. You can add payments and more people later.</p>
+        <p className="muted">Choose a unique name, set a password, and add participants.</p>
 
         <form onSubmit={submit} className="form">
           <label>
             Group name
-            <input value={name} onChange={(e) => setName(e.target.value)} required />
+            <input value={name} onChange={(event) => setName(event.target.value)} required />
+          </label>
+
+          <label>
+            Password
+            <input type="password" value={password} onChange={(event) => setPassword(event.target.value)} required />
           </label>
 
           <div>
-            <label>Group access</label>
-            <div className="accessOptions">
-              <label className={`accessOption ${accessType === "ANONYMOUS_ONLY" ? "selected" : ""}`}>
-                <input
-                  type="radio"
-                  name="accessType"
-                  value="ANONYMOUS_ONLY"
-                  checked={accessType === "ANONYMOUS_ONLY"}
-                  onChange={() => setAccessType("ANONYMOUS_ONLY")}
-                />
-                <strong>Full anonymous</strong>
-                <small>Anyone with the link can open and edit. No login needed.</small>
-              </label>
-
-              <label className={`accessOption ${accessType === "REGISTERED_ONLY" ? "selected" : ""}`}>
-                <input
-                  type="radio"
-                  name="accessType"
-                  value="REGISTERED_ONLY"
-                  checked={accessType === "REGISTERED_ONLY"}
-                  onChange={() => setAccessType("REGISTERED_ONLY")}
-                />
-                <strong>Registered users only</strong>
-                <small>Opening the link requires login. Logged-in users are added as group members.</small>
-              </label>
-
-              <label className={`accessOption ${accessType === "MIXED" ? "selected" : ""}`}>
-                <input
-                  type="radio"
-                  name="accessType"
-                  value="MIXED"
-                  checked={accessType === "MIXED"}
-                  onChange={() => setAccessType("MIXED")}
-                />
-                <strong>Both</strong>
-                <small>Anonymous link access stays enabled, and logged-in users are saved as members.</small>
-              </label>
-            </div>
-          </div>
-
-          <div>
-            <label>People</label>
+            <label>Participants</label>
             <div className="peopleInputs">
               {people.map((person, index) => (
                 <div className="inlineInput" key={index}>
                   <input
-                    placeholder={`Person ${index + 1}`}
+                    placeholder={`Participant ${index + 1}`}
                     value={person}
-                    onChange={(e) => updatePerson(index, e.target.value)}
-                    required={index === 0}
+                    onChange={(event) => updatePerson(index, event.target.value)}
                   />
                   {people.length > 1 && (
                     <button type="button" className="iconButton" onClick={() => removePerson(index)}>
-                      <Trash2 size={18} />
+                      ×
                     </button>
                   )}
                 </div>
               ))}
             </div>
             <button type="button" className="secondaryButton" onClick={() => setPeople([...people, ""])}>
-              <Plus size={18} /> Add person
+              <Plus size={18} /> Add participant
             </button>
           </div>
 
           {error && <p className="error">{error}</p>}
 
-          <button className="primaryButton" disabled={loading}>
-            {loading ? "Creating..." : "Create group"}
+          <button className="primaryButton" type="submit">
+            Create group
           </button>
         </form>
       </section>

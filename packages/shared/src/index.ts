@@ -37,6 +37,7 @@ export type Payment = {
   amount: number;
   excludedAmount: number;
   note?: string | null;
+  participantIds?: string[];
   personId: ID;
   groupId: ID;
   createdAt: string;
@@ -81,8 +82,14 @@ export type Group = {
 
 export type CreateGroupRequest = {
   name: string;
+  password: string;
   people: string[];
   accessType: GroupAccessType;
+};
+
+export type JoinGroupRequest = {
+  name: string;
+  password: string;
 };
 
 export type AddPersonRequest = { name: string };
@@ -92,6 +99,7 @@ export type AddPaymentRequest = {
   amount: number;
   excludedAmount?: number;
   note?: string;
+  participantIds?: string[];
 };
 
 export type PatchPaymentRequest = {
