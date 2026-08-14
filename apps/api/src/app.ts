@@ -15,6 +15,7 @@ const WEB_ORIGIN = process.env.WEB_ORIGIN ?? "http://localhost:5173";
 const JWT_SECRET = process.env.JWT_SECRET ?? "dev-secret-change-me";
 
 const allowedOrigins = [
+  "*",
   "http://localhost:5173",
   WEB_ORIGIN
 ].filter(Boolean);
