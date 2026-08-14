@@ -298,7 +298,6 @@ h2 {
 }
 
 .primaryButton:hover,
-.secondaryButton:hover,
 .iconButton:hover {
   transform: translateY(-2px);
 }
@@ -324,9 +323,6 @@ h2 {
 .secondaryButton {
   padding: 12px 16px;
 
-  /* background: */
-    /* rgba(255, 255, 255, 0.68) */
-
   color: var(--green-900);
 
   border: 1px solid rgba(15, 61, 46, 0.08);
@@ -334,8 +330,10 @@ h2 {
   backdrop-filter: blur(14px);
 }
 
-.secondaryButton:hover {
-  background: white;
+.themeToggle:hover {
+  transform: none;
+  background: transparent;
+  box-shadow: none;
 }
 
 .secondaryButton.compact {
@@ -679,6 +677,15 @@ body {
 
 .themeToggle {
   width: auto;
+  min-height: 32px;
+  padding: 6px 10px;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
 }
 
 a {

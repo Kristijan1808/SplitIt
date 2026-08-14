@@ -714,6 +714,11 @@ body {
 
 .themeToggle {
   width: auto;
+  min-height: 36px;
+  padding: 8px 12px;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 700;
 }
 
 a {
