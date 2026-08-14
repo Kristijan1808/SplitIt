@@ -10,14 +10,12 @@ export function ThemeToggle() {
   }, [theme]);
 
   return (
-    <button
-      className="secondaryButton themeToggle"
-      type="button"
+    <span
       onClick={() => setTheme(theme === "light" ? "dark" : "light")}
       aria-label={theme === "light" ? "Switch to dark mode" : "Switch to light mode"}
     >
       {theme === "light" ? <SunMedium size={16} /> : <MoonStar size={16} />}
-      <span>{theme === "light" ? "Light" : "Dark"}</span>
-    </button>
+      <span style={{ marginLeft: 4 }}>{theme === "light" ? "Light" : "Dark"}</span>
+    </span>
   );
 }

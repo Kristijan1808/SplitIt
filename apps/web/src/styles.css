@@ -496,6 +496,87 @@ select:focus {
   align-items: center;
 }
 
+.toggleRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 600;
+}
+
+.toggleRow input {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+}
+
+.groupMetaRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.groupMetaRow .muted {
+  margin: 0;
+}
+
+.participantsToggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 0;
+  background: transparent;
+  color: var(--green-900);
+  font-weight: 700;
+  cursor: pointer;
+  padding: 0;
+}
+
+.participantsOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(8, 28, 21, 0.5);
+  backdrop-filter: blur(8px);
+}
+
+.participantsCard {
+  position: relative;
+  width: min(460px, 100%);
+  margin: 0;
+  box-shadow: 0 22px 50px rgba(15, 61, 46, 0.18);
+  z-index: 1;
+}
+
+.participantsHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.participantsHeader h3 {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.sectionHeaderWithButton {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.compactButton {
+  padding: 10px 14px;
+  font-size: 14px;
+}
+
 .muted,
 small {
   color: var(--gray);

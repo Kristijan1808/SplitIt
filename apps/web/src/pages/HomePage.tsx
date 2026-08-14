@@ -33,7 +33,7 @@ export function HomePage() {
         </div>
       </section>
 
-      <div style={{ display: "grid", gap: 12, marginTop: 0 }}>
+      <div style={{ display: "grid", gap: 12, marginTop: 100 }}>
         <Link to="/new" className="primaryButton" style={{ width: "100%", justifyContent: "center" }}>
           <Plus size={18} /> Create group
         </Link>

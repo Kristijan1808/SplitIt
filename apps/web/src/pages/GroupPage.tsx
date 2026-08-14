@@ -1,6 +1,6 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, Copy, Lock, Plus } from "lucide-react";
+import { ArrowLeft, Copy, Lock, Plus, Users } from "lucide-react";
 import { ThemeToggle } from "../components/ThemeToggle";
 import { api } from "../api";
 import { calculateSettlements } from "@splitit/shared";
@@ -11,12 +11,7 @@ export const GroupPage = () => {
   const { slug = "" } = useParams();
   const [group, setGroup] = useState<Group | null>(null);
   const [personName, setPersonName] = useState("");
-  const [paymentPersonId, setPaymentPersonId] = useState("");
-  const [amount, setAmount] = useState("");
-  const [note, setNote] = useState("");
-  const [selectedParticipants, setSelectedParticipants] = useState<string[]>([]);
-  const [multiplePayers, setMultiplePayers] = useState(false);
-  const [payerAmounts, setPayerAmounts] = useState<Record<string, string>>({});
+  const [showParticipants, setShowParticipants] = useState(false);
   const [actionError, setActionError] = useState("");
   const [saving, setSaving] = useState(false);
 
@@ -25,8 +20,6 @@ export const GroupPage = () => {
       try {
         const currentGroup = await api.getGroup(slug);
         setGroup(currentGroup);
-        setPaymentPersonId(currentGroup.people[0]?.id ?? "");
-        setSelectedParticipants(currentGroup.people.map((person) => person.id));
       } catch {
         navigate("/");
       }
@@ -65,10 +58,7 @@ export const GroupPage = () => {
 
   const setGroupState = (nextGroup: Group) => {
     setGroup(nextGroup);
-    setPaymentPersonId(nextGroup.people[0]?.id ?? "");
-    setSelectedParticipants(nextGroup.people.map((person) => person.id));
-    setPayerAmounts({});
-    setMultiplePayers(false);
+    setPersonName("");
   };
 
   const executeAction = async (callback: () => Promise<Group>) => {
@@ -92,61 +82,9 @@ export const GroupPage = () => {
     await executeAction(async () => {
       const nextGroup = await api.addPerson(slug, { name: personName });
       setPersonName("");
+      setShowParticipants(true);
       return nextGroup;
     });
-  };
-
-  const addPayment = async (event: FormEvent) => {
-    event.preventDefault();
-
-    if (!group || group.locked) return;
-
-    const total = multiplePayers
-      ? Object.values(payerAmounts).reduce((sum, value) => sum + Number(value || 0), 0)
-      : Number(amount || 0);
-
-    if (!total || total <= 0) {
-      setActionError("Amount must be greater than zero.");
-      return;
-    }
-
-    await executeAction(async () => {
-      const payload = multiplePayers
-        ? {
-            note,
-            payerAmounts: group.people
-              .filter((person) => Object.prototype.hasOwnProperty.call(payerAmounts, person.id))
-              .map((person) => ({
-                personId: person.id,
-                amount: Number(payerAmounts[person.id] || 0)
-              }))
-              .filter((entry) => entry.amount > 0),
-            participantIds: selectedParticipants
-          }
-        : {
-            amount: total,
-            note,
-            personId: paymentPersonId,
-            participantIds: selectedParticipants
-          };
-
-      const nextGroup = await api.addPayment(slug, payload as any);
-      setAmount("");
-      setNote("");
-      setSelectedParticipants(nextGroup.people.map((person) => person.id));
-      setPaymentPersonId(nextGroup.people[0]?.id ?? "");
-      setPayerAmounts({});
-      setMultiplePayers(false);
-      return nextGroup;
-    });
-  };
-
-  const toggleParticipant = (participantId: string) => {
-    setSelectedParticipants((current) =>
-      current.includes(participantId)
-        ? current.filter((id) => id !== participantId)
-        : [...current, participantId]
-    );
   };
 
   const toggleLock = async () => {
@@ -161,11 +99,6 @@ export const GroupPage = () => {
       setSaving(false);
     }
   };
-
-  const selectedParticipantNames = (group?.people ?? [])
-    .filter((person) => selectedParticipants.includes(person.id))
-    .map((person) => person.name)
-    .join(", ");
 
   if (!group) {
     return null;
@@ -188,7 +121,13 @@ export const GroupPage = () => {
         <div>
           <p className="eyebrow">Code: {group.code}</p>
           <h1>{group.name}</h1>
-          <p className="muted">{group.locked ? "Group is locked. No changes can be made." : "Shared with anyone who knows the code and password."}</p>
+          <div className="groupMetaRow">
+            <p className="muted">{group.locked ? "Group is locked. No changes can be made." : "Shared with anyone who knows the code and password."}</p>
+            <button type="button" className="participantsToggle" onClick={() => setShowParticipants((current) => !current)}>
+              <Users size={16} />
+              <span>Participants</span>
+            </button>
+          </div>
         </div>
         <div className="headerActions">
           <button
@@ -203,78 +142,40 @@ export const GroupPage = () => {
         </div>
       </section>
 
+      {showParticipants && (
+        <div className="participantsOverlay" onClick={() => setShowParticipants(false)}>
+          <section className="card participantsCard" onClick={(event) => event.stopPropagation()}>
+            <div className="participantsHeader">
+              <h3>Participants</h3>
+              <button type="button" className="iconButton" onClick={() => setShowParticipants(false)} aria-label="Close participants">×</button>
+            </div>
+            <div className="list">
+              {group.people.map((person) => (
+                <div className="personRow" key={person.id}>
+                  <strong>{person.name}</strong>
+                  <small>{person.payments.length} expense{person.payments.length === 1 ? "" : "s"}</small>
+                </div>
+              ))}
+            </div>
+            <form onSubmit={addPerson} className="inlineInput" style={{ marginTop: 16 }}>
+              <input placeholder="Add participant" value={personName} onChange={(event) => setPersonName(event.target.value)} disabled={group.locked} />
+              <button className="iconButton" type="submit" disabled={group.locked}><Plus size={18} /></button>
+            </form>
+          </section>
+        </div>
+      )}
+
       <div className="grid">
         <section className="card">
-          <h2>Add expense</h2>
-          <form className="form" onSubmit={addPayment}>
-            <label className="toggleRow">
-              <input type="checkbox" checked={multiplePayers} onChange={() => setMultiplePayers((current) => !current)} disabled={group.locked} />
-              Multiple payers
-            </label>
-
-            {!multiplePayers ? (
-              <>
-                <label>
-                  Paid by
-                  <select value={paymentPersonId} onChange={(event) => setPaymentPersonId(event.target.value)} disabled={group.locked}>
-                    {group.people.map((person) => (
-                      <option key={person.id} value={person.id}>{person.name}</option>
-                    ))}
-                  </select>
-                </label>
-
-                <label>
-                  Amount
-                  <input type="number" min="0.01" step="0.01" value={amount} onChange={(event) => setAmount(event.target.value)} required disabled={group.locked} />
-                </label>
-              </>
-            ) : (
-              <div className="peopleInputs payerInputs">
-                {group.people.map((person) => (
-                  <label key={person.id} className="payerInput">
-                    <span>{person.name}</span>
-                    <input
-                      type="number"
-                      min="0.01"
-                      step="0.01"
-                      value={payerAmounts[person.id] ?? ""}
-                      onChange={(event) => setPayerAmounts((current) => ({ ...current, [person.id]: event.target.value }))}
-                      placeholder="0.00"
-                      disabled={group.locked}
-                    />
-                  </label>
-                ))}
-              </div>
-            )}
-
-            <label>
-              Note
-              <input value={note} onChange={(event) => setNote(event.target.value)} placeholder="Dinner, groceries..." disabled={group.locked} />
-            </label>
-
-            <div>
-              <label>Split equally</label>
-              <div className="peopleInputs checkboxList">
-                {group.people.map((person) => (
-                  <label key={person.id} className="accessOption">
-                    <input
-                      type="checkbox"
-                      checked={selectedParticipants.includes(person.id)}
-                      onChange={() => toggleParticipant(person.id)}
-                      disabled={group.locked}
-                    />
-                    <strong>{person.name}</strong>
-                  </label>
-                ))}
-              </div>
-              <p className="muted">Choose who participated. Equal split is applied across the selected participants.</p>
-              <p className="muted">Selected: {selectedParticipantNames || "No one"}</p>
-            </div>
-
-            <button className="primaryButton" type="submit" disabled={group.locked}>
+          <div className="sectionHeaderWithButton">
+            <h2>Summary</h2>
+            <Link className="primaryButton compactButton" to={`/g/${slug}/add-expense`}>
               <Plus size={18} /> Add expense
-            </button>
-          </form>
+            </Link>
+          </div>
+          <div className="summaryHint">
+            <p className="muted">Track payments, balances, and who owes what.</p>
+          </div>
         </section>
 
         <section className="card resultCard">

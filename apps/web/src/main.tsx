@@ -7,6 +7,7 @@ import { CreateGroupPage } from "./pages/CreateGroupPage";
 import { JoinGroupPage } from "./pages/JoinGroupPage";
 import { MyGroupsPage } from "./pages/MyGroupsPage";
 import { GroupPage } from "./pages/GroupPage";
+import { GroupAddExpensePage } from "./pages/GroupAddExpensePage";
 
 const App = () => (
   <BrowserRouter>
@@ -16,6 +17,7 @@ const App = () => (
       <Route path="/join" element={<JoinGroupPage />} />
       <Route path="/my-groups" element={<MyGroupsPage />} />
       <Route path="/g/:slug" element={<GroupPage />} />
+      <Route path="/g/:slug/add-expense" element={<GroupAddExpensePage />} />
     </Routes>
   </BrowserRouter>
 );
