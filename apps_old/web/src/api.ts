@@ -2,7 +2,9 @@ import type {
   AddPaymentRequest,
   AddPersonRequest,
   AuthResponse,
+  CreateDraftExpenseRequest,
   CreateGroupRequest,
+  ExpenseDraft,
   Group,
   HistoryItem,
   JoinGroupRequest,
@@ -10,57 +12,9 @@ import type {
   PatchPaymentRequest,
   RegisterRequest,
   SettlementResult,
+  UpdateDraftExpenseItemRequest
 } from "@splitit/shared";
 import { getAuthToken } from "./auth";
-
-
-type DraftItemShareRequest = {
-  personId: string;
-  amount?: number;
-};
-
-export type CreateDraftExpenseRequest = {
-  note?: string;
-  payers: Array<{ personId: string; amount: number }>;
-  items: Array<{
-    name: string;
-    price: number;
-    shares: DraftItemShareRequest[];
-  }>;
-};
-
-export type UpdateDraftExpenseItemRequest = {
-  shares: DraftItemShareRequest[];
-};
-
-export type DraftExpenseItemShare = {
-  id: string;
-  itemId: string;
-  personId: string;
-  amount: number;
-  createdAt?: string;
-  updatedAt?: string;
-};
-
-export type DraftExpenseItem = {
-  id: string;
-  draftId: string;
-  name: string;
-  price: number;
-  createdAt?: string;
-  updatedAt?: string;
-  shares: DraftExpenseItemShare[];
-};
-
-export type DraftExpense = {
-  id: string;
-  groupId: string;
-  note?: string | null;
-  createdAt: string;
-  updatedAt?: string;
-  payers: Array<{ id: string; draftId: string; personId: string; amount: number }>;
-  items: DraftExpenseItem[];
-};
 
 const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:4000";
 
@@ -144,22 +98,22 @@ export const api = {
       body: JSON.stringify(body)
     }),
 
-  getDraftExpenses: (slug: string) => request<DraftExpense[]>(`/groups/${slug}/draft-expenses`),
+  getDraftExpenses: (slug: string) => request<ExpenseDraft[]>(`/groups/${slug}/draft-expenses`),
 
   createDraftExpense: (slug: string, body: CreateDraftExpenseRequest) =>
-    request<DraftExpense>(`/groups/${slug}/draft-expenses`, {
+    request<ExpenseDraft>(`/groups/${slug}/draft-expenses`, {
       method: "POST",
       body: JSON.stringify(body)
     }),
 
   updateDraftExpenseItem: (slug: string, draftId: string, itemId: string, body: UpdateDraftExpenseItemRequest) =>
-    request<DraftExpense>(`/groups/${slug}/draft-expenses/${draftId}/items/${itemId}`, {
+    request<ExpenseDraft>(`/groups/${slug}/draft-expenses/${draftId}/items/${itemId}`, {
       method: "PATCH",
       body: JSON.stringify(body)
     }),
 
   confirmDraftExpense: (slug: string, draftId: string) =>
-    request<{ expense: any; group: Group }>(`/groups/${slug}/draft-expenses/${draftId}/confirm`, {
+    request<Group>(`/groups/${slug}/draft-expenses/${draftId}/confirm`, {
       method: "POST"
     }),
 

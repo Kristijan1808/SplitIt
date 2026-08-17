@@ -1,9 +1,10 @@
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { ArrowLeft, Copy, Lock, Plus, Users } from "lucide-react";
 import { ThemeToggle } from "../components/ThemeToggle";
 import { api } from "../api";
 import { useLanguage } from "../i18n";
+import { calculateSettlements } from "@splitit/shared";
 import type { Group } from "@splitit/shared";
 
 type DraftBill = {
@@ -11,12 +12,7 @@ type DraftBill = {
   note?: string | null;
   createdAt: string;
   payers: Array<{ id: string; personId: string; amount: number }>;
-  items: Array<{
-    id: string;
-    name: string;
-    price: number;
-    shares: Array<{ id: string; itemId: string; personId: string; amount: number }>;
-  }>;
+  items: Array<{ id: string; name: string; price: number; assignedPersonId?: string | null }>;
 };
 
 const getStoredGroupParticipantId = (slug: string) => {
@@ -43,9 +39,6 @@ export const GroupPage = () => {
   const [drafts, setDrafts] = useState<DraftBill[]>([]);
   const [actionError, setActionError] = useState("");
   const [saving, setSaving] = useState(false);
-  const [settlementData, setSettlementData] = useState<any>({ balances: [], settlements: [] });
-  const [expandedDrafts, setExpandedDrafts] = useState<Set<string>>(new Set());
-  const [expandedExpenses, setExpandedExpenses] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     const load = async () => {
@@ -78,9 +71,9 @@ export const GroupPage = () => {
             ...draft,
             items: draft.items.map((item) => ({
               ...item,
-              shares: item.shares ?? []
+              assignedPersonId: item.assignedPersonId ?? null
             }))
-          }))
+          })) as unknown as DraftBill[]
         );
       } catch {
         setDrafts([]);
@@ -90,19 +83,33 @@ export const GroupPage = () => {
     void loadDrafts();
   }, [slug]);
 
-  useEffect(() => {
-    const loadSettlements = async () => {
-      try {
-        setSettlementData(await api.getSettlements(slug));
-      } catch {
-        setSettlementData({ balances: [], settlements: [] });
-      }
-    };
-    if (group) void loadSettlements();
-  }, [group, slug]);
+  const balances = useMemo(() => {
+    if (!group) return [];
 
-  const balances = settlementData.balances ?? [];
-  const settlements = settlementData.settlements ?? [];
+    const entries = group.people.map((person) => ({
+      id: person.id,
+      name: person.name,
+      paid: person.payments.reduce((sum, payment) => sum + payment.amount, 0),
+      balance: 0
+    }));
+
+    const totalPaid = entries.reduce((sum, entry) => sum + entry.paid, 0);
+    const share = totalPaid / Math.max(entries.length, 1);
+
+    return entries.map((entry) => ({ ...entry, balance: Number((entry.paid - share).toFixed(2)) }));
+  }, [group]);
+
+  const settlements = useMemo(() => {
+    if (!group) return [];
+
+    return calculateSettlements(
+      group.people.map((person) => ({
+        id: person.id,
+        name: person.name,
+        paid: person.payments.reduce((sum, payment) => sum + payment.amount, 0)
+      }))
+    ).settlements;
+  }, [group]);
 
   const setGroupState = (nextGroup: Group) => {
     setGroup(nextGroup);
@@ -122,92 +129,7 @@ export const GroupPage = () => {
   const currentParticipantId = getStoredGroupParticipantId(slug);
   const currentParticipant = group?.people.find((person) => person.id === currentParticipantId);
 
-  const updateDraftShares = async (
-    draftId: string,
-    itemId: string,
-    personIds: string[]
-  ) => {
-    const uniquePersonIds = [...new Set(personIds)];
-    const draft = drafts.find((entry) => entry.id === draftId);
-    const item = draft?.items.find((entry) => entry.id === itemId);
-
-    if (!item) return;
-
-    const shares = uniquePersonIds.map((personId) => ({ personId }));
-
-    // Optimistic UI update. The backend calculates equal amounts when
-    // share amounts are omitted.
-    setDrafts((current) =>
-      current.map((entry) =>
-        entry.id !== draftId
-          ? entry
-          : {
-              ...entry,
-              items: entry.items.map((currentItem) =>
-                currentItem.id !== itemId
-                  ? currentItem
-                  : {
-                      ...currentItem,
-                      shares: uniquePersonIds.map((personId, index) => ({
-                        id: `pending-${itemId}-${personId}`,
-                        itemId,
-                        personId,
-                        amount:
-                          Number(item.price) /
-                          Math.max(uniquePersonIds.length, 1)
-                      }))
-                    }
-              )
-            }
-      )
-    );
-
-    try {
-      setActionError("");
-      setSaving(true);
-
-      const nextDraft = await api.updateDraftExpenseItem(
-        slug,
-        draftId,
-        itemId,
-        { shares }
-      );
-
-      setDrafts((current) =>
-        current.map((entry) =>
-          entry.id === draftId
-            ? {
-                ...nextDraft,
-                items: nextDraft.items.map((nextItem) => ({
-                  ...nextItem,
-                  shares: nextItem.shares ?? []
-                }))
-              }
-            : entry
-        )
-      );
-    } catch (error) {
-      try {
-        const serverDrafts = await api.getDraftExpenses(slug);
-        setDrafts(serverDrafts);
-      } catch {
-        // Keep the optimistic state if recovery fails.
-      }
-
-      setActionError(
-        error instanceof Error
-          ? error.message
-          : t("somethingWentWrong")
-      );
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const assignDraftItemToCurrentParticipant = async (
-    draftId: string,
-    itemId: string
-  ) => {
+  const assignDraftItemToCurrentParticipant = async (draftId: string, itemId: string) => {
     if (!currentParticipantId) {
       setSearchParams((current) => {
         const next = new URLSearchParams(current);
@@ -218,17 +140,106 @@ export const GroupPage = () => {
       return;
     }
 
-    const draft = drafts.find((entry) => entry.id === draftId);
-    const item = draft?.items.find((entry) => entry.id === itemId);
+    await updateDraftAssignment(draftId, itemId, currentParticipantId);
+  };
 
-    if (!item) return;
+  const updateDraftAssignment = async (draftId: string, itemId: string, personId: string) => {
+    const assignedPersonId = personId || null;
 
-    const currentIds = item.shares.map((share) => share.personId);
-    const nextIds = currentIds.includes(currentParticipantId)
-      ? currentIds
-      : [...currentIds, currentParticipantId];
+    // Update the item locally first so the select immediately reflects the
+    // participant the user selected. Do not replace/reorder the whole draft
+    // with the API response.
+    setDrafts((current) =>
+      current.map((draft) =>
+        draft.id !== draftId
+          ? draft
+          : {
+              ...draft,
+              items: draft.items.map((item) =>
+                item.id === itemId ? { ...item, assignedPersonId } : item
+              )
+            }
+      )
+    );
 
-    await updateDraftShares(draftId, itemId, nextIds);
+    try {
+      const nextDraft = await api.updateDraftExpenseItem(slug, draftId, itemId, {
+        assignedPersonId
+      });
+
+      // Keep the existing draft/item order and merge only the server value
+      // for the item that was changed. This prevents the response from
+      // resetting assignments or making the list appear to reorder.
+      setDrafts((current) =>
+        current.map((draft) => {
+          if (draft.id !== draftId) return draft;
+
+          const serverItem = nextDraft.items?.find((item) => item.id === itemId);
+          const serverAssignedPersonId =
+            serverItem?.assignedPersonId ?? assignedPersonId;
+
+          return {
+            ...draft,
+            items: draft.items.map((item) =>
+              item.id === itemId
+                ? { ...item, assignedPersonId: serverAssignedPersonId }
+                : item
+            )
+          };
+        })
+      );
+
+      // Verify the persisted value from the database. If the backend/database
+      // did not persist the assignment, restore the actual server state and
+      // show the user the error instead of silently losing the assignment.
+      const persistedDrafts = await api.getDraftExpenses(slug);
+      const persistedDraft = persistedDrafts.find((draft) => draft.id === draftId);
+      const persistedItem = persistedDraft?.items.find((item) => item.id === itemId);
+
+      if ((persistedItem?.assignedPersonId ?? null) !== assignedPersonId) {
+        setDrafts((current) =>
+          current.map((draft) =>
+            draft.id !== draftId
+              ? draft
+              : {
+                  ...draft,
+                  items: draft.items.map((item) =>
+                    item.id === itemId
+                      ? { ...item, assignedPersonId: persistedItem?.assignedPersonId ?? null }
+                      : item
+                  )
+                }
+          )
+        );
+        setActionError(t("somethingWentWrong"));
+      }
+    } catch (error) {
+      // Roll back the optimistic change if the PATCH failed.
+      try {
+        const persistedDrafts = await api.getDraftExpenses(slug);
+        const persistedDraft = persistedDrafts.find((draft) => draft.id === draftId);
+
+        setDrafts((current) =>
+          current.map((draft) =>
+            draft.id !== draftId
+              ? draft
+              : {
+                  ...draft,
+                  items: draft.items.map((item) => {
+                    const persistedItem = persistedDraft?.items.find((entry) => entry.id === item.id);
+                    return item.id === itemId
+                      ? { ...item, assignedPersonId: persistedItem?.assignedPersonId ?? null }
+                      : item;
+                  })
+                }
+          )
+        );
+      } catch {
+        // Keep the local state if refreshing the draft also fails.
+      }
+
+      setActionError(error instanceof Error ? error.message : t("somethingWentWrong"));
+    }
   };
 
   const finalizeDraft = async (draftId: string) => {
@@ -245,14 +256,9 @@ export const GroupPage = () => {
     setActionError("");
 
     try {
-      const result = await api.confirmDraftExpense(slug, draftId);
+      const refreshedGroup = await api.confirmDraftExpense(slug, draftId);
       setDrafts((current) => current.filter((draft) => draft.id !== draftId));
-      setGroup(result.group);
-      setExpandedExpenses((current) => {
-        const next = new Set(current);
-        next.add(result.expense.id);
-        return next;
-      });
+      setGroup(refreshedGroup);
     } catch (error) {
       setActionError(error instanceof Error ? error.message : t("somethingWentWrong"));
     } finally {
@@ -445,8 +451,8 @@ export const GroupPage = () => {
             <div className="list">
               {settlements.map((settlement, index) => (
                 <div className="settlement" key={index}>
-                  <span>{settlement.fromName}</span>
-                  <strong>→ {settlement.toName}</strong>
+                  <span>{settlement.from}</span>
+                  <strong>→ {settlement.to}</strong>
                   <em>{settlement.amount.toFixed(2)}</em>
                 </div>
               ))}
@@ -471,35 +477,26 @@ export const GroupPage = () => {
             <div className="list">
               {drafts.map((draft) => {
                 const itemTotal = draft.items.reduce((sum, item) => sum + Number(item.price || 0), 0);
-                const assignedTotal = draft.items.reduce(
-                  (sum, item) =>
-                    sum +
-                    item.shares.reduce(
-                      (shareSum, share) => shareSum + Number(share.amount || 0),
-                      0
-                    ),
-                  0
-                );
+                const assignedTotal = draft.items
+                  .filter((item) => item.assignedPersonId)
+                  .reduce((sum, item) => sum + Number(item.price || 0), 0);
                 const payerTotal = draft.payers.reduce((sum, payer) => sum + Number(payer.amount || 0), 0);
-                const unassignedCount = draft.items.filter((item) => item.shares.length === 0).length;
+                const unassignedCount = draft.items.filter((item) => !item.assignedPersonId).length;
                 const payerNames = draft.payers
                   .map((payer) => group.people.find((person) => person.id === payer.personId)?.name)
                   .filter(Boolean)
                   .join(", ");
 
-                const expanded = expandedDrafts.has(draft.id);
                 return (
-                  <div key={draft.id} className="paymentRow draftCard">
+                  <div key={draft.id} className="paymentRow">
                     <div className="contentRow" style={{ display: "block", width: "100%" }}>
-                      <button type="button" className="expenseSummary" onClick={() => setExpandedDrafts((current) => { const next = new Set(current); if (next.has(draft.id)) next.delete(draft.id); else next.add(draft.id); return next; })}>
-                        <div className="expenseSummaryMain">
-                          <strong>{draft.note || t("draftBill")}</strong>
-                          <small>{formatLocalDateTime(draft.createdAt)} · {draft.items.length} {t("itemsCount")}</small>
-                        </div>
-                        <strong>{itemTotal.toFixed(2)} €</strong>
-                      </button>
-                      {expanded ? (
+                      <div className="sectionHeaderWithButton" style={{ marginBottom: 8 }}>
                         <div>
+                          <strong>{draft.note || t("draftBill")}</strong>
+                          <small style={{ display: "block" }}>{formatLocalDateTime(draft.createdAt)}</small>
+                        </div>
+                        <strong>{itemTotal.toFixed(2)}</strong>
+                      </div>
 
                       <div className="card" style={{ padding: 12, marginBottom: 12 }}>
                         <div className="stats">
@@ -515,76 +512,42 @@ export const GroupPage = () => {
 
                       <div className="list" style={{ marginTop: 12 }}>
                         {draft.items.map((item) => {
-                          const isMine = item.shares.some(
-                            (share) => share.personId === currentParticipantId
-                          );
+                          const assignedPerson = group.people.find((person) => person.id === item.assignedPersonId);
+                          const isMine = item.assignedPersonId === currentParticipantId;
 
                           return (
                             <div
                               key={item.id}
-                              className="draftItemRow"
+                              className="settlement"
+                              style={{
+                                display: "grid",
+                                gridTemplateColumns: "minmax(0, 1.5fr) minmax(70px, .7fr) minmax(150px, 1.2fr) auto",
+                                gap: 8,
+                                alignItems: "center"
+                              }}
                             >
                               <span>
                                 <strong>{item.name}</strong>
-                                {item.shares.length > 0 && (
-                                  <small style={{ display: "block" }}>
-                                    {item.shares
-                                      .map((share) => {
-                                        const name = group.people.find(
-                                          (person) => share.personId === person.id
-                                        )?.name;
-                                        return name
-                                          ? `${name} (${Number(share.amount).toFixed(2)} €)`
-                                          : null;
-                                      })
-                                      .filter(Boolean)
-                                      .join(", ")}
-                                  </small>
-                                )}
-                                {isMine && (
-                                  <small style={{ display: "block" }}>
-                                    ✓ {t("assignedToYou")}
-                                  </small>
-                                )}
+                                {isMine && <small style={{ display: "block" }}>✓ {t("assignedToYou")}</small>}
                               </span>
-
                               <em>{Number(item.price || 0).toFixed(2)}</em>
-
-                              <div className="sharePicker" aria-label={t("assignedTo")}>
-                                {group.people.map((person) => {
-                                  const checked = item.shares.some((share) => share.personId === person.id);
-                                  return (
-                                    <label key={person.id} className="shareOption">
-                                      <input
-                                        type="checkbox"
-                                        checked={checked}
-                                        disabled={group.locked || saving}
-                                        onChange={() => {
-                                          const currentIds = item.shares.map((share) => share.personId);
-                                          const nextIds = checked
-                                            ? currentIds.filter((id) => id !== person.id)
-                                            : [...currentIds, person.id];
-                                          void updateDraftShares(draft.id, item.id, nextIds);
-                                        }}
-                                      />
-                                      <span>{person.name}</span>
-                                    </label>
-                                  );
-                                })}
-                              </div>
-
+                              <select
+                                value={item.assignedPersonId ?? ""}
+                                onChange={(event) => updateDraftAssignment(draft.id, item.id, event.target.value)}
+                                disabled={group.locked || saving}
+                              >
+                                <option value="">{t("noItemAssigned")}</option>
+                                {group.people.map((person) => (
+                                  <option key={person.id} value={person.id}>{person.name}</option>
+                                ))}
+                              </select>
                               <button
                                 type="button"
                                 className="secondaryButton compactButton"
-                                onClick={() =>
-                                  void assignDraftItemToCurrentParticipant(
-                                    draft.id,
-                                    item.id
-                                  )
-                                }
+                                onClick={() => void assignDraftItemToCurrentParticipant(draft.id, item.id)}
                                 disabled={group.locked || saving}
                               >
-                                {isMine ? t("assignedToYou") : t("assignToMe")}
+                                {assignedPerson?.id === currentParticipantId ? t("assignedToYou") : t("assignToMe")}
                               </button>
                             </div>
                           );
@@ -603,9 +566,7 @@ export const GroupPage = () => {
                         {unassignedCount > 0 && (
                           <span className="muted">{t("assignItemsBeforeConfirm")}</span>
                         )}
-                        </div>
-                        </div>
-                      ) : null}
+                      </div>
                     </div>
                   </div>
                 );
@@ -617,88 +578,29 @@ export const GroupPage = () => {
       <div className="grid">
         <section className="card">
           <div className="sectionHeaderWithButton">
-            <div>
-              <h2>{t("expenses")}</h2>
-              <p className="muted">{t("expenseDetailsHint")}</p>
-            </div>
+            <h2>{t("expenses")}</h2>
             <button type="button" className="secondaryButton compactButton" onClick={() => setShowExpenses((current) => !current)}>
               {showExpenses ? t("hideExpenses") : t("showExpenses")}
             </button>
           </div>
-          {showExpenses && (() => {
-            const expenses = ((group as any).expenses ?? []) as Array<any>;
-            if (expenses.length === 0) return <p className="muted">{t("noExpensesYet")}</p>;
-            return (
-              <div className="list">
-                {expenses.map((expense) => {
-                  const expanded = expandedExpenses.has(expense.id);
-                  return (
-                    <div className="expenseCard" key={expense.id}>
-                      <button
-                        type="button"
-                        className="expenseSummary"
-                        onClick={() => setExpandedExpenses((current) => {
-                          const next = new Set(current);
-                          if (next.has(expense.id)) next.delete(expense.id); else next.add(expense.id);
-                          return next;
-                        })}
-                      >
-                        <div className="expenseSummaryMain">
-                          <strong>{expense.note || t("expense")}</strong>
-                          <small>{formatLocalDateTime(expense.createdAt)} · {expense.items?.length ?? 0} {t("itemsCount")}</small>
-                        </div>
-                        <strong>{Number(expense.totalAmount || 0).toFixed(2)} €</strong>
-                      </button>
-
-                      {expanded && (
-                        <div className="expenseDetails">
-                          <div className="expenseDetailsBlock">
-                            <strong>{t("billPayers")}</strong>
-                            {(expense.payers ?? []).map((payer: any) => (
-                              <div className="detailLine" key={payer.id}>
-                                <span>{payer.person?.name ?? group.people.find((p) => p.id === payer.personId)?.name}</span>
-                                <strong>{Number(payer.amount).toFixed(2)} €</strong>
-                              </div>
-                            ))}
-                          </div>
-
-                          <div className="expenseDetailsBlock">
-                            <strong>{t("billItems")}</strong>
-                            {(expense.items ?? []).map((item: any) => (
-                              <div className="expenseDetailItem" key={item.id}>
-                                <div className="expenseDetailItemTop">
-                                  <strong>{item.name}</strong>
-                                  <strong>{Number(item.price).toFixed(2)} €</strong>
-                                </div>
-                                <div className="shareNames">
-                                  {(item.shares ?? []).length === 0
-                                    ? t("noItemAssigned")
-                                    : item.shares.map((share: any) => {
-                                        const name = share.person?.name ?? group.people.find((p) => p.id === share.personId)?.name ?? share.personId;
-                                        return `${name} (${Number(share.amount).toFixed(2)} €)`;
-                                      }).join(", ")}
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-
-                          <div className="expenseDetailsBlock">
-                            <strong>{t("selectedParticipants")}</strong>
-                            <div className="shareNames">
-                              {(expense.shares ?? []).map((share: any) => {
-                                const name = share.person?.name ?? group.people.find((p) => p.id === share.personId)?.name ?? share.personId;
-                                return `${name} (${Number(share.amount).toFixed(2)} €)`;
-                              }).join(", ")}
-                            </div>
-                          </div>
-                        </div>
-                      )}
+          {showExpenses && (
+            <div className="list">
+              {group.payments.length === 0 ? (
+                <p className="muted">{t("noExpensesYet")}</p>
+              ) : (
+                group.payments.map((payment) => (
+                  <div className="paymentRow" key={payment.id}>
+                    <div className="contentRow">
+                      <strong>{payment.amount.toFixed(2)}</strong>
+                      <span className="margin-left-4">
+                        <small>{formatPaymentLine(payment)}</small>
+                      </span>
                     </div>
-                  );
-                })}
-              </div>
-            );
-          })()}
+                  </div>
+                ))
+              )}
+            </div>
+          )}
         </section>
       </div>
     </main>

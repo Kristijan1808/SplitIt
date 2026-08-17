@@ -80,6 +80,7 @@ export type Group = {
   payments: Payment[];
   history: HistoryItem[];
   members?: GroupMember[];
+  draftExpenses?: ExpenseDraft[];
 };
 
 export type CreateGroupRequest = {
@@ -103,6 +104,38 @@ export type AddPaymentRequest = {
   excludedAmount?: number;
   note?: string;
   participantIds?: string[];
+};
+
+export type ExpenseDraftItem = {
+  id: ID;
+  draftId: ID;
+  name: string;
+  price: number;
+  assignedPersonId?: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type ExpenseDraft = {
+  id: ID;
+  groupId: ID;
+  note?: string | null;
+  payerPersonId?: string | null;
+  paidAmount?: number | null;
+  createdAt: string;
+  updatedAt: string;
+  items: ExpenseDraftItem[];
+};
+
+export type CreateDraftExpenseRequest = {
+  note?: string;
+  payerPersonId?: string | null;
+  paidAmount?: number | null;
+  items: Array<{ name: string; price: number; assignedPersonId?: string | null }>;
+};
+
+export type UpdateDraftExpenseItemRequest = {
+  assignedPersonId?: string | null;
 };
 
 export type PatchPaymentRequest = {
@@ -170,6 +203,8 @@ export function calculateSettlements(
     if (Math.abs(debtor.balance) <= 0.01) debtorIndex++;
     if (Math.abs(creditor.balance) <= 0.01) creditorIndex++;
   }
+
+  settlements.sort((a, b) => a.amount - b.amount || a.to.localeCompare(b.to));
 
   return { total, share, balances, settlements };
 }

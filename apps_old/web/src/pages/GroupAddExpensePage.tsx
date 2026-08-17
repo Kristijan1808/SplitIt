@@ -9,7 +9,7 @@ type DraftItem = {
   id: string;
   name: string;
   price: string;
-  assignedPersonIds: string[];
+  assignedPersonId: string;
 };
 
 type DraftPayer = {
@@ -46,7 +46,7 @@ export const GroupAddExpensePage = () => {
             id: crypto.randomUUID(),
             name: "",
             price: "",
-            assignedPersonIds: []
+            assignedPersonId: ""
           }
         ]);
 
@@ -82,7 +82,7 @@ export const GroupAddExpensePage = () => {
   const assignedTotal = useMemo(
     () =>
       draftItems.reduce((sum, item) => {
-        if (item.assignedPersonIds.length === 0) return sum;
+        if (!item.assignedPersonId) return sum;
         const value = Number(item.price);
         return sum + (Number.isFinite(value) && value > 0 ? value : 0);
       }, 0),
@@ -92,7 +92,7 @@ export const GroupAddExpensePage = () => {
   const updateDraftItem = (
     id: string,
     field: keyof Omit<DraftItem, "id">,
-    value: string | string[]
+    value: string
   ) => {
     setDraftItems((current) =>
       current.map((item) =>
@@ -108,7 +108,7 @@ export const GroupAddExpensePage = () => {
         id: crypto.randomUUID(),
         name: "",
         price: "",
-        assignedPersonIds: []
+        assignedPersonId: ""
       }
     ]);
   };
@@ -202,11 +202,8 @@ export const GroupAddExpensePage = () => {
         items: validItems.map((item) => ({
           name: item.name.trim(),
           price: Number(item.price),
-          // Draft assignments are stored as item shares.
-          // An empty array means that the item can be assigned later.
-          shares: item.assignedPersonIds.map((personId) => ({
-            personId
-          }))
+          // Empty means "assign later". It must be sent as null.
+          assignedPersonId: item.assignedPersonId || null
         }))
       });
 
@@ -276,8 +273,8 @@ export const GroupAddExpensePage = () => {
                   className="card"
                   style={{ padding: 14, margin: 0 }}
                 >
-                  <div className="draftItemEditor">
-                    <label>
+                  <div className="inlineInput" style={{ gap: 10, alignItems: "end" }}>
+                    <label style={{ flex: 2 }}>
                       <span>{t("itemName")}</span>
                       <input
                         value={item.name}
@@ -289,7 +286,7 @@ export const GroupAddExpensePage = () => {
                       />
                     </label>
 
-                    <label>
+                    <label style={{ flex: 1 }}>
                       <span>{t("price")}</span>
                       <input
                         type="number"
@@ -304,30 +301,27 @@ export const GroupAddExpensePage = () => {
                       />
                     </label>
 
-                    <div className="draftItemShares">
+                    <label style={{ flex: 1.4 }}>
                       <span>{t("assignedTo")}</span>
-                      <div className="sharePicker">
-                        {group.people.map((person) => {
-                          const checked = item.assignedPersonIds.includes(person.id);
-                          return (
-                            <label key={person.id} className="shareOption">
-                              <input
-                                type="checkbox"
-                                checked={checked}
-                                disabled={group.locked}
-                                onChange={() => {
-                                  const next = checked
-                                    ? item.assignedPersonIds.filter((id) => id !== person.id)
-                                    : [...item.assignedPersonIds, person.id];
-                                  updateDraftItem(item.id, "assignedPersonIds", next);
-                                }}
-                              />
-                              <span>{person.name}</span>
-                            </label>
-                          );
-                        })}
-                      </div>
-                    </div>
+                      <select
+                        value={item.assignedPersonId}
+                        onChange={(event) =>
+                          updateDraftItem(
+                            item.id,
+                            "assignedPersonId",
+                            event.target.value
+                          )
+                        }
+                        disabled={group.locked}
+                      >
+                        <option value="">{t("noItemAssigned")}</option>
+                        {group.people.map((person) => (
+                          <option key={person.id} value={person.id}>
+                            {person.name}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
 
                     <button
                       type="button"
@@ -377,8 +371,8 @@ export const GroupAddExpensePage = () => {
             ) : (
               <div className="list">
                 {draftPayers.map((payer) => (
-                  <div key={payer.id} className="draftPayerEditor">
-                    <label>
+                  <div key={payer.id} className="inlineInput" style={{ gap: 10, alignItems: "end" }}>
+                    <label style={{ flex: 1.5 }}>
                       <span>{t("paidBy")}</span>
                       <select
                         value={payer.personId}
@@ -395,7 +389,7 @@ export const GroupAddExpensePage = () => {
                       </select>
                     </label>
 
-                    <label>
+                    <label style={{ flex: 1 }}>
                       <span>{t("amount")}</span>
                       <input
                         type="number"
