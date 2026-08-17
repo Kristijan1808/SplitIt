@@ -415,28 +415,17 @@ export const GroupPage = () => {
       )}
 
       <div className="grid">
-        <section className="card">
-          <div className="sectionHeaderWithButton">
-            <h2>{t("summary")}</h2>
-            <Link className="primaryButton compactButton" to={`/g/${slug}/add-expense`}>
-              <Plus size={18} /> {t("addExpense")}
-            </Link>
-          </div>
-          <div className="summaryHint">
-            <p className="muted">{t("shareSummary")}</p>
-          </div>
-        </section>
-
+        <section className="add-expense-container">
+        <Link className="primaryButton compactButton" to={`/g/${slug}/add-expense`}>
+            <Plus size={18} /> {t("addExpense")}
+        </Link>
+      </section>
         <section className="card resultCard">
           <h2>{t("balances")}</h2>
-          <div className="stats">
+          <div style={{marginBottom:10}}>
             <div>
-              <small>{t("totalSpent")}</small>
+              <small>{t("totalSpent")}: </small>
               <strong>{balances.reduce((sum, balance) => sum + balance.paid, 0).toFixed(2)}</strong>
-            </div>
-            <div>
-              <small>{t("eachShare")}</small>
-              <strong>{(balances.reduce((sum, balance) => sum + balance.paid, 0) / Math.max(balances.length, 1)).toFixed(2)}</strong>
             </div>
           </div>
           {settlements.length === 0 ? (
@@ -619,9 +608,8 @@ export const GroupPage = () => {
           <div className="sectionHeaderWithButton">
             <div>
               <h2>{t("expenses")}</h2>
-              <p className="muted">{t("expenseDetailsHint")}</p>
             </div>
-            <button type="button" className="secondaryButton compactButton" onClick={() => setShowExpenses((current) => !current)}>
+            <button type="button" className="show-hide-expenses-btn" onClick={() => setShowExpenses((current) => !current)}>
               {showExpenses ? t("hideExpenses") : t("showExpenses")}
             </button>
           </div>

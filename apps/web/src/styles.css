@@ -497,6 +497,29 @@ select:focus {
   gap: 12px;
 }
 
+.show-hide-expenses-btn{
+  outline: none;
+  background-color: unset !important;
+  border: none;
+  color: white
+}
+
+.headerActions{
+  display: flex;
+  flex-direction: row;
+  flex:1;
+  gap: 10px;
+}
+
+.headerActions > button{
+  flex:1;
+  padding:4px;
+}
+
+.add-expense-container{
+  /* top:40px;   */
+}
+
 .groupRow,
 .personRow,
 .paymentRow,
