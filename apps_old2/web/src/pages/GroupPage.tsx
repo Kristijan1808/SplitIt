@@ -5,7 +5,6 @@ import { ThemeToggle } from "../components/ThemeToggle";
 import { api } from "../api";
 import { useLanguage } from "../i18n";
 import type { Group } from "@splitit/shared";
-import { getWhoAmI, saveWhoAmI, saveGroupToLocalStorage } from "../storage";
 
 type DraftBill = {
   id: string;
@@ -18,6 +17,17 @@ type DraftBill = {
     price: number;
     shares: Array<{ id: string; itemId: string; personId: string; amount: number }>;
   }>;
+};
+
+const getStoredGroupParticipantId = (slug: string) => {
+  if (typeof window === "undefined") return null;
+  return window.localStorage.getItem(`splititGroupParticipantId:${slug}`);
+};
+
+const setStoredGroupParticipantId = (slug: string, participantId: string) => {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(`splititGroup:${slug}`, slug);
+  window.localStorage.setItem(`splititGroupParticipantId:${slug}`, participantId);
 };
 
 export const GroupPage = () => {
@@ -41,7 +51,6 @@ export const GroupPage = () => {
     const load = async () => {
       try {
         const currentGroup = await api.getGroup(slug);
-        saveGroupToLocalStorage(currentGroup);
         setGroup(currentGroup);
       } catch {
         navigate("/");
@@ -54,8 +63,7 @@ export const GroupPage = () => {
   useEffect(() => {
     if (!group) return;
 
-    const storedWhoAmI = getWhoAmI(slug);
-    const storedParticipantId = storedWhoAmI?.participantId ?? null;
+    const storedParticipantId = getStoredGroupParticipantId(slug);
     const validSelection = storedParticipantId && group.people.some((person) => person.id === storedParticipantId);
     const shouldPrompt = searchParams.get("chooseParticipant") === "1" || !validSelection;
     setShowWhoAreYou(shouldPrompt);
@@ -102,8 +110,7 @@ export const GroupPage = () => {
   };
 
   const chooseParticipant = (participantId: string) => {
-    const person = group?.people.find((entry) => entry.id === participantId);
-    saveWhoAmI(slug, participantId, person?.name ?? null);
+    setStoredGroupParticipantId(slug, participantId);
     setSearchParams((current) => {
       const next = new URLSearchParams(current);
       next.delete("chooseParticipant");
@@ -112,7 +119,7 @@ export const GroupPage = () => {
     setShowWhoAreYou(false);
   };
 
-  const currentParticipantId = getWhoAmI(slug)?.participantId ?? null;
+  const currentParticipantId = getStoredGroupParticipantId(slug);
   const currentParticipant = group?.people.find((person) => person.id === currentParticipantId);
 
   const updateDraftShares = async (

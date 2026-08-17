@@ -12,7 +12,6 @@ import type {
   SettlementResult,
 } from "@splitit/shared";
 import { getAuthToken } from "./auth";
-import { saveGroupToLocalStorage, syncSavedGroupToLocalStorage } from "./storage";
 
 
 type DraftItemShareRequest = {
@@ -98,34 +97,23 @@ export const api = {
       body: JSON.stringify(body)
     }),
 
-  createGroup: async (body: CreateGroupRequest) => {
-    const group = await request<Group>("/groups", {
+  createGroup: (body: CreateGroupRequest) =>
+    request<Group>("/groups", {
       method: "POST",
       body: JSON.stringify(body)
-    });
-    saveGroupToLocalStorage(group);
-    return group;
-  },
+    }),
 
-  joinGroup: async (body: JoinGroupRequest) => {
-    const group = await request<Group>("/groups/join", {
-      method: "POST",
-      body: JSON.stringify(body)
-    });
-    saveGroupToLocalStorage(group);
-    return group;
-  },
+  joinGroup: (body: JoinGroupRequest) => request<Group>("/groups/join", {
+    method: "POST",
+    body: JSON.stringify(body)
+  }),
 
   lockGroup: (slug: string, locked: boolean) => request<Group>(`/groups/${slug}/lock`, {
     method: "PATCH",
     body: JSON.stringify({ locked })
   }),
 
-  getGroup: async (slug: string) => {
-    const group = await request<Group>(`/groups/${slug}`);
-    syncSavedGroupToLocalStorage(group);
-    return group;
-  },
+  getGroup: (slug: string) => request<Group>(`/groups/${slug}`),
 
   updateGroup: (slug: string, name: string) =>
     request<Group>(`/groups/${slug}`, {

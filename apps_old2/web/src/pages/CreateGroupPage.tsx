@@ -8,7 +8,7 @@ import { api } from "../api";
 export function CreateGroupPage() {
   const navigate = useNavigate();
   const { t } = useLanguage();
-  const [name, setName] = useState("");
+  const [name, setName] = useState("Weekend trip");
   const [password, setPassword] = useState("");
   const [people, setPeople] = useState([""]);
   const [error, setError] = useState("");

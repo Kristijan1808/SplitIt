@@ -3,16 +3,20 @@ import { Link } from "react-router-dom";
 import { ArrowLeft, FolderOpen } from "lucide-react";
 import { ThemeToggle } from "../components/ThemeToggle";
 import { useLanguage } from "../i18n";
-import { getSavedGroups, type SavedGroup } from "../storage";
 
 export function MyGroupsPage() {
   const { t } = useLanguage();
-  const [groups, setGroups] = useState<SavedGroup[]>([]);
+  const [groups, setGroups] = useState<Array<{ slug: string; name: string }>>([]);
 
   useEffect(() => {
-    // "My groups" is deliberately local-first. We do not ask the API
-    // which groups belong to this browser.
-    setGroups(getSavedGroups());
+    const saved = window.localStorage.getItem("splitit:groups");
+    if (!saved) return;
+
+    try {
+      setGroups(JSON.parse(saved));
+    } catch {
+      setGroups([]);
+    }
   }, []);
 
   return (
@@ -33,25 +37,8 @@ export function MyGroupsPage() {
         ) : (
           <div className="list">
             {groups.map((group) => (
-              <Link
-                className="groupRow"
-                key={group.slug}
-                to={`/g/${group.slug}`}
-              >
-                <div style={{ minWidth: 0 }}>
-                  <strong>{group.name}</strong>
-                  {group.code && (
-                    <small className="muted" style={{ display: "block" }}>
-                      {t("code")}: {group.code}
-                    </small>
-                  )}
-                  {group.participantName && (
-                    <small className="muted" style={{ display: "block" }}>
-                      {t("youAre")}: {group.participantName}
-                    </small>
-                  )}
-                </div>
-
+              <Link className="groupRow" key={group.slug} to={`/g/${group.slug}`}>
+                <span>{group.name}</span>
                 <small className="inlineFlex">
                   <FolderOpen size={15} /> {t("open")}
                 </small>
