@@ -492,7 +492,7 @@ export const GroupPage = () => {
                         </div>
                         <p className="muted" style={{ marginBottom: 0 }}>
                           {t("billPayers")}: {payerNames || t("noPayersAdded")}
-                        </p>
+                        </p>  
                       </div>
 
                       <div className="list" style={{ marginTop: 12 }}>
@@ -633,7 +633,7 @@ export const GroupPage = () => {
 
                       {expanded && (
                         <div className="expenseDetails">
-                          <div className="expenseDetailsBlock">
+                          <div className="expenseDetailsBlock expense-payers">
                             <strong>{t("billPayers")}</strong>
                             {(expense.payers ?? []).map((payer: any) => (
                               <div className="detailLine" key={payer.id}>
@@ -643,7 +643,7 @@ export const GroupPage = () => {
                             ))}
                           </div>
 
-                          <div className="expenseDetailsBlock">
+                          <div className="expenseDetailsBlock expense-items">
                             <strong>{t("billItems")}</strong>
                             {(expense.items ?? []).map((item: any) => (
                               <div className="expenseDetailItem" key={item.id}>
@@ -663,7 +663,7 @@ export const GroupPage = () => {
                             ))}
                           </div>
 
-                          <div className="expenseDetailsBlock">
+                          <div className="expenseDetailsBlock expense-participants">
                             <strong>{t("selectedParticipants")}</strong>
                             <div className="shareNames">
                               {(expense.shares ?? []).map((share: any) => {
