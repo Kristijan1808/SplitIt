@@ -102,6 +102,11 @@ export function getSavedGroup(slug: string): SavedGroup | null {
 }
 
 export function removeSavedGroup(slug: string) {
+  if (typeof window === "undefined") return;
+
+  // Removing a group from "My Groups" must also remove its locally saved
+  // "Who am I?" selection. The actual server-side group is not deleted.
+  window.localStorage.removeItem(`${WHO_AM_I_PREFIX}${slug}`);
   writeSavedGroups(readSavedGroups().filter((group) => group.slug !== slug));
 }
 
