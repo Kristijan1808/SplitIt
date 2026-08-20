@@ -989,7 +989,8 @@ app.get(
   (_req, res) => {
     res.json({
       ok: true,
-      app: "SplitIt API"
+      app: "SplitIt API",
+      version: "1.0.0"
     });
   }
 );
