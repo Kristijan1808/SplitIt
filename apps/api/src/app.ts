@@ -6,7 +6,6 @@ import jwt from "jsonwebtoken";
 import { PrismaClient } from "@prisma/client";
 import { nanoid } from "nanoid";
 import { z } from "zod";
-import { calculateSettlements } from "@splitit/shared";
 
 const app = express();
 const prisma = new PrismaClient();
