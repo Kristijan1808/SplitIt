@@ -23,6 +23,20 @@ const getStoredGroupParticipantId = (slug: string) => {
   return window.localStorage.getItem(`splititGroupParticipantId:${slug}`);
 };
 
+const sanitizeDecimalInput = (value: string): string => {
+  const sanitized = value.replace(/[^0-9.]/g, "");
+  const firstDotIndex = sanitized.indexOf(".");
+
+  if (firstDotIndex === -1) {
+    return sanitized;
+  }
+
+  return (
+    sanitized.slice(0, firstDotIndex + 1) +
+    sanitized.slice(firstDotIndex + 1).replace(/\./g, "")
+  );
+};
+
 export const GroupAddExpensePage = () => {
   const navigate = useNavigate();
   const { slug = "" } = useParams();
@@ -88,6 +102,25 @@ export const GroupAddExpensePage = () => {
       }, 0),
     [draftItems]
   );
+
+  const unassignedAmount = Number((itemTotal - assignedTotal).toFixed(2));
+
+  const allItemsAssigned = useMemo(
+    () =>
+      draftItems.length > 0 &&
+      draftItems.every((item) => item.assignedPersonIds.length > 0),
+    [draftItems]
+  );
+
+  const assignmentAmountInvalid = assignedTotal - itemTotal > 0.009;
+  const paymentOverpaid = payerTotal - itemTotal > 0.009;
+  const allAmountsPaid = Math.abs(difference) < 0.01;
+  const canAddExpense =
+    allItemsAssigned &&
+    !assignmentAmountInvalid &&
+    !paymentOverpaid &&
+    Math.abs(unassignedAmount) < 0.01 &&
+    allAmountsPaid;
 
   const updateDraftItem = (
     id: string,
@@ -157,7 +190,7 @@ export const GroupAddExpensePage = () => {
   };
 
   const saveDraftBill = async () => {
-    if (!group || group.locked) return;
+    if (!group || group.locked || paymentOverpaid || assignmentAmountInvalid) return;
 
     const validItems = draftItems.filter(
       (item) =>
@@ -170,6 +203,15 @@ export const GroupAddExpensePage = () => {
       setActionError(t("atLeastOneItem"));
       return;
     }
+
+    const allValidItemsAssigned = validItems.every(
+      (item) => item.assignedPersonIds.length > 0
+    );
+
+    const validItemsTotal = validItems.reduce(
+      (sum, item) => sum + Number(item.price),
+      0
+    );
 
     const validPayers = draftPayers.filter(
       (payer) =>
@@ -189,11 +231,55 @@ export const GroupAddExpensePage = () => {
       return;
     }
 
+    const validPayersTotal = validPayers.reduce(
+      (sum, payer) => sum + Number(payer.amount),
+      0
+    );
+
+    const validAssignedTotal = validItems.reduce((sum, item) => {
+      if (item.assignedPersonIds.length === 0) return sum;
+      const value = Number(item.price);
+      return sum + (Number.isFinite(value) && value > 0 ? value : 0);
+    }, 0);
+    const finalUnassignedAmount = Number(
+      (validItemsTotal - validAssignedTotal).toFixed(2)
+    );
+    const finalPaymentDifference = Number(
+      (validPayersTotal - validItemsTotal).toFixed(2)
+    );
+
+    // A draft may be saved while items are still unassigned or the payer
+    // total is incomplete. It can only become a real expense when every
+    // item is assigned, no assignment amount is over the item total, and
+    // the full item total has been paid.
+    if (allValidItemsAssigned) {
+      if (finalUnassignedAmount < -0.009) {
+        setActionError(
+          "Assigned amount cannot be greater than the total of all items."
+        );
+        return;
+      }
+
+      if (Math.abs(finalUnassignedAmount) >= 0.01) {
+        setActionError(
+          "All item amounts must be assigned before adding the expense."
+        );
+        return;
+      }
+
+      if (Math.abs(finalPaymentDifference) >= 0.01) {
+        setActionError(
+          `Paid total must equal the item total (${validItemsTotal.toFixed(2)}).`
+        );
+        return;
+      }
+    }
+
     try {
       setSaving(true);
       setActionError("");
 
-      await api.createDraftExpense(slug, {
+      const draft = await api.createDraftExpense(slug, {
         note: note.trim() || undefined,
         payers: validPayers.map((payer) => ({
           personId: payer.personId,
@@ -202,13 +288,15 @@ export const GroupAddExpensePage = () => {
         items: validItems.map((item) => ({
           name: item.name.trim(),
           price: Number(item.price),
-          // Draft assignments are stored as item shares.
-          // An empty array means that the item can be assigned later.
           shares: item.assignedPersonIds.map((personId) => ({
             personId
           }))
         }))
       });
+
+      if (allValidItemsAssigned) {
+        await api.confirmDraftExpense(slug, draft.id);
+      }
 
       navigate(`/g/${slug}`);
     } catch (error) {
@@ -292,12 +380,15 @@ export const GroupAddExpensePage = () => {
                     <label>
                       <span>{t("price")}</span>
                       <input
-                        type="number"
-                        min="0"
-                        step="0.01"
+                        type="text"
+                        inputMode="decimal"
                         value={item.price}
                         onChange={(event) =>
-                          updateDraftItem(item.id, "price", event.target.value)
+                          updateDraftItem(
+                            item.id,
+                            "price",
+                            sanitizeDecimalInput(event.target.value)
+                          )
                         }
                         placeholder="0.00"
                         disabled={group.locked}
@@ -445,7 +536,7 @@ export const GroupAddExpensePage = () => {
             </div>
             <div className="settlement">
               <span>{t("unassignedTotal")}</span>
-              <strong>{Math.max(0, itemTotal - assignedTotal).toFixed(2)}</strong>
+              <strong>{unassignedAmount.toFixed(2)}</strong>
             </div>
             <div className="settlement">
               <span>{t("difference")}</span>
@@ -465,14 +556,22 @@ export const GroupAddExpensePage = () => {
             />
           </label>
 
+          {(paymentOverpaid || assignmentAmountInvalid) && (
+            <div className="toastError" role="alert">
+              {paymentOverpaid
+                ? `Paid amount (${payerTotal.toFixed(2)}) cannot be greater than the item total (${itemTotal.toFixed(2)}). Please check the payer amounts.`
+                : `Assigned amount cannot be greater than the item total (${itemTotal.toFixed(2)}). Please check the item assignments.`}
+            </div>
+          )}
+
           <button
             className="primaryButton"
             type="button"
             onClick={saveDraftBill}
-            disabled={group.locked || saving}
+            disabled={group.locked || saving || paymentOverpaid || assignmentAmountInvalid}
           >
             <Plus size={18} />
-            {t("saveDraft")}
+            {canAddExpense ? t("addExpense") : t("saveDraft")}
           </button>
         </div>
       </section>
