@@ -15,15 +15,17 @@ export function CreateGroupPage() {
   const [createdCode, setCreatedCode] = useState<string | null>(null);
   const [createdSlug, setCreatedSlug] = useState<string | null>(null);
 
-  function updatePerson(index: number, value: string) {
+  const isFormValid = name.trim().length >= 3 && password.length >= 4 && people?.length > 0;
+
+  const updatePerson = (index: number, value: string) => {
     setPeople((current) => current.map((person, i) => (i === index ? value : person)));
   }
 
-  function removePerson(index: number) {
+  const removePerson = (index: number) => {
     setPeople((current) => current.filter((_, i) => i !== index));
   }
 
-  async function submit(event: FormEvent) {
+  const submit = async (event: FormEvent) => {
     event.preventDefault();
     setError("");
 
@@ -56,15 +58,32 @@ export function CreateGroupPage() {
 
         {!createdCode ? (
           <form onSubmit={submit} className="form">
-            <label>
-              {t("groupName")}
-              <input value={name} onChange={(event) => setName(event.target.value)} required />
-            </label>
+           <label>
+            {t("groupName")}
+            <input
+              value={name}
+              minLength={3}
+              required
+              onChange={(event) => setName(event.target.value)}
+            />
+            <span className="validationMessage">
+              Group name must be at least 3 characters.
+            </span>
+          </label>
 
-            <label>
-              {t("password")}
-              <input type="password" value={password} onChange={(event) => setPassword(event.target.value)} required />
-            </label>
+          <label>
+            {t("password")}
+            <input
+              type="password"
+              value={password}
+              minLength={4}
+              required
+              onChange={(event) => setPassword(event.target.value)}
+            />
+            <span className="validationMessage">
+              Password must be at least 4 characters.
+            </span>
+          </label>
 
             <div>
               <label>{t("participants")}</label>
@@ -84,14 +103,13 @@ export function CreateGroupPage() {
                   </div>
                 ))}
               </div>
-              <button type="button" className="secondaryButton" onClick={() => setPeople([...people, ""])}>
+              <button type="button" className="secondaryButton add-participants-btn" onClick={() => setPeople([...people, ""])}>
                 <Plus size={18} /> {t("addParticipant")}
               </button>
             </div>
 
             {error && <p className="error">{error}</p>}
-
-            <button className="primaryButton" type="submit">
+            <button className="primaryButton" type="submit" disabled={!isFormValid}>
               {t("createGroup")}
             </button>
           </form>

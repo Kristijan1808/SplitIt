@@ -1,3 +1,5 @@
+@import './styles/createGroupPage.css'; 
+
 :root {
   --green-950: #08271e;
   --green-900: #0f3d2e;
@@ -356,6 +358,12 @@ h2 {
     background 0.18s ease;
 }
 
+.primaryButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
 .primaryButton:hover,
 .iconButton:hover {
   transform: translateY(-2px);
@@ -433,7 +441,7 @@ h2 {
 
 label {
   display: grid;
-  gap: 8px;
+  gap: 2px;
   font-weight: 400;
   color: var(--black);
 }
@@ -491,7 +499,6 @@ select:focus {
 }
 
 .list,
-.peopleInputs,
 .timeline {
   display: grid;
   gap: 12px;

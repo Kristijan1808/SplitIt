@@ -1,0 +1,18 @@
+.validationMessage {
+  display: none;
+}
+
+input:user-invalid + .validationMessage {
+  display: inline-block;
+  color: #be123c;
+}
+
+.peopleInputs{
+  display: grid;
+  gap: 6px;
+  margin-top:4px;
+}
+
+.add-participants-btn{
+    margin-top:4px;
+}

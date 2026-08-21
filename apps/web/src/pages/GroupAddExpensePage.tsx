@@ -18,10 +18,6 @@ type DraftPayer = {
   amount: string;
 };
 
-const getStoredGroupParticipantId = (slug: string) => {
-  if (typeof window === "undefined") return null;
-  return window.localStorage.getItem(`splititGroupParticipantId:${slug}`);
-};
 
 const sanitizeDecimalInput = (value: string): string => {
   const sanitized = value.replace(/[^0-9.]/g, "");
