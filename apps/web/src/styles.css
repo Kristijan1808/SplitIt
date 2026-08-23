@@ -1,4 +1,5 @@
 @import './styles/createGroupPage.css'; 
+@import './styles/groupPage.css';
 
 :root {
   --green-950: #08271e;
@@ -521,10 +522,6 @@ select:focus {
 .headerActions > button{
   flex:1;
   padding:4px;
-}
-
-.add-expense-container{
-  /* top:40px;   */
 }
 
 .expense-payers{

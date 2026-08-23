@@ -1,0 +1,55 @@
+.buttons-container-right{
+  position: absolute;
+  bottom: 10px;
+  right: 0px;
+  z-index:1000;
+  padding-right: 8px;
+  text-align:right;
+}
+
+.buttons-container-left{
+  position: absolute;
+  bottom: 10px;
+  left: 0px;
+  z-index:1000;
+  padding-left: 8px;
+}
+
+.open-drafts-btn{
+    border-radius:50%;
+    padding:4px;
+    width: 30px;
+    height:30px;
+    margin-bottom:4px;
+}
+
+.open-expenses-btn{
+    padding:4px;
+    border: unset;
+    outline:unset;
+    border-top-right-radius:5px;
+    border-bottom-left-radius:5px;
+    border-top-left-radius:15px;
+    border-bottom-right-radius:15px;
+}
+
+.drafts-container{
+    z-index:10001;
+    position: absolute;
+    top:0px;
+    left:0px;
+    min-height:100%;
+    padding:20px;
+    background-color: rgba(8, 139, 95, 0.542);
+}
+
+#expenses-container{
+    z-index:10001;
+    position: absolute;
+    top:0px;
+    left:0px;
+    min-height:100%;
+    width:100%;
+    padding:20px;
+    background-color: rgba(8, 139, 95, 0.542);
+}

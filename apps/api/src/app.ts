@@ -6,6 +6,8 @@ import jwt from "jsonwebtoken";
 import { PrismaClient } from "@prisma/client";
 import { nanoid } from "nanoid";
 import { z } from "zod";
+import multer, { MulterError } from "multer";
+import { chatGptService } from "./chatgpt.service.js";
 
 const app = express();
 const prisma = new PrismaClient();
@@ -28,6 +30,28 @@ app.use(
 );
 
 app.use(express.json());
+
+const billImageUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 10 * 1024 * 1024
+  },
+  fileFilter: (_req, file, callback) => {
+    const allowed = new Set([
+      "image/jpeg",
+      "image/png",
+      "image/webp",
+      "image/gif"
+    ]);
+
+    if (!allowed.has(file.mimetype)) {
+      callback(new Error("Unsupported image type. Please upload a JPEG, PNG, WebP, or GIF image"));
+      return;
+    }
+
+    callback(null, true);
+  }
+});
 
 //
 // ============================================================
@@ -983,6 +1007,29 @@ const ensureCanEditGroup = async (
 // HEALTH
 // ============================================================
 //
+
+app.post(
+  "/ai/parse-bill",
+  billImageUpload.single("file"),
+  async (req:any, res, next) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({
+          error: "Bill image is required"
+        });
+      }
+
+      const items = await chatGptService.extractBillItems(
+        req.file.buffer,
+        req.file.mimetype
+      );
+
+      return res.json({ items });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
 
 app.get(
   "/health",
@@ -3933,6 +3980,15 @@ app.use(
       error
     );
 
+    if (error instanceof MulterError) {
+      return res.status(400).json({
+        error:
+          error.code === "LIMIT_FILE_SIZE"
+            ? "The uploaded image is too large. Maximum size is 10 MB"
+            : error.message
+      });
+    }
+
     if (
       error instanceof z.ZodError
     ) {
@@ -3942,6 +3998,17 @@ app.use(
 
         details:
           error.flatten()
+      });
+    }
+
+    if (
+      error instanceof Error &&
+      (error.message.startsWith("Unsupported image type") ||
+        error.message.startsWith("The uploaded image is too large") ||
+        error.message === "The uploaded image is empty")
+    ) {
+      return res.status(400).json({
+        error: error.message
       });
     }
 

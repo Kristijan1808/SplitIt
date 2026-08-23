@@ -44,6 +44,7 @@ export const GroupAddExpensePage = () => {
   const [draftPayers, setDraftPayers] = useState<DraftPayer[]>([]);
   const [actionError, setActionError] = useState("");
   const [saving, setSaving] = useState(false);
+  const [parsingBill, setParsingBill] = useState(false);
 
   useEffect(() => {
     const load = async () => {
@@ -183,6 +184,42 @@ export const GroupAddExpensePage = () => {
     setDraftPayers((current) =>
       current.filter((payer) => payer.id !== id)
     );
+  };
+
+  const handleBillAsImage = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+
+    if (!file) return;
+
+    try {
+      setParsingBill(true);
+      setActionError("");
+
+      const result = await api.parseBillImage(file);
+
+      if (result.items.length === 0) {
+        setActionError("No bill items could be recognized from the image.");
+        return;
+      }
+
+      setDraftItems(
+        result.items.map((item) => ({
+          id: crypto.randomUUID(),
+          name: item.name,
+          price: item.price.toFixed(2),
+          assignedPersonIds: []
+        }))
+      );
+    } catch (error) {
+      setActionError(
+        error instanceof Error
+          ? error.message
+          : "Unable to read the bill image."
+      );
+    } finally {
+      setParsingBill(false);
+      event.target.value = "";
+    }
   };
 
   const saveDraftBill = async () => {
@@ -330,17 +367,26 @@ export const GroupAddExpensePage = () => {
           <strong>{itemTotal.toFixed(2)}</strong>
         </div>
 
-        <p className="muted" style={{ marginTop: -8, marginBottom: 20 }}>
-          {t("draftBillHint")}
-        </p>
-
         {/* ITEMS */}
         <div className="form">
+          <div>
+            <p>Upload a bill</p>
+            <input
+              type="file"
+              accept="image/jpeg,image/png,image/webp,image/gif"
+              onChange={handleBillAsImage}
+              disabled={group.locked || parsingBill}
+            />
+            {parsingBill && (
+              <p className="muted" style={{ marginTop: 8 }}>
+                Reading bill with ChatGPT...
+              </p>
+            )}
+          </div>
           <div>
             <div className="sectionHeaderWithButton" style={{ marginBottom: 10 }}>
               <div>
                 <strong>{t("billItems")}</strong>
-                <p className="muted">{t("itemAssignmentHint")}</p>
               </div>
               <button
                 type="button"

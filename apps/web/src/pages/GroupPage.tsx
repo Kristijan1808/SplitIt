@@ -1,6 +1,6 @@
 import { FormEvent, useEffect, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { ArrowLeft, Copy, Lock, Plus, Users } from "lucide-react";
+import { ArrowLeft, Copy, Lock, Plus, Users, X } from "lucide-react";
 import { ThemeToggle } from "../components/ThemeToggle";
 import { api } from "../api";
 import { useLanguage } from "../i18n";
@@ -29,7 +29,8 @@ export const GroupPage = () => {
   const [personName, setPersonName] = useState("");
   const [showParticipants, setShowParticipants] = useState(false);
   const [showWhoAreYou, setShowWhoAreYou] = useState(false);
-  const [showExpenses, setShowExpenses] = useState(true);
+  const [showExpensesContainer, setShowExpensesContainer] = useState(false);
+  const [showDrafts, setShowDrafts] = useState(false);
   const [drafts, setDrafts] = useState<DraftBill[]>([]);
   const [actionError, setActionError] = useState("");
   const [saving, setSaving] = useState(false);
@@ -339,7 +340,7 @@ export const GroupPage = () => {
           <p className="eyebrow">{t("code")}: {group.code}</p>
           <h1>{group.name}</h1>
           <div className="groupMetaRow">
-            <p className="muted">{group.locked ? t("groupLocked") : t("groupOpen")}</p>
+            <p className="muted">{group.locked ? t("groupLocked") : ""}</p>
             <button type="button" className="participantsToggle" onClick={() => setShowParticipants((current) => !current)}>
               <Users size={16} />
               <span>{t("participantsLabel")}</span>
@@ -407,12 +408,19 @@ export const GroupPage = () => {
         </div>
       )}
 
-      <div className="grid">
-        <section className="add-expense-container">
+      <section className="buttons-container-right">
+        <button className="open-drafts-btn" onClick={() => setShowDrafts((current) => !current)}>{drafts.length}</button>
         <Link className="primaryButton compactButton" to={`/g/${slug}/add-expense`}>
             <Plus size={18} /> {t("addExpense")}
         </Link>
       </section>
+
+      <section className="buttons-container-left">
+        <button className="open-expenses-btn" onClick={() => setShowExpensesContainer((current) => !current)}>Expenses!</button>
+      </section>
+
+
+      <div className="grid">
         <section className="card resultCard">
           <h2>{t("balances")}</h2>
           <div style={{marginBottom:10}}>
@@ -437,7 +445,15 @@ export const GroupPage = () => {
         </section>
       </div>
 
-      {drafts.length > 0 && (
+      {showDrafts && (
+        <section className="drafts-container">
+          <button
+            type="button"
+            className="close-drafts-btn"
+            onClick={() => setShowDrafts((current) => !current)}
+          >
+            <X size={16} strokeWidth={2.5} />
+          </button>
         <div className="grid">
           <section className="card">
             <div className="sectionHeaderWithButton">
@@ -595,18 +611,23 @@ export const GroupPage = () => {
             </div>
           </section>
         </div>
+        </section>
       )}
-      <div className="grid">
+
+      {showExpensesContainer && (<section id="expenses-container">
+        <button
+            type="button"
+            className="close-drafts-btn"
+            onClick={() => setShowExpensesContainer((current) => !current)}
+          ></button>
+        <div className="grid">
         <section className="card">
           <div className="sectionHeaderWithButton">
             <div>
               <h2>{t("expenses")}</h2>
             </div>
-            <button type="button" className="show-hide-expenses-btn" onClick={() => setShowExpenses((current) => !current)}>
-              {showExpenses ? t("hideExpenses") : t("showExpenses")}
-            </button>
           </div>
-          {showExpenses && (() => {
+          {true && (() => {
             const expenses = ((group as any).expenses ?? []) as Array<any>;
             if (expenses.length === 0) return <p className="muted">{t("noExpensesYet")}</p>;
             return (
@@ -682,6 +703,8 @@ export const GroupPage = () => {
           })()}
         </section>
       </div>
+      </section>)}
+      
     </main>
   );
 };

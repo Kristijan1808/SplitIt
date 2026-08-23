@@ -20,6 +20,11 @@ type DraftItemShareRequest = {
   amount?: number;
 };
 
+export type ParsedBillItem = {
+  name: string;
+  price: number;
+};
+
 export type CreateDraftExpenseRequest = {
   note?: string;
   payers: Array<{ personId: string; amount: number }>;
@@ -86,6 +91,25 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 }
 
 export const api = {
+  parseBillImage: async (file: File): Promise<{ items: ParsedBillItem[] }> => {
+    const token = getAuthToken();
+    const formData = new FormData();
+    formData.append("file", file);
+
+    const response = await fetch(`${API_URL}/ai/parse-bill`, {
+      method: "POST",
+      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      body: formData
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ error: "Request failed" }));
+      throw new Error(error.error ?? error.message ?? "Request failed");
+    }
+
+    return response.json();
+  },
+
   login: (body: LoginRequest) =>
     request<AuthResponse>("/auth/login", {
       method: "POST",

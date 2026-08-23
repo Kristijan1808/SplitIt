@@ -516,10 +516,6 @@ select:focus {
   padding:4px;
 }
 
-.add-expense-container{
-  /* top:40px;   */
-}
-
 .groupRow,
 .personRow,
 .paymentRow,
