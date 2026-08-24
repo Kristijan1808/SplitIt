@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { ArrowLeft, ImagePlus, Plus, Trash2 } from "lucide-react";
+import { ArrowLeft, Camera, ImagePlus, Plus, Trash2 } from "lucide-react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { api } from "../api";
 import { useLanguage } from "../i18n";
@@ -369,28 +369,45 @@ export const GroupAddExpensePage = () => {
 
         {/* ITEMS */}
         <div className="form">
-          <div className="billImageUpload">
-          <input
-            id="bill-image"
-            className="billImageInput"
-            type="file"
-            accept="image/jpeg,image/png,image/webp,image/gif"
-            onChange={handleBillAsImage}
-            disabled={group.locked || parsingBill}
-          />
+          <div className="billImageActions">
+            {/* Camera */}
+            <input
+              id="bill-camera"
+              className="billImageInput"
+              type="file"
+              accept="image/*"
+              capture="environment"
+              onChange={handleBillAsImage}
+              disabled={group.locked || parsingBill}
+            />
 
-          <label
-            htmlFor="bill-image"
-            className="billImageUploadButton"
-          >
-            <ImagePlus size={18} />
-            {parsingBill ? t("readingBill") : t("uploadBillImage")}
-          </label>
+            <label
+              htmlFor="bill-camera"
+              className="billImageActionButton"
+            >
+              <Camera size={18} />
+              {parsingBill ? t("readingBill") : t("scanBill")}
+            </label>
 
-          <p className="billImageHint">
-            {t("uploadBillImageHint")}
-          </p>
-        </div>
+            {/* Upload */}
+            <input
+              id="bill-image"
+              className="billImageInput"
+              type="file"
+              accept="image/jpeg,image/png,image/webp,image/gif"
+              onChange={handleBillAsImage}
+              disabled={group.locked || parsingBill}
+            />
+
+            <label
+              htmlFor="bill-image"
+              className="billImageActionButton"
+            >
+              <ImagePlus size={18} />
+              {t("uploadBillImage")}
+            </label>
+          </div>
+
           <div>
             <div className="sectionHeaderWithButton" style={{ marginBottom: 10 }}>
               <div>
