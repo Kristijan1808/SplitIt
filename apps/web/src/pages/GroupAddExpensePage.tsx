@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { ArrowLeft, Plus, Trash2 } from "lucide-react";
+import { ArrowLeft, ImagePlus, Plus, Trash2 } from "lucide-react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { api } from "../api";
 import { useLanguage } from "../i18n";
@@ -369,20 +369,28 @@ export const GroupAddExpensePage = () => {
 
         {/* ITEMS */}
         <div className="form">
-          <div>
-            <p>Upload a bill</p>
-            <input
-              type="file"
-              accept="image/jpeg,image/png,image/webp,image/gif"
-              onChange={handleBillAsImage}
-              disabled={group.locked || parsingBill}
-            />
-            {parsingBill && (
-              <p className="muted" style={{ marginTop: 8 }}>
-                Reading bill with ChatGPT...
-              </p>
-            )}
-          </div>
+          <div className="billImageUpload">
+          <input
+            id="bill-image"
+            className="billImageInput"
+            type="file"
+            accept="image/jpeg,image/png,image/webp,image/gif"
+            onChange={handleBillAsImage}
+            disabled={group.locked || parsingBill}
+          />
+
+          <label
+            htmlFor="bill-image"
+            className="billImageUploadButton"
+          >
+            <ImagePlus size={18} />
+            {parsingBill ? t("readingBill") : t("uploadBillImage")}
+          </label>
+
+          <p className="billImageHint">
+            {t("uploadBillImageHint")}
+          </p>
+        </div>
           <div>
             <div className="sectionHeaderWithButton" style={{ marginBottom: 10 }}>
               <div>

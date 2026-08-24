@@ -1,0 +1,45 @@
+.billImageInput {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.billImageUpload {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.billImageUploadButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: fit-content;
+  padding: 10px 16px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--card-background);
+  color: var(--text-color);
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease;
+}
+
+.billImageUploadButton:hover {
+  background: var(--hover-background);
+  border-color: var(--primary-color);
+}
+
+.billImageUploadButton:active {
+  transform: translateY(1px);
+}
+
+.billImageHint {
+  margin: 0;
+  color: var(--muted-color);
+  font-size: 0.85rem;
+}

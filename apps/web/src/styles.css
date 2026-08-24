@@ -1,5 +1,6 @@
 @import './styles/createGroupPage.css'; 
 @import './styles/groupPage.css';
+@import './styles/groupAddExpensePage.css';
 
 :root {
   --green-950: #08271e;
