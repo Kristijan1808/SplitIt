@@ -5,7 +5,7 @@ import { ArrowLeft, Copy, Lock, Plus, Users, X } from "lucide-react";
 import { ThemeToggle } from "../components/ThemeToggle";
 import { api } from "../api";
 import { useLanguage } from "../i18n";
-import type { Group } from "@splitit/shared";
+import type { Group, SettlementResult } from "@splitit/shared";
 import { getWhoAmI, saveWhoAmI, saveGroupToLocalStorage } from "../storage";
 
 type DraftBill = {

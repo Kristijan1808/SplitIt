@@ -429,7 +429,6 @@ export const GroupAddExpensePage = () => {
               {draftItems.map((item, index) => (
                 <div
                   key={item.id}
-                  className="card"
                   className="card draftEditorCard"
                 >
                   <div className="draftItemEditor">
@@ -582,7 +581,6 @@ export const GroupAddExpensePage = () => {
 
           {/* TOTALS */}
           <div
-            className="card"
             className="totalsCard"
           >
             <div className="settlement">
