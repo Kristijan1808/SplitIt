@@ -13,6 +13,7 @@ import type {
 } from "@splitit/shared";
 import { getAuthToken } from "./auth";
 import { saveGroupToLocalStorage, syncSavedGroupToLocalStorage } from "./storage";
+import { startApiLoading, endApiLoading } from "./loading";
 
 
 type DraftItemShareRequest = {
@@ -71,35 +72,18 @@ export type DraftExpense = {
 const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:4000";
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
-  const token = getAuthToken();
+  startApiLoading();
 
-  const response = await fetch(`${API_URL}${path}`, {
-    ...options,
-    headers: {
-      "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...(options?.headers ?? {})
-    }
-  });
-
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ error: "Request failed" }));
-    throw new Error(error.error ?? error.message ?? "Request failed");
-  }
-
-  return response.json();
-}
-
-export const api = {
-  parseBillImage: async (file: File): Promise<{ items: ParsedBillItem[] }> => {
+  try {
     const token = getAuthToken();
-    const formData = new FormData();
-    formData.append("file", file);
 
-    const response = await fetch(`${API_URL}/ai/parse-bill`, {
-      method: "POST",
-      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-      body: formData
+    const response = await fetch(`${API_URL}${path}`, {
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(options?.headers ?? {})
+      }
     });
 
     if (!response.ok) {
@@ -108,6 +92,35 @@ export const api = {
     }
 
     return response.json();
+  } finally {
+    endApiLoading();
+  }
+}
+
+export const api = {
+  parseBillImage: async (file: File): Promise<{ items: ParsedBillItem[] }> => {
+    startApiLoading();
+
+    try {
+      const token = getAuthToken();
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const response = await fetch(`${API_URL}/ai/parse-bill`, {
+        method: "POST",
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+        body: formData
+      });
+
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({ error: "Request failed" }));
+        throw new Error(error.error ?? error.message ?? "Request failed");
+      }
+
+      return response.json();
+    } finally {
+      endApiLoading();
+    }
   },
 
   login: (body: LoginRequest) =>
