@@ -43,3 +43,7 @@
   color: var(--muted-color);
   font-size: 0.85rem;
 }
+.sectionHeaderSpaced { margin-bottom: 10px; }
+.draftItemCard { padding: 14px; margin: 0; }
+.payersSection { margin-top: 8px; padding-top: 20px; border-top: 1px solid var(--border-color); }
+.totalsCard { padding: 16px; margin: 0; display: grid; gap: 8px; }

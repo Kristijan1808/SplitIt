@@ -7,6 +7,7 @@ import { useLanguage } from "../i18n";
 import type { Group } from "@splitit/shared";
 import { getWhoAmI, saveWhoAmI, saveGroupToLocalStorage } from "../storage";
 
+import "../styles/GroupPage.css";
 type DraftBill = {
   id: string;
   note?: string | null;
@@ -367,14 +368,13 @@ export const GroupPage = () => {
               <h3>{t("whoAreYou")}</h3>
               <button type="button" className="iconButton" onClick={() => setShowWhoAreYou(false)} aria-label={t("whoAreYou")}>×</button>
             </div>
-            <p className="muted" style={{ marginBottom: 12 }}>{t("selectYourParticipant")}</p>
+            <p className="muted participantSelectHint">{t("selectYourParticipant")}</p>
             <div className="list">
               {group.people.map((person) => (
                 <button
                   key={person.id}
                   type="button"
-                  className="secondaryButton"
-                  style={{ width: "100%", justifyContent: "flex-start", marginBottom: 8 }}
+                  className="secondaryButton participantButton"
                   onClick={() => chooseParticipant(person.id)}
                 >
                   {person.name}
@@ -400,7 +400,7 @@ export const GroupPage = () => {
                 </div>
               ))}
             </div>
-            <form onSubmit={addPerson} className="inlineInput" style={{ marginTop: 16 }}>
+            <form onSubmit={addPerson} className="inlineInput addParticipantForm">
               <input placeholder={t("addParticipantInput")} value={personName} onChange={(event) => setPersonName(event.target.value)} disabled={group.locked} />
               <button className="iconButton" type="submit" disabled={group.locked}><Plus size={18} /></button>
             </form>
@@ -423,7 +423,7 @@ export const GroupPage = () => {
       <div className="grid">
         <section className="card resultCard">
           <h2>{t("balances")}</h2>
-          <div style={{marginBottom:10}}>
+          <div className="balanceTotal">
             <div>
               <small>{t("totalSpent")}: </small>
               <strong>{balances.reduce((sum, balance) => sum + balance.paid, 0).toFixed(2)}</strong>
@@ -488,7 +488,7 @@ export const GroupPage = () => {
                 const expanded = expandedDrafts.has(draft.id);
                 return (
                   <div key={draft.id} className="paymentRow draftCard">
-                    <div className="contentRow" style={{ display: "block", width: "100%" }}>
+                    <div className="contentRow draftContentRow">
                       <button type="button" className="expenseSummary" onClick={() => setExpandedDrafts((current) => { const next = new Set(current); if (next.has(draft.id)) next.delete(draft.id); else next.add(draft.id); return next; })}>
                         <div className="expenseSummaryMain">
                           <strong>{draft.note || t("draftBill")}</strong>
@@ -499,19 +499,19 @@ export const GroupPage = () => {
                       {expanded ? (
                         <div>
 
-                      <div className="card" style={{ padding: 12, marginBottom: 12 }}>
+                      <div className="card draftStatsCard">
                         <div className="stats">
                           <div><small>{t("itemsTotal")}</small><strong>{itemTotal.toFixed(2)}</strong></div>
                           <div><small>{t("paidTotal")}</small><strong>{payerTotal.toFixed(2)}</strong></div>
                           <div><small>{t("assignedTotal")}</small><strong>{assignedTotal.toFixed(2)}</strong></div>
                           <div><small>{t("unassignedItems")}</small><strong>{unassignedCount}</strong></div>
                         </div>
-                        <p className="muted" style={{ marginBottom: 0 }}>
+                        <p className="muted draftPayersSummary">
                           {t("billPayers")}: {payerNames || t("noPayersAdded")}
                         </p>  
                       </div>
 
-                      <div className="list" style={{ marginTop: 12 }}>
+                      <div className="list draftItemsList">
                         {draft.items.map((item) => {
                           const isMine = item.shares.some(
                             (share) => share.personId === currentParticipantId
@@ -525,7 +525,7 @@ export const GroupPage = () => {
                               <span>
                                 <strong>{item.name}</strong>
                                 {item.shares.length > 0 && (
-                                  <small style={{ display: "block" }}>
+                                  <small className="draftItemSmall">
                                     {item.shares
                                       .map((share) => {
                                         const name = group.people.find(
@@ -540,7 +540,7 @@ export const GroupPage = () => {
                                   </small>
                                 )}
                                 {isMine && (
-                                  <small style={{ display: "block" }}>
+                                  <small className="draftItemSmall">
                                     ✓ {t("assignedToYou")}
                                   </small>
                                 )}
@@ -589,7 +589,7 @@ export const GroupPage = () => {
                         })}
                       </div>
 
-                      <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", marginTop: 14 }}>
+                      <div className="draftConfirmRow">
                         <button
                           type="button"
                           className="primaryButton"

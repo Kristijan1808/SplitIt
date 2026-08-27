@@ -5,6 +5,7 @@ import { ThemeToggle } from "../components/ThemeToggle";
 import { useLanguage } from "../i18n";
 import { api } from "../api";
 
+import "../styles/CreateGroupPage.css";
 export function CreateGroupPage() {
   const navigate = useNavigate();
   const { t } = useLanguage();

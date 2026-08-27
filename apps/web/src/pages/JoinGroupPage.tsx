@@ -4,6 +4,7 @@ import { ArrowLeft, UserRoundPlus } from "lucide-react";
 import { api } from "../api";
 import { useLanguage } from "../i18n";
 
+import "../styles/JoinGroupPage.css";
 export function JoinGroupPage() {
   const navigate = useNavigate();
   const { t } = useLanguage();

@@ -9,8 +9,7 @@ import {
   removeSavedGroup,
   type SavedGroup
 } from "../storage";
-import "./MyGroupsPage.css";
-
+import "../styles/MyGroupsPage.css";
 export function MyGroupsPage() {
   const { t } = useLanguage();
   const [groups, setGroups] = useState<SavedGroup[]>([]);

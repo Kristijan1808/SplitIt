@@ -53,3 +53,13 @@
     padding:20px;
     background-color: rgba(8, 139, 95, 0.542);
 }
+.participantSelectHint { margin-bottom: 12px; }
+.participantButton { width: 100%; justify-content: flex-start; margin-bottom: 8px; }
+.addParticipantForm { margin-top: 16px; }
+.balanceTotal { margin-bottom: 10px; }
+.draftContentRow { display: block; width: 100%; }
+.draftStatsCard { padding: 12px; margin-bottom: 12px; }
+.draftPayersSummary { margin-bottom: 0; }
+.draftItemsList { margin-top: 12px; }
+.draftItemSmall { display: block; }
+.draftConfirmRow { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 14px; }

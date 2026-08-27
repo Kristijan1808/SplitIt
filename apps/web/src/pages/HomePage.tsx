@@ -5,6 +5,7 @@ import { ThemeToggle } from "../components/ThemeToggle";
 import { LanguageToggle } from "../components/LanguageToggle";
 import { useLanguage } from "../i18n";
 
+import "../styles/HomePage.css";
 export function HomePage() {
   const [recentGroups, setRecentGroups] = useState<Array<{ slug: string; name: string }>>([]);
   const { t } = useLanguage();
@@ -27,8 +28,8 @@ export function HomePage() {
           <ThemeToggle />
         </div>
       </div>
-      <section className="hero" style={{ minHeight: "auto", gap: 24 }}>
-        <div className="brand" style={{ alignItems: "center" }}>
+      <section className="hero homeHero">
+        <div className="brand homeBrand">
           <div className="logo">
             <WalletCards size={28} />
           </div>
@@ -39,18 +40,18 @@ export function HomePage() {
         </div>
       </section>
 
-      <div style={{ display: "grid", gap: 12, marginTop: 100 }}>
-        <Link to="/new" className="primaryButton" style={{ width: "100%", justifyContent: "center" }}>
+      <div className="homeMainActions">
+        <Link to="/new" className="primaryButton homeActionButton">
           <Plus size={18} /> {t("createGroup")}
         </Link>
 
-        <Link to="/join" className="primaryButton" style={{ width: "100%", justifyContent: "center" }}>
+        <Link to="/join" className="primaryButton homeActionButton">
           <UserRoundPlus size={18} /> {t("joinGroup")}
         </Link>
       </div>
 
-      <div style={{ marginTop: 20 }}>
-        <Link to="/my-groups" className="secondaryButton" style={{ width: "100%", justifyContent: "center" }}>
+      <div className="homeSecondaryAction">
+        <Link to="/my-groups" className="secondaryButton homeActionButton">
           {t("myGroups")}
         </Link>
       </div>

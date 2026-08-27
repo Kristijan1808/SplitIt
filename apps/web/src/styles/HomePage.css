@@ -1,0 +1,6 @@
+/* HomePage */
+.homeHero { min-height: auto; gap: 24px; }
+.homeBrand { align-items: center; }
+.homeMainActions { display: grid; gap: 12px; margin-top: 100px; }
+.homeActionButton { width: 100%; justify-content: center; }
+.homeSecondaryAction { margin-top: 20px; }

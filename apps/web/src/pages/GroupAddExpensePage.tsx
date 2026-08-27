@@ -5,6 +5,7 @@ import { api } from "../api";
 import { useLanguage } from "../i18n";
 import type { Group } from "@splitit/shared";
 
+import "../styles/GroupAddExpensePage.css";
 type DraftItem = {
   id: string;
   name: string;
@@ -409,7 +410,7 @@ export const GroupAddExpensePage = () => {
           </div>
 
           <div>
-            <div className="sectionHeaderWithButton" style={{ marginBottom: 10 }}>
+            <div className="sectionHeaderWithButton sectionHeaderSpaced">
               <div>
                 <strong>{t("billItems")}</strong>
               </div>
@@ -428,8 +429,7 @@ export const GroupAddExpensePage = () => {
               {draftItems.map((item, index) => (
                 <div
                   key={item.id}
-                  className="card"
-                  style={{ padding: 14, margin: 0 }}
+                  className="card draftItemCard"
                 >
                   <div className="draftItemEditor">
                     <label>
@@ -507,14 +507,8 @@ export const GroupAddExpensePage = () => {
           </div>
 
           {/* PAYERS */}
-          <div
-            style={{
-              marginTop: 8,
-              paddingTop: 20,
-              borderTop: "1px solid var(--border-color)"
-            }}
-          >
-            <div className="sectionHeaderWithButton" style={{ marginBottom: 10 }}>
+          <div className="payersSection">
+            <div className="sectionHeaderWithButton sectionHeaderSpaced">
               <div>
                 <strong>{t("billPayers")}</strong>
                 <p className="muted">{t("billPayersHint")}</p>
@@ -584,15 +578,7 @@ export const GroupAddExpensePage = () => {
           </div>
 
           {/* TOTALS */}
-          <div
-            className="card"
-            style={{
-              padding: 16,
-              margin: 0,
-              display: "grid",
-              gap: 8
-            }}
-          >
+          <div className="card totalsCard">
             <div className="settlement">
               <span>{t("itemsTotal")}</span>
               <strong>{itemTotal.toFixed(2)}</strong>
