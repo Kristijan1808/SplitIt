@@ -1,3 +1,4 @@
+import "../styles/groupPage.css";
 import { FormEvent, useEffect, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { ArrowLeft, Copy, Lock, Plus, Users, X } from "lucide-react";
@@ -7,7 +8,6 @@ import { useLanguage } from "../i18n";
 import type { Group } from "@splitit/shared";
 import { getWhoAmI, saveWhoAmI, saveGroupToLocalStorage } from "../storage";
 
-import "../styles/GroupPage.css";
 type DraftBill = {
   id: string;
   note?: string | null;
@@ -368,13 +368,13 @@ export const GroupPage = () => {
               <h3>{t("whoAreYou")}</h3>
               <button type="button" className="iconButton" onClick={() => setShowWhoAreYou(false)} aria-label={t("whoAreYou")}>×</button>
             </div>
-            <p className="muted participantSelectHint">{t("selectYourParticipant")}</p>
+            <p className="muted participantPrompt">{t("selectYourParticipant")}</p>
             <div className="list">
               {group.people.map((person) => (
                 <button
                   key={person.id}
                   type="button"
-                  className="secondaryButton participantButton"
+                  className="secondaryButton participantChoiceButton"
                   onClick={() => chooseParticipant(person.id)}
                 >
                   {person.name}
@@ -423,7 +423,7 @@ export const GroupPage = () => {
       <div className="grid">
         <section className="card resultCard">
           <h2>{t("balances")}</h2>
-          <div className="balanceTotal">
+          <div className="totalSpentSummary">
             <div>
               <small>{t("totalSpent")}: </small>
               <strong>{balances.reduce((sum, balance) => sum + balance.paid, 0).toFixed(2)}</strong>
@@ -499,14 +499,14 @@ export const GroupPage = () => {
                       {expanded ? (
                         <div>
 
-                      <div className="card draftStatsCard">
+                      <div className="card draftDetailsCard">
                         <div className="stats">
                           <div><small>{t("itemsTotal")}</small><strong>{itemTotal.toFixed(2)}</strong></div>
                           <div><small>{t("paidTotal")}</small><strong>{payerTotal.toFixed(2)}</strong></div>
                           <div><small>{t("assignedTotal")}</small><strong>{assignedTotal.toFixed(2)}</strong></div>
                           <div><small>{t("unassignedItems")}</small><strong>{unassignedCount}</strong></div>
                         </div>
-                        <p className="muted draftPayersSummary">
+                        <p className="muted noBottomMargin">
                           {t("billPayers")}: {payerNames || t("noPayersAdded")}
                         </p>  
                       </div>
@@ -525,7 +525,7 @@ export const GroupPage = () => {
                               <span>
                                 <strong>{item.name}</strong>
                                 {item.shares.length > 0 && (
-                                  <small className="draftItemSmall">
+                                  <small className="blockText">
                                     {item.shares
                                       .map((share) => {
                                         const name = group.people.find(
@@ -540,7 +540,7 @@ export const GroupPage = () => {
                                   </small>
                                 )}
                                 {isMine && (
-                                  <small className="draftItemSmall">
+                                  <small className="blockText">
                                     ✓ {t("assignedToYou")}
                                   </small>
                                 )}

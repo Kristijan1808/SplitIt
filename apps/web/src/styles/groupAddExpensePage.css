@@ -1,3 +1,4 @@
+/* GroupAddExpensePage */
 .billImageActions {
   display: flex;
   gap: 10px;
@@ -43,7 +44,180 @@
   color: var(--muted-color);
   font-size: 0.85rem;
 }
-.sectionHeaderSpaced { margin-bottom: 10px; }
-.draftItemCard { padding: 14px; margin: 0; }
+
+@media (max-width: 720px) {
+  .draftItemEditor, .draftPayerEditor, .draftItemRow { grid-template-columns: 1fr; align-items: stretch; }
+  .draftItemEditor .iconButton, .draftPayerEditor .iconButton { justify-self: end; }
+  .sharePicker { width: 100%; }
+  .shareOption { flex: 1 1 auto; }
+  .draftItemRow { gap: 10px; }
+  .draftItemRow em { font-style: normal; font-weight: 800; }
+  .expenseSummary { align-items: flex-start; }
+}
+
+@media (max-width: 430px) {
+  .page, .page.wide { padding-left: 12px; padding-right: 12px; }
+  .card { padding: 14px; }
+  .expenseSummary { padding: 12px; }
+  .shareOption { max-width: 100%; flex: 1 1 100%; }
+}
+
+
+.draftPayerEditor {
+  grid-template-columns: minmax(0, 1.5fr) minmax(110px, 1fr) auto;
+}
+
+.draftItemEditor > label,
+.draftPayerEditor > label,
+.draftItemShares {
+  min-width: 0;
+}
+
+.draftItemEditor input,
+.draftPayerEditor input,
+.draftItemEditor select,
+.draftPayerEditor select {
+  width: 100%;
+  min-width: 0;
+}
+
+.draftItemShares > span {
+  display: block;
+  margin-bottom: 7px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.sharePicker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  min-width: 0;
+}
+
+.shareOption {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  max-width: 100%;
+  padding: 7px 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface-solid);
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.shareOption span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.shareOption input {
+  width: auto;
+  flex: 0 0 auto;
+  margin: 0;
+}
+
+.draftItemRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(75px, .55fr) minmax(220px, 1.4fr) auto;
+  gap: 12px;
+  align-items: center;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.draftItemRow:last-child {
+  border-bottom: 0;
+}
+
+.draftItemRow > span,
+.draftItemRow > em {
+  min-width: 0;
+}
+
+.expenseCard,
+.draftCard {
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  overflow: hidden;
+  background: var(--panel-bg);
+}
+
+.expenseSummary {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 15px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.expenseSummary:hover {
+  background: var(--surface-hover);
+}
+
+.expenseSummaryMain {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.expenseSummaryMain strong,
+.expenseSummaryMain small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.expenseDetails {
+  border-top: 1px solid var(--line);
+  padding: 14px;
+  display: grid;
+  gap: 18px;
+}
+
+.expenseDetailsBlock {
+  display: grid;
+  gap: 8px;
+}
+
+.detailLine,
+.expenseDetailItemTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.expenseDetailItem {
+  display: grid;
+  gap: 4px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.expenseDetailItem:last-child {
+  border-bottom: 0;
+}
+
+.shareNames {
+  color: var(--gray);
+  font-size: 13px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+
+.sectionHeaderMargin { margin-bottom: 10px; }
+.draftEditorCard { padding: 14px; margin: 0; }
 .payersSection { margin-top: 8px; padding-top: 20px; border-top: 1px solid var(--border-color); }
 .totalsCard { padding: 16px; margin: 0; display: grid; gap: 8px; }

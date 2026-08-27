@@ -1,3 +1,4 @@
+/* GroupPage */
 .buttons-container-right{
   position: absolute;
   bottom: 10px;
@@ -53,13 +54,156 @@
     padding:20px;
     background-color: rgba(8, 139, 95, 0.542);
 }
-.participantSelectHint { margin-bottom: 12px; }
-.participantButton { width: 100%; justify-content: flex-start; margin-bottom: 8px; }
+
+/* GroupPage responsive/shared page-specific */
+@media (max-width: 560px) { .groupHeader { display: grid; } }
+
+
+.show-hide-expenses-btn{
+  outline: none;
+  background-color: unset !important;
+  border: none;
+  color: white
+}
+
+.headerActions{
+  display: flex;
+  flex-direction: row;
+  flex:1;
+  gap: 10px;
+}
+
+.headerActions > button{
+  flex:1;
+  padding:4px;
+}
+
+.expense-payers{
+  font-size: 14px;
+  color: #cdcaca;
+  border-left:1px solid #b49303;
+  border-bottom:1px solid #b49303;
+  padding: 6px;
+}
+
+.expense-items{
+  border-right:1px solid #b49303;
+  padding: 6px;
+}
+
+.expense-participants{
+  border-top:1px solid #b49303;
+  border-left:1px solid #b49303;
+  padding: 6px;
+}
+
+.margin-left-4{
+  margin-left: 4px;
+}
+
+.contentRow:hover{
+    color:#14543f;
+}
+
+.groupMetaRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.groupMetaRow .muted {
+  margin: 0;
+}
+
+.participantsToggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 0;
+  background: transparent;
+  color: var(--green-900);
+  font-weight: 700;
+  cursor: pointer;
+  padding: 0;
+}
+
+.participantsOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(8, 28, 21, 0.5);
+  backdrop-filter: blur(8px);
+}
+
+.participantsCard {
+  position: relative;
+  width: min(460px, 100%);
+  margin: 0;
+  box-shadow: 0 22px 50px rgba(15, 61, 46, 0.18);
+  z-index: 1;
+}
+
+.participantsHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.participantsHeader h3 {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.stats div {
+  padding: 18px;
+
+  background:
+    linear-gradient(
+      135deg,
+      rgba(255, 255, 255, 0.74),
+      rgba(223, 244, 232, 0.82)
+    );
+
+  border-radius: 22px;
+
+  border: 1px solid rgba(15, 61, 46, 0.05);
+}
+
+.stats strong {
+  display: block;
+  margin-top: 4px;
+  font-size: 30px;
+  color: var(--green-950);
+}
+
+.settlement em {
+  font-style: normal;
+  font-weight: 900;
+  color: var(--green-700);
+}
+
+
+.participantPrompt { margin-bottom: 12px; }
+.participantChoiceButton { width: 100%; justify-content: flex-start; margin-bottom: 8px; }
 .addParticipantForm { margin-top: 16px; }
-.balanceTotal { margin-bottom: 10px; }
+.totalSpentSummary { margin-bottom: 10px; }
 .draftContentRow { display: block; width: 100%; }
-.draftStatsCard { padding: 12px; margin-bottom: 12px; }
-.draftPayersSummary { margin-bottom: 0; }
+.draftDetailsCard { padding: 12px; margin-bottom: 12px; }
+.noBottomMargin { margin-bottom: 0; }
 .draftItemsList { margin-top: 12px; }
-.draftItemSmall { display: block; }
+.blockText { display: block; }
 .draftConfirmRow { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 14px; }

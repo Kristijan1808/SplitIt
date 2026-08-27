@@ -1,3 +1,4 @@
+import "../styles/homePage.css";
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { Plus, UserRoundPlus, WalletCards } from "lucide-react";
@@ -5,7 +6,6 @@ import { ThemeToggle } from "../components/ThemeToggle";
 import { LanguageToggle } from "../components/LanguageToggle";
 import { useLanguage } from "../i18n";
 
-import "../styles/HomePage.css";
 export function HomePage() {
   const [recentGroups, setRecentGroups] = useState<Array<{ slug: string; name: string }>>([]);
   const { t } = useLanguage();
@@ -40,7 +40,7 @@ export function HomePage() {
         </div>
       </section>
 
-      <div className="homeMainActions">
+      <div className="homeActions">
         <Link to="/new" className="primaryButton homeActionButton">
           <Plus size={18} /> {t("createGroup")}
         </Link>
@@ -50,7 +50,7 @@ export function HomePage() {
         </Link>
       </div>
 
-      <div className="homeSecondaryAction">
+      <div className="homeActionsSecondary">
         <Link to="/my-groups" className="secondaryButton homeActionButton">
           {t("myGroups")}
         </Link>

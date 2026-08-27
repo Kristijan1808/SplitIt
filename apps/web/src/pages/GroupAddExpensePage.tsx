@@ -1,3 +1,4 @@
+import "../styles/groupAddExpensePage.css";
 import { useEffect, useMemo, useState } from "react";
 import { ArrowLeft, Camera, ImagePlus, Plus, Trash2 } from "lucide-react";
 import { Link, useNavigate, useParams } from "react-router-dom";
@@ -5,7 +6,6 @@ import { api } from "../api";
 import { useLanguage } from "../i18n";
 import type { Group } from "@splitit/shared";
 
-import "../styles/GroupAddExpensePage.css";
 type DraftItem = {
   id: string;
   name: string;
@@ -410,7 +410,7 @@ export const GroupAddExpensePage = () => {
           </div>
 
           <div>
-            <div className="sectionHeaderWithButton sectionHeaderSpaced">
+            <div className="sectionHeaderWithButton sectionHeaderMargin">
               <div>
                 <strong>{t("billItems")}</strong>
               </div>
@@ -429,7 +429,8 @@ export const GroupAddExpensePage = () => {
               {draftItems.map((item, index) => (
                 <div
                   key={item.id}
-                  className="card draftItemCard"
+                  className="card"
+                  className="card draftEditorCard"
                 >
                   <div className="draftItemEditor">
                     <label>
@@ -507,8 +508,10 @@ export const GroupAddExpensePage = () => {
           </div>
 
           {/* PAYERS */}
-          <div className="payersSection">
-            <div className="sectionHeaderWithButton sectionHeaderSpaced">
+          <div
+            className="payersSection"
+          >
+            <div className="sectionHeaderWithButton sectionHeaderMargin">
               <div>
                 <strong>{t("billPayers")}</strong>
                 <p className="muted">{t("billPayersHint")}</p>
@@ -578,7 +581,10 @@ export const GroupAddExpensePage = () => {
           </div>
 
           {/* TOTALS */}
-          <div className="card totalsCard">
+          <div
+            className="card"
+            className="totalsCard"
+          >
             <div className="settlement">
               <span>{t("itemsTotal")}</span>
               <strong>{itemTotal.toFixed(2)}</strong>

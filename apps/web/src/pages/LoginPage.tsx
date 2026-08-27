@@ -1,3 +1,4 @@
+import "../styles/loginPage.css";
 import { FormEvent, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { ArrowLeft, LogIn, UserPlus } from "lucide-react";
@@ -6,7 +7,6 @@ import { saveAuth } from "../auth";
 import { ThemeToggle } from "../components/ThemeToggle";
 import { useLanguage } from "../i18n";
 
-import "../styles/LoginPage.css";
 export function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation();

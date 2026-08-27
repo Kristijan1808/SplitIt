@@ -1,0 +1,40 @@
+/* ApiLoadingOverlay */
+.screenLoader {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: rgba(255, 255, 255, 0.42);
+  backdrop-filter: blur(14px);
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 16px;
+}
+
+.spinner.large {
+  width: 84px;
+  height: 84px;
+  border-width: 7px;
+}
+
+.loadingTitle {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 900;
+  color: var(--green-950);
+}
+
+.toastError {
+  position: fixed;
+  left: 50%;
+  bottom: 28px;
+  transform: translateX(-50%);
+  background: #7f1d1d;
+  color: white;
+  padding: 14px 18px;
+  border-radius: 18px;
+  font-weight: 700;
+  z-index: 99999;
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.22);
+  animation: toastIn 0.22s ease;
+}

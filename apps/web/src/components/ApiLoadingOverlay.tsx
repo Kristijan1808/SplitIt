@@ -1,3 +1,4 @@
+import "../styles/apiLoadingOverlay.css";
 import { useApiLoading } from "../loading";
 
 export const ApiLoadingOverlay = () => {

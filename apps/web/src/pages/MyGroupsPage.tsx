@@ -1,3 +1,4 @@
+import "../styles/myGroupsPage.css";
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { ArrowLeft, FolderOpen, X } from "lucide-react";
@@ -9,7 +10,7 @@ import {
   removeSavedGroup,
   type SavedGroup
 } from "../storage";
-import "../styles/MyGroupsPage.css";
+
 export function MyGroupsPage() {
   const { t } = useLanguage();
   const [groups, setGroups] = useState<SavedGroup[]>([]);

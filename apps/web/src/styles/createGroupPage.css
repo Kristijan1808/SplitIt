@@ -1,3 +1,4 @@
+/* CreateGroupPage */
 .validationMessage {
   display: none;
 }
@@ -15,4 +16,17 @@ input:user-invalid + .validationMessage {
 
 .add-participants-btn{
     margin-top:4px;
+}
+
+/* Page-specific action/result layout */
+.createdCodeBox {
+  display: grid;
+  gap: 12px;
+  margin-top: 18px;
+}
+
+.actionsRow {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
 }

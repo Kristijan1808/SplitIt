@@ -1,3 +1,4 @@
+import "../styles/createGroupPage.css";
 import { FormEvent, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { ArrowLeft, Copy, Plus } from "lucide-react";
@@ -5,7 +6,6 @@ import { ThemeToggle } from "../components/ThemeToggle";
 import { useLanguage } from "../i18n";
 import { api } from "../api";
 
-import "../styles/CreateGroupPage.css";
 export function CreateGroupPage() {
   const navigate = useNavigate();
   const { t } = useLanguage();
