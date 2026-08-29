@@ -8,6 +8,18 @@ import { nanoid } from "nanoid";
 import { z } from "zod";
 import multer, { MulterError } from "multer";
 import { chatGptService } from "./chatgpt.service.js";
+import {
+  addPersonSchema,
+  registerSchema,
+  authSchema,
+  createDraftExpenseSchema,
+  updateDraftExpenseItemSchema,
+  updateDraftExpensePayersSchema,
+} from "./schemas/schemas.js";
+import { GroupService } from "./services/group.service.js";
+import { serializeDraftExpense, serializeExpense, serializeGroup, serializePaymentFromPayer } from "./utils.js";
+
+const groupService = new GroupService();
 
 const app = express();
 const prisma = new PrismaClient();
@@ -55,173 +67,6 @@ const billImageUpload = multer({
 
 //
 // ============================================================
-// SCHEMAS
-// ============================================================
-//
-
-const createGroupSchema = z.object({
-  name: z.string().min(1).max(80),
-  password: z.string().min(1).max(80),
-  people: z.array(z.string().min(1).max(60)).min(1),
-  accessType: z
-    .enum(["ANONYMOUS_ONLY", "REGISTERED_ONLY", "MIXED"])
-    .default("ANONYMOUS_ONLY")
-});
-
-const joinGroupSchema = z
-  .object({
-    code: z.string().trim().regex(/^[A-Z0-9]{6}$/i).optional(),
-    name: z.string().trim().min(1).max(80).optional(),
-    password: z.string().min(1).max(80)
-  })
-  .refine((value) => Boolean(value.code || value.name), {
-    message: "Either group code or name is required",
-    path: ["code"]
-  });
-
-const addPersonSchema = z.object({
-  name: z.string().min(1).max(60)
-});
-
-const authSchema = z.object({
-  username: z.string().min(3).max(120),
-  password: z.string().min(6).max(120)
-});
-
-const registerSchema = authSchema.extend({
-  repeatPassword: z.string().min(6).max(120)
-});
-
-//
-// Draft bill creation.
-//
-// An item does NOT require an assigned person.
-//
-// Example:
-//
-// {
-//   name: "Pizza",
-//   price: 20,
-//   shares: []
-// }
-//
-// is completely valid.
-//
-const createDraftExpenseSchema = z.object({
-  note: z.string().max(200).optional(),
-
-  payers: z
-    .array(
-      z.object({
-        personId: z.string().min(1),
-        amount: z.number().positive()
-      })
-    )
-    .default([]),
-
-  items: z
-    .array(
-      z.object({
-        name: z.string().min(1).max(120),
-        price: z.number().min(0),
-
-        // Optional initial assignments.
-        //
-        // amount is optional. If omitted, the backend calculates
-        // equal shares when the item is saved.
-        shares: z
-          .array(
-            z.object({
-              personId: z.string().min(1),
-              amount: z.number().positive().optional()
-            })
-          )
-          .default([])
-      })
-    )
-    .min(1)
-});
-
-//
-// Replace all people assigned to one draft item.
-//
-// Example:
-//
-// {
-//   shares: [
-//     { personId: "...", amount: 10 },
-//     { personId: "...", amount: 10 }
-//   ]
-// }
-//
-// Or:
-//
-// {
-//   shares: []
-// }
-//
-// to remove all assignments.
-//
-const updateDraftExpenseItemSchema = z.object({
-  shares: z
-    .array(
-      z.object({
-        personId: z.string().min(1),
-        amount: z.number().positive().optional()
-      })
-    )
-    .default([])
-});
-
-//
-// Update draft payer list.
-//
-const updateDraftExpensePayersSchema = z.object({
-  payers: z.array(
-    z.object({
-      personId: z.string().min(1),
-      amount: z.number().positive()
-    })
-  )
-});
-
-//
-// Add a normal/finalized expense directly.
-//
-const addExpenseSchema = z.object({
-  note: z.string().max(200).optional(),
-
-  items: z
-    .array(
-      z.object({
-        name: z.string().min(1).max(120),
-        price: z.number().positive(),
-        shares: z.array(
-          z.object({
-            personId: z.string().min(1),
-            amount: z.number().positive().optional()
-          })
-        )
-      })
-    )
-    .min(1),
-
-  payers: z
-    .array(
-      z.object({
-        personId: z.string().min(1),
-        amount: z.number().positive()
-      })
-    )
-    .min(1)
-});
-
-const patchExpenseSchema = z.object({
-  note: z.string().max(200).optional()
-});
-
-//
-// ============================================================
 // TYPES / HELPERS
 // ============================================================
 //
@@ -259,7 +104,7 @@ const getTokenFromRequest = (req: express.Request) => {
   return header.slice("Bearer ".length);
 };
 
-const getUserFromRequest = (
+export const getUserFromRequest = (
   req: express.Request
 ): AuthUser | null => {
   const token = getTokenFromRequest(req);
@@ -288,34 +133,6 @@ const getUserFromRequest = (
 
 const normalizeUsername = (username: string) =>
   username.trim().toLowerCase();
-
-const generateGroupCode = () => {
-  const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-
-  return Array.from(
-    { length: 6 },
-    () =>
-      alphabet[
-        Math.floor(Math.random() * alphabet.length)
-      ]
-  ).join("");
-};
-
-const generateUniqueGroupCode = async () => {
-  for (let attempt = 0; attempt < 20; attempt += 1) {
-    const code = generateGroupCode();
-
-    const existing = await prisma.group.findUnique({
-      where: { code }
-    });
-
-    if (!existing) {
-      return code;
-    }
-  }
-
-  throw new Error("Unable to generate a unique group code");
-};
 
 const roundMoney = (value: number) =>
   Number(value.toFixed(2));
@@ -496,352 +313,9 @@ const aggregateExpenseShares = (
 // ============================================================
 //
 
-function serializeDraftExpense(
-  draft: any
-) {
-  return {
-    id: draft.id,
-    groupId: draft.groupId,
-    note: draft.note ?? null,
-    createdAt: draft.createdAt,
-    updatedAt: draft.updatedAt,
 
-    payers: (draft.payers ?? []).map(
-      (payer: any) => ({
-        id: payer.id,
-        draftId: payer.draftId,
-        personId: payer.personId,
-        amount: Number(payer.amount),
-        createdAt: payer.createdAt,
-        updatedAt: payer.updatedAt
-      })
-    ),
 
-    items: (draft.items ?? []).map(
-      (item: any) => ({
-        id: item.id,
-        draftId: item.draftId,
-        name: item.name,
-        price: Number(item.price),
-        createdAt: item.createdAt,
-        updatedAt: item.updatedAt,
 
-        //
-        // IMPORTANT:
-        // An empty shares array is valid.
-        //
-        shares: (item.shares ?? []).map(
-          (share: any) => ({
-            id: share.id,
-            itemId: share.itemId,
-            personId: share.personId,
-            amount: Number(share.amount),
-            createdAt: share.createdAt,
-            updatedAt: share.updatedAt
-          })
-        )
-      })
-    )
-  };
-}
-
-function serializeExpense(
-  expense: any
-) {
-  return {
-    id: expense.id,
-    groupId: expense.groupId,
-    totalAmount: Number(
-      expense.totalAmount
-    ),
-    note: expense.note ?? null,
-    createdAt: expense.createdAt,
-    updatedAt: expense.updatedAt,
-
-    payers: (expense.payers ?? []).map(
-      (payer: any) => ({
-        id: payer.id,
-        expenseId: payer.expenseId,
-        personId: payer.personId,
-        amount: Number(payer.amount),
-        person: payer.person
-          ? {
-              id: payer.person.id,
-              name: payer.person.name
-            }
-          : undefined
-      })
-    ),
-
-    items: (expense.items ?? []).map(
-      (item: any) => ({
-        id: item.id,
-        expenseId: item.expenseId,
-        name: item.name,
-        price: Number(item.price),
-
-        shares: (item.shares ?? []).map(
-          (share: any) => ({
-            id: share.id,
-            itemId: share.itemId,
-            personId: share.personId,
-            amount: Number(share.amount),
-            person: share.person
-              ? {
-                  id: share.person.id,
-                  name: share.person.name
-                }
-              : undefined
-          })
-        )
-      })
-    ),
-
-    shares: (expense.shares ?? []).map(
-      (share: any) => ({
-        id: share.id,
-        expenseId: share.expenseId,
-        personId: share.personId,
-        amount: Number(share.amount),
-        person: share.person
-          ? {
-              id: share.person.id,
-              name: share.person.name
-            }
-          : undefined
-      })
-    )
-  };
-}
-
-//
-// Compatibility representation for old UI code that expects
-// "payments".
-//
-// A payer is represented as a payment.
-//
-// This lets existing group screens continue to display
-// payer information while the actual database uses ExpensePayer.
-//
-function serializePaymentFromPayer(
-  payer: any
-) {
-  return {
-    id: payer.id,
-    expenseId: payer.expenseId,
-    personId: payer.personId,
-    amount: Number(payer.amount),
-    note: payer.expense?.note ?? null,
-    createdAt:
-      payer.expense?.createdAt ??
-      payer.createdAt,
-    updatedAt:
-      payer.expense?.updatedAt ??
-      payer.updatedAt
-  };
-}
-
-const serializeGroup = (
-  group: any,
-  currentUser?: AuthUser | null
-) => {
-  const {
-    passwordHash,
-    ...restGroup
-  } = group;
-
-  const currentMembership =
-    currentUser
-      ? group.members?.find(
-          (member: any) =>
-            member.userId === currentUser.id
-        )
-      : null;
-
-  const expenses =
-    group.expenses ?? [];
-
-  //
-  // Flatten payer records to preserve the old
-  // "payments" property expected by the frontend.
-  //
-  const payments = expenses.flatMap(
-    (expense: any) =>
-      (expense.payers ?? []).map(
-        (payer: any) =>
-          serializePaymentFromPayer({
-            ...payer,
-            expense
-          })
-      )
-  );
-
-  return {
-    ...restGroup,
-
-    code: group.code,
-    locked: Boolean(group.locked),
-
-    currentUserRole:
-      currentMembership?.role ?? null,
-
-    payments,
-
-    expenses:
-      expenses.map(serializeExpense),
-
-    people:
-      group.people?.map(
-        (person: any) => ({
-          id: person.id,
-          name: person.name,
-          groupId: person.groupId,
-          createdAt: person.createdAt,
-
-          //
-          // Compatibility:
-          // show payer records belonging to this person.
-          //
-          payments: expenses.flatMap(
-            (expense: any) =>
-              (expense.payers ?? [])
-                .filter(
-                  (payer: any) =>
-                    payer.personId ===
-                    person.id
-                )
-                .map(
-                  (payer: any) =>
-                    serializePaymentFromPayer(
-                      {
-                        ...payer,
-                        expense
-                      }
-                    )
-                )
-          )
-        })
-      ) ?? [],
-
-    history:
-      group.history ?? [],
-
-    members:
-      group.members?.map(
-        (member: any) => ({
-          id: member.id,
-          groupId: member.groupId,
-          userId: member.userId,
-          username:
-            member.user?.username,
-          role: member.role,
-          createdAt:
-            member.createdAt
-        })
-      ) ?? [],
-
-    draftExpenses:
-      (group.draftExpenses ?? []).map(
-        serializeDraftExpense
-      )
-  };
-};
-
-//
-// ============================================================
-// GROUP FETCH
-// ============================================================
-//
-
-const getGroupBySlug = async (
-  slug: string
-) => {
-  return prisma.group.findUnique({
-    where: { slug },
-
-    include: {
-      people: {
-        orderBy: {
-          createdAt: "asc"
-        }
-      },
-
-      expenses: {
-        orderBy: {
-          createdAt: "desc"
-        },
-
-        include: {
-          payers: {
-            include: {
-              person: true
-            }
-          },
-
-          items: {
-            orderBy: {
-              createdAt: "asc"
-            },
-
-            include: {
-              shares: {
-                include: {
-                  person: true
-                }
-              }
-            }
-          },
-
-          shares: {
-            include: {
-              person: true
-            }
-          }
-        }
-      },
-
-      history: {
-        orderBy: {
-          createdAt: "desc"
-        }
-      },
-
-      members: {
-        include: {
-          user: {
-            select: {
-              username: true
-            }
-          }
-        },
-
-        orderBy: {
-          createdAt: "asc"
-        }
-      },
-
-      draftExpenses: {
-        orderBy: {
-          createdAt: "desc"
-        },
-
-        include: {
-          payers: true,
-
-          items: {
-            orderBy: {
-              createdAt: "asc"
-            },
-
-            include: {
-              shares: true
-            }
-          }
-        }
-      }
-    }
-  });
-};
 
 //
 // ============================================================
@@ -849,7 +323,7 @@ const getGroupBySlug = async (
 // ============================================================
 //
 
-const addGroupMemberIfNeeded = async (
+export const addGroupMemberIfNeeded = async (
   groupId: string,
   user: AuthUser,
   role: "OWNER" | "MEMBER" = "MEMBER"
@@ -872,7 +346,7 @@ const addGroupMemberIfNeeded = async (
   });
 };
 
-const ensureCanViewGroup = async (
+export const ensureCanViewGroup = async (
   group: GroupWithAccess,
   req: express.Request
 ) => {
@@ -933,7 +407,7 @@ const ensureCanViewGroup = async (
   };
 };
 
-const ensureCanEditGroup = async (
+export const ensureCanEditGroup = async (
   group: GroupWithAccess,
   req: express.Request
 ) => {
@@ -1233,131 +707,9 @@ app.post(
   "/groups",
   async (req, res, next) => {
     try {
-      const body =
-        createGroupSchema.parse(
-          req.body
-        );
+      const group = await groupService.createGroup(req);
 
-      const currentUser =
-        getUserFromRequest(req);
-
-      if (
-        body.accessType ===
-          "REGISTERED_ONLY" &&
-        !currentUser
-      ) {
-        return res.status(401).json({
-          error:
-            "You must login to create a registered-only group"
-        });
-      }
-
-      const passwordHash =
-        await bcrypt.hash(
-          body.password.trim(),
-          12
-        );
-
-      const uniquePeople = [
-        ...new Set(
-          body.people
-            .map((name) =>
-              name.trim()
-            )
-            .filter(Boolean)
-        )
-      ];
-
-      const code =
-        await generateUniqueGroupCode();
-
-      const group =
-        await prisma.group.create({
-          data: {
-            name: body.name.trim(),
-            slug: nanoid(12),
-            code,
-            accessType:
-              body.accessType,
-            passwordHash,
-            ownerUserId:
-              currentUser?.id ?? null,
-
-            members: currentUser
-              ? {
-                  create: {
-                    userId:
-                      currentUser.id,
-                    role: "OWNER"
-                  }
-                }
-              : undefined,
-
-            people: {
-              create:
-                uniquePeople.map(
-                  (name) => ({
-                    name
-                  })
-                )
-            },
-
-            history: {
-              create: {
-                action: "CREATE",
-                entity: "GROUP",
-                message:
-                  `Group "${body.name.trim()}" created as ${body.accessType}`
-              }
-            }
-          },
-
-          include: {
-            people: true,
-            expenses: {
-              include: {
-                payers: true,
-                items: {
-                  include: {
-                    shares: true
-                  }
-                },
-                shares: true
-              }
-            },
-            history: {
-              orderBy: {
-                createdAt: "desc"
-              }
-            },
-            members: {
-              include: {
-                user: {
-                  select: {
-                    username: true
-                  }
-                }
-              }
-            },
-            draftExpenses: {
-              include: {
-                payers: true,
-                items: {
-                  include: {
-                    shares: true
-                  }
-                }
-              }
-            }
-          }
-        });
-
-      res.status(201).json(
-        serializeGroup(
-          group,
-          currentUser
-        )
-      );
+      res.status(201).json(group);
     } catch (error) {
       next(error);
     }
@@ -1368,68 +720,9 @@ app.post(
   "/groups/join",
   async (req, res, next) => {
     try {
-      const body =
-        joinGroupSchema.parse(
-          req.body
-        );
+      const group = await groupService.joinGroup(req);
 
-      const currentUser =
-        getUserFromRequest(req);
-
-      const group = body.code
-        ? await prisma.group.findUnique({
-            where: {
-              code:
-                body.code.toUpperCase()
-            }
-          })
-        : await prisma.group.findFirst({
-            where: {
-              name: {
-                equals:
-                  body.name?.trim() ??
-                  "",
-                mode: "insensitive"
-              }
-            }
-          });
-
-      if (!group) {
-        return res.status(404).json({
-          error: "Group not found"
-        });
-      }
-
-      const validPassword =
-        await bcrypt.compare(
-          body.password,
-          group.passwordHash
-        );
-
-      if (!validPassword) {
-        return res.status(401).json({
-          error: "Invalid password"
-        });
-      }
-
-      if (currentUser) {
-        await addGroupMemberIfNeeded(
-          group.id,
-          currentUser
-        );
-      }
-
-      const refreshed =
-        await getGroupBySlug(
-          group.slug
-        );
-
-      res.json(
-        serializeGroup(
-          refreshed,
-          currentUser
-        )
-      );
+      res.json(group);
     } catch (error) {
       next(error);
     }
@@ -1440,42 +733,9 @@ app.get(
   "/groups/:slug",
   async (req, res, next) => {
     try {
-      const group =
-        await getGroupBySlug(
-          req.params.slug
-        );
+      const group = await groupService.getGroup(req.params.slug,req);
 
-      if (!group) {
-        return res.status(404).json({
-          error: "Group not found"
-        });
-      }
-
-      const access =
-        await ensureCanViewGroup(
-          group,
-          req
-        );
-
-      if (!access.allowed) {
-        return res
-          .status(access.status)
-          .json({
-            error: access.error
-          });
-      }
-
-      const updated =
-        await getGroupBySlug(
-          req.params.slug
-        );
-
-      res.json(
-        serializeGroup(
-          updated,
-          access.user
-        )
-      );
+      res.json(group);
     } catch (error) {
       next(error);
     }
@@ -1486,79 +746,9 @@ app.patch(
   "/groups/:slug",
   async (req, res, next) => {
     try {
-      const schema = z.object({
-        name: z.string().min(1).max(80)
-      });
+      const group = await groupService.updateGroup(req.params.slug, req);
 
-      const body =
-        schema.parse(req.body);
-
-      const existing =
-        await prisma.group.findUnique({
-          where: {
-            slug: req.params.slug
-          }
-        });
-
-      if (!existing) {
-        return res.status(404).json({
-          error: "Group not found"
-        });
-      }
-
-      const access =
-        await ensureCanEditGroup(
-          existing,
-          req
-        );
-
-      if (!access.allowed) {
-        return res
-          .status(access.status)
-          .json({
-            error: access.error
-          });
-      }
-
-      await prisma.group.update({
-        where: {
-          slug: req.params.slug
-        },
-
-        data: {
-          name: body.name.trim(),
-
-          history: {
-            create: {
-              action: "UPDATE",
-              entity: "GROUP",
-              entityId:
-                existing.id,
-
-              message:
-                `Group name changed from "${existing.name}" to "${body.name.trim()}"`,
-
-              oldValue:
-                existing.name,
-
-              newValue:
-                body.name.trim()
-            }
-          }
-        }
-      });
-
-      const updated =
-        await getGroupBySlug(
-          req.params.slug
-        );
-
-      res.json(
-        serializeGroup(
-          updated,
-          access.user
-        )
-      );
+      res.json(group);
     } catch (error) {
       next(error);
     }
@@ -1646,7 +836,7 @@ app.post(
       });
 
       const updated =
-        await getGroupBySlug(
+        await groupService.getGroupBySlug(
           req.params.slug
         );
 
@@ -1744,7 +934,7 @@ app.patch(
       });
 
       const updated =
-        await getGroupBySlug(
+        await groupService.getGroupBySlug(
           req.params.slug
         );
 
@@ -1827,7 +1017,7 @@ app.delete(
       });
 
       const updated =
-        await getGroupBySlug(
+        await groupService.getGroupBySlug(
           req.params.slug
         );
 
@@ -2974,7 +2164,7 @@ app.post(
         );
 
       const updated =
-        await getGroupBySlug(
+        await groupService.getGroupBySlug(
           req.params.slug
         );
 
@@ -3249,7 +2439,7 @@ app.delete(
       });
 
       const updated =
-        await getGroupBySlug(
+        await groupService.getGroupBySlug(
           req.params.slug
         );
 
@@ -3550,7 +2740,7 @@ app.post(
       });
 
       const updated =
-        await getGroupBySlug(
+        await groupService.getGroupBySlug(
           req.params.slug
         );
 
@@ -3946,7 +3136,7 @@ app.patch(
       });
 
       const updated =
-        await getGroupBySlug(
+        await groupService.getGroupBySlug(
           req.params.slug
         );
 
