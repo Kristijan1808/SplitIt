@@ -167,7 +167,7 @@ export const GroupPage = () => {
         itemId,
         { shares }
       );
-
+      console.log("aaaaaaaaaaaaa");
       setDrafts((current) =>
         current.map((entry) =>
           entry.id === draftId

@@ -25,7 +25,7 @@ const MAX_IMAGE_SIZE_BYTES = 10 * 1024 * 1024;
 export class ChatGptService {
   private client: OpenAI | null = null;
 
-  private getClient(): OpenAI {
+  private getClient = (): OpenAI => {
     if (!process.env.OPENAI_API_KEY) {
       throw new Error("OPENAI_API_KEY is not configured");
     }
@@ -39,12 +39,12 @@ export class ChatGptService {
     }
 
     return this.client;
-  }
+  };
 
-  async extractBillItems(
+  extractBillItems = async (
     image: Buffer,
     mimeType: string
-  ): Promise<ParsedBillItem[]> {
+  ): Promise<ParsedBillItem[]> => {
     if (!image.length) {
       throw new Error("The uploaded image is empty");
     }
@@ -100,7 +100,7 @@ export class ChatGptService {
       name: item.name.trim(),
       price: Number(item.price)
     }));
-  }
+  };
 }
 
 export const chatGptService = new ChatGptService();
