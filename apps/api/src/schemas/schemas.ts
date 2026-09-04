@@ -63,6 +63,7 @@ export const createDraftExpenseSchema = z.object({
   items: z
     .array(
       z.object({
+        ordinalNumber: z.number().int().positive().optional(),
         name: z.string().min(1).max(120),
         price: z.number().min(0),
 
@@ -135,6 +136,7 @@ export const addExpenseSchema = z.object({
   items: z
     .array(
       z.object({
+        ordinalNumber: z.number().int().positive().optional(),
         name: z.string().min(1).max(120),
         price: z.number().positive(),
         shares: z.array(

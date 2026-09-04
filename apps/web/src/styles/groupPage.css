@@ -207,3 +207,14 @@
 .draftItemsList { margin-top: 12px; }
 .blockText { display: block; }
 .draftConfirmRow { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 14px; }
+
+.draftContentRow > .spinTriggerButton {
+  flex: 0 0 auto;
+  align-self: center;
+}
+
+.draftItemSplitActions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+}

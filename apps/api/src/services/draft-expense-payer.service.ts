@@ -165,7 +165,7 @@ export class DraftExpensePayerService {
 
               items: {
                 orderBy: {
-                  createdAt: "asc"
+                  ordinalNumber: "asc"
                 },
 
                 include: {

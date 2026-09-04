@@ -1,0 +1,203 @@
+.randomSplitBackdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
+  background: rgba(2, 6, 23, 0.58);
+  backdrop-filter: blur(7px);
+  animation: randomSplitFadeIn 0.18s ease-out;
+}
+
+.randomSplitModal {
+  position: relative;
+  width: min(560px, 100%);
+  max-height: min(94vh, 850px);
+  overflow: auto;
+  padding: 26px 26px 24px;
+  border: 1px solid var(--line);
+  border-radius: 26px;
+  background: var(--panel-bg);
+  color: var(--black);
+  box-shadow: 0 28px 100px rgba(2, 6, 23, 0.28);
+  animation: randomSplitPopIn 0.2s ease-out;
+}
+
+.randomSplitClose {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  width: 36px;
+  height: 36px;
+  border: 0;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  color: var(--gray);
+  cursor: pointer;
+}
+
+.randomSplitClose:hover:not(:disabled) { background: var(--surface-hover); color: var(--black); }
+
+.randomSplitHeader {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  padding-right: 42px;
+}
+
+.randomSplitIcon {
+  width: 48px;
+  height: 48px;
+  flex: 0 0 48px;
+  display: grid;
+  place-items: center;
+  border-radius: 15px;
+  background: rgba(34, 197, 94, 0.13);
+  color: var(--green-700);
+}
+
+.randomSplitEyebrow {
+  margin: 0 0 3px;
+  color: var(--green-700);
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.randomSplitHeader h2 { margin: 0; font-size: 23px; }
+
+.randomSplitIntro {
+  margin: 16px 0 8px;
+  color: var(--gray);
+  line-height: 1.5;
+  text-align: center;
+}
+
+.randomSplitAmount {
+  margin: 8px auto 0;
+  width: fit-content;
+  padding: 7px 14px;
+  border-radius: 999px;
+  background: var(--surface-solid);
+  color: var(--green-900);
+  font-weight: 850;
+}
+
+.randomSplitWheelArea {
+  position: relative;
+  width: min(360px, 100%);
+  aspect-ratio: 1;
+  margin: 14px auto 8px;
+}
+
+.randomSplitPointer {
+  position: absolute;
+  z-index: 3;
+  left: 50%;
+  top: -3px;
+  width: 0;
+  height: 0;
+  transform: translateX(-50%);
+  border-left: 12px solid transparent;
+  border-right: 12px solid transparent;
+  border-top: 26px solid var(--green-700);
+  filter: drop-shadow(0 3px 4px rgba(2, 6, 23, 0.25));
+}
+
+.randomSplitWheel {
+  width: 100%;
+  height: 100%;
+  transform-origin: center;
+  transition: transform 4s cubic-bezier(0.12, 0.7, 0.12, 1);
+  filter: drop-shadow(0 12px 25px rgba(2, 6, 23, 0.16));
+}
+
+.randomSplitSvg { width: 100%; height: 100%; overflow: visible; }
+.randomSplitWheelOutline { fill: var(--panel-bg); stroke: var(--green-700); stroke-width: 3; }
+.randomSplitSegment { fill: rgba(34, 197, 94, 0.15); stroke: var(--panel-bg); stroke-width: 1.5; }
+.randomSplitSegment:nth-of-type(3n) { fill: rgba(15, 61, 46, 0.16); }
+.randomSplitSegment:nth-of-type(4n) { fill: rgba(255, 255, 255, 0.58); }
+.randomSplitSegment.equality { fill: rgba(34, 197, 94, 0.31); }
+.randomSplitSegmentLabel { fill: var(--green-950); font-size: 10px; font-weight: 850; pointer-events: none; }
+.randomSplitHub { fill: var(--panel-bg); stroke: var(--green-700); stroke-width: 4; }
+.randomSplitHubText { fill: var(--green-700); font-size: 16px; font-weight: 950; letter-spacing: 0.03em; }
+.randomSplitHubSubtext { fill: var(--gray); font-size: 7px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.06em; }
+
+.randomSplitSpinButton,
+.randomSplitConfirmButton,
+.randomSplitDenyButton {
+  min-height: 46px;
+  border-radius: 13px;
+  padding: 10px 17px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-weight: 850;
+  cursor: pointer;
+}
+
+.randomSplitSpinButton {
+  width: min(320px, 100%);
+  margin: 5px auto 0;
+  display: flex;
+  border: 1px solid var(--green-700);
+  background: var(--green-700);
+  color: white;
+  box-shadow: 0 10px 24px rgba(31, 122, 88, 0.2);
+}
+
+.randomSplitSpinButton:hover:not(:disabled) { filter: brightness(0.95); transform: translateY(-1px); }
+.randomSplitSpinButton:disabled { cursor: wait; opacity: 0.75; }
+
+.randomSplitButtonSpin { animation: randomSplitRotate 0.8s linear infinite; }
+
+.randomSplitResultCard {
+  margin-top: 10px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 17px;
+  background: var(--surface-solid);
+  animation: randomSplitResultIn 0.25s ease-out;
+}
+
+.randomSplitResultTitle { display: flex; align-items: center; gap: 7px; color: var(--green-700); margin-bottom: 11px; }
+.randomSplitPeopleResult { display: grid; gap: 7px; }
+.randomSplitPersonResult {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 9px 11px;
+  border-radius: 11px;
+  background: var(--panel-bg);
+  border: 1px solid var(--line);
+}
+.randomSplitResultHint { margin: 10px 0 0; color: var(--gray); font-size: 13px; text-align: center; }
+.randomSplitActions { display: grid; grid-template-columns: 1fr 1.3fr; gap: 9px; margin-top: 14px; }
+.randomSplitDenyButton { border: 1px solid var(--line); background: transparent; color: var(--black); }
+.randomSplitDenyButton:hover { background: var(--surface-hover); }
+.randomSplitConfirmButton { border: 1px solid var(--green-700); background: var(--green-700); color: white; }
+.randomSplitConfirmButton:hover { filter: brightness(0.95); }
+.randomSplitCurrentSelection { margin: 12px 0 0; text-align: center; color: var(--gray); font-size: 12px; }
+
+@keyframes randomSplitFadeIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes randomSplitPopIn { from { opacity: 0; transform: translateY(8px) scale(0.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
+@keyframes randomSplitResultIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes randomSplitRotate { to { transform: rotate(360deg); } }
+
+@media (max-width: 600px) {
+  .randomSplitBackdrop { padding: 10px; }
+  .randomSplitModal { padding: 21px 15px 16px; border-radius: 21px; }
+  .randomSplitHeader h2 { font-size: 20px; }
+  .randomSplitIntro { font-size: 14px; }
+  .randomSplitWheelArea { width: min(330px, 100%); }
+  .randomSplitActions { grid-template-columns: 1fr; }
+  .randomSplitConfirmButton { order: -1; }
+}

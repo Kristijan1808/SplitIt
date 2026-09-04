@@ -194,6 +194,7 @@ export class PaymentService {
 
             items: {
               create: {
+                ordinalNumber: 1,
                 name:
                   body.note?.trim() ||
                   "Expense",

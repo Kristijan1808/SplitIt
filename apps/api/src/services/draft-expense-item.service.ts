@@ -195,7 +195,7 @@ export class DraftExpenseItemService {
 
               items: {
                 orderBy: {
-                  createdAt: "asc"
+                  ordinalNumber: "asc"
                 },
 
                 include: {

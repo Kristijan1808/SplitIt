@@ -1,4 +1,4 @@
-import type { AuthUser } from "@splitit/shared";
+import type { AuthUser } from "./types";
 
 export function getAuthToken() {
   return localStorage.getItem("splitit:token");

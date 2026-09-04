@@ -10,7 +10,7 @@ export const groupDetailsInclude = {
     include: {
       payers: { include: { person: true } },
       items: {
-        orderBy: { createdAt: "asc" },
+        orderBy: { ordinalNumber: "asc" },
         include: {
           shares: { include: { person: true } }
         }
@@ -32,7 +32,7 @@ export const groupDetailsInclude = {
     include: {
       payers: true,
       items: {
-        orderBy: { createdAt: "asc" },
+        orderBy: { ordinalNumber: "asc" },
         include: { shares: true }
       }
     }
@@ -46,7 +46,7 @@ export type GroupWithDetails = Prisma.GroupGetPayload<{
 export const expenseDetailsInclude = {
   payers: { include: { person: true } },
   items: {
-    orderBy: { createdAt: "asc" },
+    orderBy: { ordinalNumber: "asc" },
     include: {
       shares: { include: { person: true } }
     }
@@ -61,7 +61,7 @@ export type ExpenseWithDetails = Prisma.ExpenseGetPayload<{
 export const draftExpenseDetailsInclude = {
   payers: true,
   items: {
-    orderBy: { createdAt: "asc" },
+    orderBy: { ordinalNumber: "asc" },
     include: { shares: true }
   }
 } satisfies Prisma.ExpenseDraftInclude;
@@ -101,6 +101,7 @@ export const serializeDraftExpense = (draft: DraftExpenseWithDetails) => ({
   items: draft.items.map((item) => ({
     id: item.id,
     draftId: item.draftId,
+    ordinalNumber: item.ordinalNumber,
     name: item.name,
     price: Number(item.price),
     createdAt: item.createdAt,
@@ -135,6 +136,7 @@ export const serializeExpense = (expense: ExpenseWithDetails) => ({
   items: expense.items.map((item) => ({
     id: item.id,
     expenseId: item.expenseId,
+    ordinalNumber: item.ordinalNumber,
     name: item.name,
     price: Number(item.price),
     shares: item.shares.map((share) => ({

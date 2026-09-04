@@ -1,13 +1,15 @@
 import "../styles/groupAddExpensePage.css";
 import { useEffect, useMemo, useState } from "react";
-import { ArrowLeft, Camera, ImagePlus, Plus, Trash2 } from "lucide-react";
+import { ArrowLeft, Camera, ImagePlus, Plus, Trash2, Dices } from "lucide-react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { api } from "../api";
 import { useLanguage } from "../i18n";
-import type { Group } from "@splitit/shared";
+import type { Group } from "../types";
+import { RandomSplitWheel } from "../components/RandomSplitWheel";
 
 type DraftItem = {
   id: string;
+  ordinalNumber: number;
   name: string;
   price: string;
   assignedPersonIds: string[];
@@ -46,6 +48,7 @@ export const GroupAddExpensePage = () => {
   const [actionError, setActionError] = useState("");
   const [saving, setSaving] = useState(false);
   const [parsingBill, setParsingBill] = useState(false);
+  const [randomSplitTarget, setRandomSplitTarget] = useState<"global" | string | null>(null);
 
   useEffect(() => {
     const load = async () => {
@@ -56,6 +59,7 @@ export const GroupAddExpensePage = () => {
         setDraftItems([
           {
             id: crypto.randomUUID(),
+            ordinalNumber: 1,
             name: "",
             price: "",
             assignedPersonIds: []
@@ -122,7 +126,7 @@ export const GroupAddExpensePage = () => {
 
   const updateDraftItem = (
     id: string,
-    field: keyof Omit<DraftItem, "id">,
+    field: keyof Omit<DraftItem, "id" | "ordinalNumber">,
     value: string | string[]
   ) => {
     setDraftItems((current) =>
@@ -137,6 +141,7 @@ export const GroupAddExpensePage = () => {
       ...current,
       {
         id: crypto.randomUUID(),
+        ordinalNumber: current.length + 1,
         name: "",
         price: "",
         assignedPersonIds: []
@@ -147,7 +152,12 @@ export const GroupAddExpensePage = () => {
   const removeDraftItem = (id: string) => {
     setDraftItems((current) => {
       if (current.length <= 1) return current;
-      return current.filter((item) => item.id !== id);
+      return current
+        .filter((item) => item.id !== id)
+        .map((item, index) => ({
+          ...item,
+          ordinalNumber: index + 1
+        }));
     });
   };
 
@@ -204,8 +214,9 @@ export const GroupAddExpensePage = () => {
       }
 
       setDraftItems(
-        result.items.map((item) => ({
+        result.items.map((item, index) => ({
           id: crypto.randomUUID(),
+          ordinalNumber: index + 1,
           name: item.name,
           price: item.price.toFixed(2),
           assignedPersonIds: []
@@ -221,6 +232,21 @@ export const GroupAddExpensePage = () => {
       setParsingBill(false);
       event.target.value = "";
     }
+  };
+
+  const applyRandomSplit = (personIds: string[]) => {
+    if (randomSplitTarget === "global") {
+      setDraftItems((current) =>
+        current.map((item) => ({
+          ...item,
+          assignedPersonIds: [...personIds]
+        }))
+      );
+    } else if (randomSplitTarget) {
+      updateDraftItem(randomSplitTarget, "assignedPersonIds", [...personIds]);
+    }
+
+    setRandomSplitTarget(null);
   };
 
   const saveDraftBill = async () => {
@@ -319,7 +345,8 @@ export const GroupAddExpensePage = () => {
           personId: payer.personId,
           amount: Number(payer.amount)
         })),
-        items: validItems.map((item) => ({
+        items: validItems.map((item, index) => ({
+          ordinalNumber: index + 1,
           name: item.name.trim(),
           price: Number(item.price),
           shares: item.assignedPersonIds.map((personId) => ({
@@ -365,7 +392,19 @@ export const GroupAddExpensePage = () => {
             <p className="eyebrow">{t("draftBill")}</p>
             <h2>{t("addItems")}</h2>
           </div>
-          <strong>{itemTotal.toFixed(2)}</strong>
+          <div className="randomSplitHeaderAction">
+            <strong>{itemTotal.toFixed(2)}</strong>
+            <button
+              type="button"
+              className="spinTriggerButton"
+              onClick={() => setRandomSplitTarget("global")}
+              disabled={group.locked || group.people.length === 0 || itemTotal <= 0}
+              title={t("randomSplitGlobal")}
+            >
+              <Dices size={17} />
+              <span>SPIN</span>
+            </button>
+          </div>
         </div>
 
         {/* ITEMS */}
@@ -432,6 +471,9 @@ export const GroupAddExpensePage = () => {
                   className="card draftEditorCard"
                 >
                   <div className="draftItemEditor">
+                    <div className="draftItemOrdinalNumber" aria-label={`Item ${item.ordinalNumber}`}>
+                      {item.ordinalNumber}.
+                    </div>
                     <label>
                       <span>{t("itemName")}</span>
                       <input
@@ -463,7 +505,19 @@ export const GroupAddExpensePage = () => {
                     </label>
 
                     <div className="draftItemShares">
-                      <span>{t("assignedTo")}</span>
+                      <div className="draftItemSharesHeader">
+                        <span>{t("assignedTo")}</span>
+                        <button
+                          type="button"
+                          className="miniSpinButton"
+                          onClick={() => setRandomSplitTarget(item.id)}
+                          disabled={group.locked || group.people.length === 0 || Number(item.price) <= 0}
+                          title={t("randomSplitItem")}
+                        >
+                          <Dices size={15} />
+                          <span>SPIN</span>
+                        </button>
+                      </div>
                       <div className="sharePicker">
                         {group.people.map((person) => {
                           const checked = item.assignedPersonIds.includes(person.id);
@@ -632,6 +686,31 @@ export const GroupAddExpensePage = () => {
           </button>
         </div>
       </section>
+
+
+      <RandomSplitWheel
+        open={randomSplitTarget !== null}
+        title={
+          randomSplitTarget === "global"
+            ? t("randomSplitGlobal")
+            : `${t("randomSplitItem")} ${draftItems.find((item) => item.id === randomSplitTarget)?.name || ""}`.trim()
+        }
+        amount={
+          randomSplitTarget === "global"
+            ? itemTotal
+            : Number(draftItems.find((item) => item.id === randomSplitTarget)?.price || 0)
+        }
+        people={group.people}
+        initialSelectedIds={
+          randomSplitTarget === "global"
+            ? draftItems.length > 0
+              ? draftItems[0].assignedPersonIds
+              : []
+            : draftItems.find((item) => item.id === randomSplitTarget)?.assignedPersonIds ?? []
+        }
+        onConfirm={applyRandomSplit}
+        onClose={() => setRandomSplitTarget(null)}
+      />
     </main>
   );
 };

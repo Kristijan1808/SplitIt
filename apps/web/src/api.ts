@@ -4,13 +4,14 @@ import type {
   AuthResponse,
   CreateGroupRequest,
   Group,
+  Expense,
   HistoryItem,
   JoinGroupRequest,
   LoginRequest,
   PatchPaymentRequest,
   RegisterRequest,
   SettlementResult,
-} from "@splitit/shared";
+} from "./types";
 import { getAuthToken } from "./auth";
 import { saveGroupToLocalStorage, syncSavedGroupToLocalStorage } from "./storage";
 import { startApiLoading, endApiLoading } from "./loading";
@@ -30,6 +31,7 @@ export type CreateDraftExpenseRequest = {
   note?: string;
   payers: Array<{ personId: string; amount: number }>;
   items: Array<{
+    ordinalNumber: number;
     name: string;
     price: number;
     shares: DraftItemShareRequest[];
@@ -52,6 +54,7 @@ export type DraftExpenseItemShare = {
 export type DraftExpenseItem = {
   id: string;
   draftId: string;
+  ordinalNumber: number;
   name: string;
   price: number;
   createdAt?: string;
@@ -208,7 +211,7 @@ export const api = {
     }),
 
   confirmDraftExpense: (slug: string, draftId: string) =>
-    request<{ expense: any; group: Group }>(`/groups/${slug}/draft-expenses/${draftId}/confirm`, {
+    request<{ expense: Expense; group: Group }>(`/groups/${slug}/draft-expenses/${draftId}/confirm`, {
       method: "POST"
     }),
 

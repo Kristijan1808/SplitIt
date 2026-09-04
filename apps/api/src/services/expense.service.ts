@@ -31,7 +31,7 @@ export class ExpenseService {
         include: {
           payers: { include: { person: true } },
           items: {
-            orderBy: { createdAt: "asc" },
+            orderBy: { ordinalNumber: "asc" },
             include: { shares: { include: { person: true } } }
           },
           shares: { include: { person: true } }
@@ -72,7 +72,7 @@ export class ExpenseService {
         include: {
           payers: { include: { person: true } },
           items: {
-            orderBy: { createdAt: "asc" },
+            orderBy: { ordinalNumber: "asc" },
             include: { shares: { include: { person: true } } }
           },
           shares: { include: { person: true } }

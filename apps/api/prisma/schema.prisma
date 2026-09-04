@@ -132,16 +132,18 @@ model ExpensePayer {
 //
 
 model ExpenseItem {
-  id        String   @id @default(uuid())
-  expenseId String
-  name      String
-  price     Decimal  @db.Decimal(12, 2)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id            String   @id @default(uuid())
+  expenseId     String
+  ordinalNumber Int
+  name          String
+  price         Decimal  @db.Decimal(12, 2)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
   expense Expense              @relation(fields: [expenseId], references: [id], onDelete: Cascade)
   shares  ExpenseItemShare[]
 
+  @@unique([expenseId, ordinalNumber])
   @@map("expense_items")
 }
 
@@ -278,16 +280,18 @@ model ExpenseDraftPayer {
 //
 
 model ExpenseDraftItem {
-  id        String   @id @default(uuid())
-  draftId   String
-  name      String
-  price     Decimal  @db.Decimal(12, 2)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id            String   @id @default(uuid())
+  draftId       String
+  ordinalNumber Int
+  name          String
+  price         Decimal  @db.Decimal(12, 2)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
   draft  ExpenseDraft           @relation(fields: [draftId], references: [id], onDelete: Cascade)
   shares ExpenseDraftItemShare[]
 
+  @@unique([draftId, ordinalNumber])
   @@map("expense_draft_items")
 }
 

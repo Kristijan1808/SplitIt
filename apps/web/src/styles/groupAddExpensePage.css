@@ -122,8 +122,8 @@
 }
 
 .draftItemRow {
-  display: grid;
-  grid-template-columns: minmax(0, 1.4fr) minmax(75px, .55fr) minmax(220px, 1.4fr) auto;
+  display: flex;
+  flex-direction: column;
   gap: 12px;
   align-items: center;
   padding: 12px 0;
@@ -221,3 +221,57 @@
 .draftEditorCard { padding: 14px; margin: 0; }
 .payersSection { margin-top: 8px; padding-top: 20px; border-top: 1px solid var(--border-color); }
 .totalsCard { padding: 16px; margin: 0; display: grid; gap: 8px; }
+
+
+.draftItemOrdinalNumber {
+  min-width: 2rem;
+  font-weight: 700;
+  text-align: center;
+  align-self: flex-start;
+  padding-top: 1.65rem;
+}
+
+.randomSplitHeaderAction {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.spinTriggerButton,
+.miniSpinButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 1px solid var(--green-700);
+  background: rgba(34, 197, 94, 0.1);
+  color: var(--green-700);
+  border-radius: 10px;
+  font-weight: 850;
+  cursor: pointer;
+  transition: transform 0.15s ease, background 0.15s ease, opacity 0.15s ease;
+}
+
+.spinTriggerButton { min-height: 38px; padding: 7px 11px; }
+.miniSpinButton { min-height: 31px; padding: 5px 8px; font-size: 11px; }
+.spinTriggerButton:hover:not(:disabled),
+.miniSpinButton:hover:not(:disabled) {
+  transform: translateY(-1px) rotate(-1deg);
+  background: rgba(34, 197, 94, 0.18);
+}
+.spinTriggerButton:disabled,
+.miniSpinButton:disabled { cursor: not-allowed; opacity: 0.45; }
+
+.draftItemSharesHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 7px;
+}
+.draftItemSharesHeader > span { margin-bottom: 0; }
+
+@media (max-width: 600px) {
+  .randomSplitHeaderAction { gap: 7px; }
+  .spinTriggerButton span { display: none; }
+}

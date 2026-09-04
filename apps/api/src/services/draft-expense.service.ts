@@ -24,7 +24,7 @@ export class DraftExpenseService {
             include: {
               payers: true,
               items: {
-                orderBy: { createdAt: "asc" },
+                orderBy: { ordinalNumber: "asc" },
                 include: { shares: true }
               }
             }
@@ -139,7 +139,8 @@ export class DraftExpenseService {
             }))
           },
           items: {
-            create: preparedItems.map((item) => ({
+            create: preparedItems.map((item, index) => ({
+              ordinalNumber: index + 1,
               name: item.name,
               price: item.price,
               shares: item.shares.length > 0
@@ -156,7 +157,7 @@ export class DraftExpenseService {
         include: {
           payers: true,
           items: {
-            orderBy: { createdAt: "asc" },
+            orderBy: { ordinalNumber: "asc" },
             include: { shares: true }
           }
         }

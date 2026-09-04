@@ -1,11 +1,12 @@
 import "../styles/groupPage.css";
 import { FormEvent, useEffect, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { ArrowLeft, Copy, Lock, Plus, Users, X } from "lucide-react";
+import { ArrowLeft, Copy, Lock, Plus, Users, X, Dices } from "lucide-react";
 import { ThemeToggle } from "../components/ThemeToggle";
 import { api } from "../api";
 import { useLanguage } from "../i18n";
-import type { Group, SettlementResult } from "@splitit/shared";
+import type { ExpenseItem, ExpenseItemShare, ExpensePayer, Group, SettlementResult } from "../types";
+import { RandomSplitWheel } from "../components/RandomSplitWheel";
 import { getWhoAmI, saveWhoAmI, saveGroupToLocalStorage } from "../storage";
 
 type DraftBill = {
@@ -15,11 +16,24 @@ type DraftBill = {
   payers: Array<{ id: string; personId: string; amount: number }>;
   items: Array<{
     id: string;
+    ordinalNumber: number;
     name: string;
     price: number;
     shares: Array<{ id: string; itemId: string; personId: string; amount: number }>;
   }>;
 };
+
+const normalizeDraft = (draft: DraftBill): DraftBill => ({
+  ...draft,
+  items: [...draft.items]
+    .sort((a, b) => a.ordinalNumber - b.ordinalNumber)
+    .map((item, index) => ({
+      ...item,
+      ordinalNumber: index + 1,
+      shares: item.shares ?? []
+    }))
+});
+
 
 export const GroupPage = () => {
   const navigate = useNavigate();
@@ -35,9 +49,12 @@ export const GroupPage = () => {
   const [drafts, setDrafts] = useState<DraftBill[]>([]);
   const [actionError, setActionError] = useState("");
   const [saving, setSaving] = useState(false);
-  const [settlementData, setSettlementData] = useState<any>({ balances: [], settlements: [] });
+  const [settlementData, setSettlementData] = useState<SettlementResult>({ balances: [], settlements: [] });
   const [expandedDrafts, setExpandedDrafts] = useState<Set<string>>(new Set());
   const [expandedExpenses, setExpandedExpenses] = useState<Set<string>>(new Set());
+  const [randomSplitTarget, setRandomSplitTarget] = useState<
+    { draftId: string; itemId?: string } | null
+  >(null);
 
   useEffect(() => {
     const load = async () => {
@@ -67,15 +84,7 @@ export const GroupPage = () => {
     const loadDrafts = async () => {
       try {
         const nextDrafts = await api.getDraftExpenses(slug);
-        setDrafts(
-          nextDrafts.map((draft) => ({
-            ...draft,
-            items: draft.items.map((item) => ({
-              ...item,
-              shares: item.shares ?? []
-            }))
-          }))
-        );
+        setDrafts(nextDrafts.map(normalizeDraft));
       } catch {
         setDrafts([]);
       }
@@ -172,11 +181,7 @@ export const GroupPage = () => {
         current.map((entry) =>
           entry.id === draftId
             ? {
-                ...nextDraft,
-                items: nextDraft.items.map((nextItem) => ({
-                  ...nextItem,
-                  shares: nextItem.shares ?? []
-                }))
+                ...normalizeDraft(nextDraft)
               }
             : entry
         )
@@ -196,6 +201,32 @@ export const GroupPage = () => {
       );
     } finally {
       setSaving(false);
+    }
+  };
+
+  const applyRandomSplit = async (personIds: string[]) => {
+    if (!randomSplitTarget) return;
+
+    const targetDraft = drafts.find((draft) => draft.id === randomSplitTarget.draftId);
+    if (!targetDraft) {
+      setRandomSplitTarget(null);
+      return;
+    }
+
+    setRandomSplitTarget(null);
+
+    if (randomSplitTarget.itemId) {
+      await updateDraftShares(
+        targetDraft.id,
+        randomSplitTarget.itemId,
+        personIds
+      );
+      return;
+    }
+
+    // Global mode: apply the same random participant selection to every item.
+    for (const item of targetDraft.items) {
+      await updateDraftShares(targetDraft.id, item.id, personIds);
     }
   };
 
@@ -340,12 +371,17 @@ export const GroupPage = () => {
         <div>
           <p className="eyebrow">{t("code")}: {group.code}</p>
           <h1>{group.name}</h1>
+          
           <div className="groupMetaRow">
             <p className="muted">{group.locked ? t("groupLocked") : ""}</p>
             <button type="button" className="participantsToggle" onClick={() => setShowParticipants((current) => !current)}>
               <Users size={16} />
-              <span>{t("participantsLabel")}</span>
+              <span>{t("participantsLabel")},</span>
+              {currentParticipant && (
+                <span className="">{t("youAre")}: {currentParticipant.name}</span>
+              )}
             </button>
+             
           </div>
         </div>
         <div className="headerActions">
@@ -461,9 +497,6 @@ export const GroupPage = () => {
                 <h2>{t("draftBills")}</h2>
                 <p className="muted">{t("draftBillsHint")}</p>
               </div>
-              {currentParticipant && (
-                <span className="eyebrow">{t("youAre")}: {currentParticipant.name}</span>
-              )}
             </div>
 
             <div className="list">
@@ -496,6 +529,16 @@ export const GroupPage = () => {
                         </div>
                         <strong>{itemTotal.toFixed(2)} €</strong>
                       </button>
+                      <button
+                        type="button"
+                        className="spinTriggerButton"
+                        onClick={() => setRandomSplitTarget({ draftId: draft.id })}
+                        disabled={group.locked || saving || group.people.length === 0 || itemTotal <= 0}
+                        title={t("randomSplitGlobal")}
+                      >
+                        <Dices size={17} />
+                        <span>SPIN</span>
+                      </button>
                       {expanded ? (
                         <div>
 
@@ -513,17 +556,13 @@ export const GroupPage = () => {
 
                       <div className="list draftItemsList">
                         {draft.items.map((item) => {
-                          const isMine = item.shares.some(
-                            (share) => share.personId === currentParticipantId
-                          );
-
                           return (
                             <div
                               key={item.id}
                               className="draftItemRow"
                             >
                               <span>
-                                <strong>{item.name}</strong>
+                                <strong>{item.ordinalNumber}. {item.name} - {Number(item.price || 0).toFixed(2)}</strong>
                                 {item.shares.length > 0 && (
                                   <small className="blockText">
                                     {item.shares
@@ -539,14 +578,25 @@ export const GroupPage = () => {
                                       .join(", ")}
                                   </small>
                                 )}
-                                {isMine && (
-                                  <small className="blockText">
-                                    ✓ {t("assignedToYou")}
-                                  </small>
-                                )}
                               </span>
 
-                              <em>{Number(item.price || 0).toFixed(2)}</em>
+                              <div className="draftItemSplitActions">
+                                <button
+                                  type="button"
+                                  className="miniSpinButton"
+                                  onClick={() =>
+                                    setRandomSplitTarget({
+                                      draftId: draft.id,
+                                      itemId: item.id
+                                    })
+                                  }
+                                  disabled={group.locked || saving || group.people.length === 0 || Number(item.price) <= 0}
+                                  title={t("randomSplitItem")}
+                                >
+                                  <Dices size={15} />
+                                  <span>SPIN</span>
+                                </button>
+                              </div>
 
                               <div className="sharePicker" aria-label={t("assignedTo")}>
                                 {group.people.map((person) => {
@@ -571,19 +621,7 @@ export const GroupPage = () => {
                                 })}
                               </div>
 
-                              <button
-                                type="button"
-                                className="secondaryButton compactButton"
-                                onClick={() =>
-                                  void assignDraftItemToCurrentParticipant(
-                                    draft.id,
-                                    item.id
-                                  )
-                                }
-                                disabled={group.locked || saving}
-                              >
-                                {isMine ? t("assignedToYou") : t("assignToMe")}
-                              </button>
+                              
                             </div>
                           );
                         })}
@@ -628,7 +666,7 @@ export const GroupPage = () => {
             </div>
           </div>
           {true && (() => {
-            const expenses = ((group as any).expenses ?? []) as Array<any>;
+            const expenses = group.expenses;
             if (expenses.length === 0) return <p className="muted">{t("noExpensesYet")}</p>;
             return (
               <div className="list">
@@ -656,7 +694,7 @@ export const GroupPage = () => {
                         <div className="expenseDetails">
                           <div className="expenseDetailsBlock expense-payers">
                             <strong>{t("billPayers")}</strong>
-                            {(expense.payers ?? []).map((payer: any) => (
+                            {(expense.payers ?? []).map((payer: ExpensePayer) => (
                               <div className="detailLine" key={payer.id}>
                                 <span>{payer.person?.name ?? group.people.find((p) => p.id === payer.personId)?.name}</span>
                                 <strong>{Number(payer.amount).toFixed(2)} €</strong>
@@ -666,16 +704,16 @@ export const GroupPage = () => {
 
                           <div className="expenseDetailsBlock expense-items">
                             <strong>{t("billItems")}</strong>
-                            {(expense.items ?? []).map((item: any) => (
+                            {(expense.items ?? []).map((item: ExpenseItem) => (
                               <div className="expenseDetailItem" key={item.id}>
                                 <div className="expenseDetailItemTop">
-                                  <strong>{item.name}</strong>
+                                  <strong>{item.ordinalNumber}. {item.name}</strong>
                                   <strong>{Number(item.price).toFixed(2)} €</strong>
                                 </div>
                                 <div className="shareNames">
                                   {(item.shares ?? []).length === 0
                                     ? t("noItemAssigned")
-                                    : item.shares.map((share: any) => {
+                                    : item.shares.map((share: ExpenseItemShare) => {
                                         const name = share.person?.name ?? group.people.find((p) => p.id === share.personId)?.name ?? share.personId;
                                         return `${name} (${Number(share.amount).toFixed(2)} €)`;
                                       }).join(", ")}
@@ -687,7 +725,7 @@ export const GroupPage = () => {
                           <div className="expenseDetailsBlock expense-participants">
                             <strong>{t("selectedParticipants")}</strong>
                             <div className="shareNames">
-                              {(expense.shares ?? []).map((share: any) => {
+                              {(expense.shares ?? []).map((share) => {
                                 const name = share.person?.name ?? group.people.find((p) => p.id === share.personId)?.name ?? share.personId;
                                 return `${name} (${Number(share.amount).toFixed(2)} €)`;
                               }).join(", ")}
@@ -705,6 +743,41 @@ export const GroupPage = () => {
       </div>
       </section>)}
       
+
+
+      <RandomSplitWheel
+        open={randomSplitTarget !== null}
+        title={
+          randomSplitTarget?.itemId
+            ? `${t("randomSplitItem")} ${drafts
+                .find((draft) => draft.id === randomSplitTarget.draftId)
+                ?.items.find((item) => item.id === randomSplitTarget.itemId)?.name ?? ""}`.trim()
+            : t("randomSplitGlobal")
+        }
+        amount={
+          randomSplitTarget?.itemId
+            ? Number(
+                drafts
+                  .find((draft) => draft.id === randomSplitTarget.draftId)
+                  ?.items.find((item) => item.id === randomSplitTarget.itemId)?.price ?? 0
+              )
+            : drafts
+                .find((draft) => draft.id === randomSplitTarget?.draftId)
+                ?.items.reduce((sum, item) => sum + Number(item.price || 0), 0) ?? 0
+        }
+        people={group.people}
+        initialSelectedIds={
+          randomSplitTarget?.itemId
+            ? drafts
+                .find((draft) => draft.id === randomSplitTarget.draftId)
+                ?.items.find((item) => item.id === randomSplitTarget.itemId)
+                ?.shares.map((share) => share.personId) ?? []
+            : drafts.find((draft) => draft.id === randomSplitTarget?.draftId)
+                ?.items[0]?.shares.map((share) => share.personId) ?? []
+        }
+        onConfirm={(personIds) => void applyRandomSplit(personIds)}
+        onClose={() => setRandomSplitTarget(null)}
+      />
     </main>
   );
 };

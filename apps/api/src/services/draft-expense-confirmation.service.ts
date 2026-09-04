@@ -58,7 +58,7 @@ export class DraftExpenseConfirmationService {
 
             items: {
               orderBy: {
-                createdAt: "asc"
+                ordinalNumber: "asc"
               },
 
               include: {
@@ -295,6 +295,8 @@ export class DraftExpenseConfirmationService {
                     create:
                       draft.items.map(
                         (item) => ({
+                          ordinalNumber:
+                            item.ordinalNumber,
                           name:
                             item.name,
                           price:
