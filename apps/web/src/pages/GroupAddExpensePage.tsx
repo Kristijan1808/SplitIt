@@ -1,4 +1,3 @@
-import "../styles/groupAddExpensePage.css";
 import { useEffect, useMemo, useState } from "react";
 import { ArrowLeft, Camera, ImagePlus, Plus, Trash2, Dices } from "lucide-react";
 import { Link, useNavigate, useParams } from "react-router-dom";

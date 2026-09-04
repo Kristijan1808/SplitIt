@@ -1,3 +1,12 @@
+@import "./styles/apiLoadingOverlay.css";
+@import "./styles/createGroupPage.css";
+@import "./styles/groupPage.css";
+@import "./styles/groupAddExpensePage.css";
+@import "./styles/homePage.css";
+@import "./styles/joinGroupPage.css";
+@import "./styles/loginPage.css";
+@import "./styles/myGroupsPage.css";
+
 :root {
   --green-950: #08271e;
   --green-900: #0f3d2e;

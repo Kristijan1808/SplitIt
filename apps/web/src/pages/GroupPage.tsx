@@ -1,4 +1,3 @@
-import "../styles/groupPage.css";
 import { FormEvent, useEffect, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { ArrowLeft, Copy, Lock, Plus, Users, X, Dices } from "lucide-react";

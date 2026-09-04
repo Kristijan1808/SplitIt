@@ -1,4 +1,3 @@
-import "../styles/homePage.css";
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { Plus, UserRoundPlus, WalletCards } from "lucide-react";
