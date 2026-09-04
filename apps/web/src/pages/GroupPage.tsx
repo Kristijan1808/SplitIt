@@ -213,14 +213,13 @@ export const GroupPage = () => {
       return;
     }
 
-    setRandomSplitTarget(null);
-
     if (randomSplitTarget.itemId) {
       await updateDraftShares(
         targetDraft.id,
         randomSplitTarget.itemId,
         personIds
       );
+      setRandomSplitTarget(null);
       return;
     }
 
@@ -228,6 +227,8 @@ export const GroupPage = () => {
     for (const item of targetDraft.items) {
       await updateDraftShares(targetDraft.id, item.id, personIds);
     }
+
+    setRandomSplitTarget(null);
   };
 
   const assignDraftItemToCurrentParticipant = async (

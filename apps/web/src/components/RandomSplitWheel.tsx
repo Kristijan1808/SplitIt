@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import { Dices, RotateCw, Sparkles, X } from "lucide-react";
 import { useLanguage } from "../i18n";
 import type { Person } from "../types";
@@ -147,6 +148,10 @@ export function RandomSplitWheel({
 
   const confirm = () => {
     if (!result) return;
+
+    // Only notify the owner of the selected participants. The owner decides
+    // whether the wheel itself should close; it must never close an enclosing
+    // draft/expense overlay as a side effect of this button.
     onConfirm(result.personIds);
     setResult(null);
     setPendingIndex(null);
@@ -179,7 +184,7 @@ export function RandomSplitWheel({
     return `M ${CENTER} ${CENTER} L ${start.x} ${start.y} A ${RADIUS} ${RADIUS} 0 ${largeArcFlag} 0 ${end.x} ${end.y} Z`;
   };
 
-  return (
+  return createPortal(
     <div
       className="randomSplitBackdrop"
       role="presentation"
@@ -193,6 +198,7 @@ export function RandomSplitWheel({
         aria-modal="true"
         aria-labelledby="random-split-title"
         onMouseDown={(event) => event.stopPropagation()}
+        onClick={(event) => event.stopPropagation()}
       >
         <button
           type="button"
@@ -320,6 +326,7 @@ export function RandomSplitWheel({
           </p>
         )}
       </section>
-    </div>
+    </div>,
+    document.body
   );
 }
