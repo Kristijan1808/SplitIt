@@ -61,7 +61,7 @@ export const GroupAddExpensePage = () => {
             ordinalNumber: 1,
             name: "",
             price: "",
-            assignedPersonIds: []
+            assignedPersonIds: currentGroup.people.map((person) => person.id)
           }
         ]);
 
@@ -143,7 +143,7 @@ export const GroupAddExpensePage = () => {
         ordinalNumber: current.length + 1,
         name: "",
         price: "",
-        assignedPersonIds: []
+        assignedPersonIds: group.people.map((person) => person.id)
       }
     ]);
   };
@@ -218,7 +218,7 @@ export const GroupAddExpensePage = () => {
           ordinalNumber: index + 1,
           name: item.name,
           price: item.price.toFixed(2),
-          assignedPersonIds: []
+          assignedPersonIds: group?.people.map((person) => person.id) ?? []
         }))
       );
     } catch (error) {
@@ -505,7 +505,29 @@ export const GroupAddExpensePage = () => {
 
                     <div className="draftItemShares">
                       <div className="draftItemSharesHeader">
-                        <span>{t("assignedTo")}</span>
+                        <div className="draftItemSharesTitle">
+                          <span>{t("assignedTo")}</span>
+                          <label className="shareCheckAll">
+                            <input
+                              type="checkbox"
+                              checked={group.people.length > 0 && item.assignedPersonIds.length === group.people.length}
+                              ref={(input) => {
+                                if (input) {
+                                  input.indeterminate = item.assignedPersonIds.length > 0 && item.assignedPersonIds.length < group.people.length;
+                                }
+                              }}
+                              disabled={group.locked || group.people.length === 0}
+                              onChange={(event) =>
+                                updateDraftItem(
+                                  item.id,
+                                  "assignedPersonIds",
+                                  event.target.checked ? group.people.map((person) => person.id) : []
+                                )
+                              }
+                            />
+                            <span>{t("checkAll")}</span>
+                          </label>
+                        </div>
                         <button
                           type="button"
                           className="miniSpinButton"

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
-import { Dices, RotateCw, Sparkles, X } from "lucide-react";
+import { Check, Dices, RotateCw, Sparkles, X } from "lucide-react";
 import { useLanguage } from "../i18n";
 import type { Person } from "../types";
 import "./RandomSplitWheel.css";
@@ -73,17 +73,20 @@ export function RandomSplitWheel({
   const [result, setResult] = useState<SplitOption | null>(null);
   const [rotation, setRotation] = useState(0);
   const [pendingIndex, setPendingIndex] = useState<number | null>(null);
+  const [participantIds, setParticipantIds] = useState<string[]>([]);
+  const [selectionConfirmed, setSelectionConfirmed] = useState(false);
 
   const equalityLabel = t("randomSplitEquality");
 
   const options = useMemo<SplitOption[]>(() => {
-    if (people.length === 0) return [];
+    const participants = people.filter((person) => participantIds.includes(person.id));
+    if (participants.length === 0) return [];
 
     const generated: SplitOption[] = [];
-    const maxSize = Math.min(MAX_COMBINATION_SIZE, people.length);
+    const maxSize = Math.min(MAX_COMBINATION_SIZE, participants.length);
 
     for (let size = 1; size <= maxSize; size += 1) {
-      combinations(people, size).forEach((selection) => {
+      combinations(participants, size).forEach((selection) => {
         generated.push({
           id: selection.map((person) => person.id).join("-"),
           personIds: selection.map((person) => person.id),
@@ -97,14 +100,14 @@ export function RandomSplitWheel({
     for (let index = 0; index < EQUALITY_SLICES; index += 1) {
       generated.push({
         id: `equal-${index}`,
-        personIds: people.map((person) => person.id),
+        personIds: participants.map((person) => person.id),
         equal: true,
         label: equalityLabel
       });
     }
 
     return generated;
-  }, [people, equalityLabel]);
+  }, [people, participantIds, equalityLabel]);
 
   useEffect(() => {
     if (!open) {
@@ -112,8 +115,17 @@ export function RandomSplitWheel({
       setResult(null);
       setPendingIndex(null);
       setRotation(0);
+      setSelectionConfirmed(false);
+      return;
     }
-  }, [open]);
+
+    const initial = initialSelectedIds.length > 0
+      ? initialSelectedIds.filter((id) => people.some((person) => person.id === id))
+      : people.map((person) => person.id);
+
+    setParticipantIds(initial.length > 0 ? initial : people.map((person) => person.id));
+    setSelectionConfirmed(false);
+  }, [open, people]);
 
   useEffect(() => {
     if (!spinning || pendingIndex === null) return;
@@ -127,7 +139,68 @@ export function RandomSplitWheel({
     return () => window.clearTimeout(timer);
   }, [spinning, pendingIndex, options]);
 
-  if (!open || options.length === 0) return null;
+  if (!open) return null;
+
+  const allSelected = people.length > 0 && participantIds.length === people.length;
+  const toggleParticipant = (personId: string) => {
+    setParticipantIds((current) =>
+      current.includes(personId)
+        ? current.filter((id) => id !== personId)
+        : [...current, personId]
+    );
+  };
+
+  const confirmParticipants = () => {
+    if (participantIds.length === 0) return;
+    setSelectionConfirmed(true);
+  };
+
+  if (!selectionConfirmed) {
+    return createPortal(
+      <div className="randomSplitBackdrop" role="presentation" onMouseDown={(event) => {
+        if (event.target === event.currentTarget) onClose();
+      }}>
+        <section className="randomSplitModal randomSplitParticipantModal" role="dialog" aria-modal="true" aria-labelledby="random-split-participants-title" onMouseDown={(event) => event.stopPropagation()} onClick={(event) => event.stopPropagation()}>
+          <button type="button" className="randomSplitClose" onClick={onClose} aria-label={t("close")}><X size={20} /></button>
+          <div className="randomSplitHeader">
+            <div className="randomSplitIcon"><Dices size={24} /></div>
+            <div>
+              <p className="randomSplitEyebrow">{t("randomSplitTitle")}</p>
+              <h2 id="random-split-participants-title">{t("randomSplitParticipantsTitle")}</h2>
+            </div>
+          </div>
+          <p className="randomSplitIntro">{t("randomSplitParticipantsIntro")}</p>
+          <div className="randomSplitParticipantList">
+            <label className="randomSplitParticipantOption randomSplitCheckAll">
+              <input
+                type="checkbox"
+                checked={allSelected}
+                ref={(input) => { if (input) input.indeterminate = participantIds.length > 0 && !allSelected; }}
+                onChange={() => setParticipantIds(allSelected ? [] : people.map((person) => person.id))}
+              />
+              <Check size={17} />
+              <span>{t("checkAll")}</span>
+            </label>
+            {people.map((person) => (
+              <label className="randomSplitParticipantOption" key={person.id}>
+                <input type="checkbox" checked={participantIds.includes(person.id)} onChange={() => toggleParticipant(person.id)} />
+                <span>{person.name}</span>
+              </label>
+            ))}
+          </div>
+          <div className="randomSplitParticipantFooter">
+            <span>{participantIds.length} {t("randomSplitPeople")}</span>
+            <button type="button" className="randomSplitConfirmButton" onClick={confirmParticipants} disabled={participantIds.length === 0}>
+              {t("randomSplitContinue")}
+            </button>
+          </div>
+        </section>
+      </div>,
+      document.body
+    );
+  }
+
+  if (options.length === 0) return null;
 
   const selectedResultIds = result?.personIds ?? [];
   const selectedPeople = people.filter((person) => selectedResultIds.includes(person.id));

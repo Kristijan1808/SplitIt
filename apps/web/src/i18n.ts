@@ -157,6 +157,10 @@ export const translations = {
     randomSplitConfirm: "Potvrdi podjelu",
     randomSplitSpin: "SPIN",
     randomSplitCurrentSelection: "Trenutna podjela",
+    randomSplitParticipantsTitle: "Tko sudjeluje?",
+    randomSplitParticipantsIntro: "Odaberite osobe koje sudjeluju u ovom trošku. Samo će odabrani sudionici biti na kotaču.",
+    randomSplitContinue: "Nastavi",
+    checkAll: "Odaberi sve",
     close: "Zatvori"
   },
   en: {
@@ -305,6 +309,10 @@ export const translations = {
     randomSplitConfirm: "Confirm split",
     randomSplitSpin: "SPIN",
     randomSplitCurrentSelection: "Current split",
+    randomSplitParticipantsTitle: "Who participates?",
+    randomSplitParticipantsIntro: "Choose who participates in this expense. Only selected participants will be included in the wheel.",
+    randomSplitContinue: "Continue",
+    checkAll: "Check all",
     close: "Close"
   },
   ja: {
@@ -453,6 +461,10 @@ export const translations = {
     randomSplitConfirm: "分割を確定",
     randomSplitSpin: "SPIN",
     randomSplitCurrentSelection: "現在の分割",
+    randomSplitParticipantsTitle: "参加者を選択",
+    randomSplitParticipantsIntro: "この費用に参加する人を選択してください。選択した参加者だけがホイールに含まれます。",
+    randomSplitContinue: "続行",
+    checkAll: "すべて選択",
     close: "閉じる"
   },
   de: {

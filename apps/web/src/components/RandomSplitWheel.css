@@ -201,3 +201,72 @@
   .randomSplitActions { grid-template-columns: 1fr; }
   .randomSplitConfirmButton { order: -1; }
 }
+
+
+.randomSplitParticipantModal {
+  max-width: 520px;
+}
+
+.randomSplitParticipantList {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 20px 0;
+  max-height: 360px;
+  overflow-y: auto;
+}
+
+.randomSplitParticipantOption {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 12px;
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+.randomSplitParticipantOption:hover {
+  background: rgba(127, 127, 127, 0.08);
+}
+
+.randomSplitParticipantOption input {
+  width: 17px;
+  height: 17px;
+  accent-color: currentColor;
+}
+
+.randomSplitParticipantOption.randomSplitCheckAll {
+  font-weight: 700;
+  border-bottom: 1px solid rgba(127, 127, 127, 0.2);
+  border-radius: 0;
+  padding-bottom: 14px;
+}
+
+.randomSplitParticipantFooter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.draftItemSharesTitle {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.shareCheckAll {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.shareCheckAll input {
+  width: 16px;
+  height: 16px;
+  accent-color: currentColor;
+}
