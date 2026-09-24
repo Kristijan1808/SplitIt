@@ -1,14 +1,27 @@
 import { FormEvent, useEffect, useState } from "react";
-import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
+import {
+  Link,
+  useNavigate,
+  useParams,
+  useSearchParams,
+} from "react-router-dom";
 import { ArrowLeft, Copy, Lock, Plus, Users, X, Dices } from "lucide-react";
 import { ThemeToggle } from "../components/ThemeToggle";
 import { api } from "../api";
 import { useLanguage } from "../i18n";
-import type { ExpenseItem, ExpenseItemShare, ExpensePayer, Group, SettlementResult } from "../types";
+import type {
+  ExpenseItem,
+  ExpenseItemShare,
+  ExpensePayer,
+  Group,
+  SettlementResult,
+} from "../types";
 import { RandomSplitWheel } from "../components/RandomSplitWheel";
 import { getWhoAmI, saveWhoAmI, saveGroupToLocalStorage } from "../storage";
 
 type DraftBill = {
+  canManage?: boolean;
+  legacyOwner?: boolean;
   id: string;
   note?: string | null;
   createdAt: string;
@@ -18,7 +31,12 @@ type DraftBill = {
     ordinalNumber: number;
     name: string;
     price: number;
-    shares: Array<{ id: string; itemId: string; personId: string; amount: number }>;
+    shares: Array<{
+      id: string;
+      itemId: string;
+      personId: string;
+      amount: number;
+    }>;
   }>;
 };
 
@@ -29,10 +47,9 @@ const normalizeDraft = (draft: DraftBill): DraftBill => ({
     .map((item, index) => ({
       ...item,
       ordinalNumber: index + 1,
-      shares: item.shares ?? []
-    }))
+      shares: item.shares ?? [],
+    })),
 });
-
 
 export const GroupPage = () => {
   const navigate = useNavigate();
@@ -48,12 +65,18 @@ export const GroupPage = () => {
   const [drafts, setDrafts] = useState<DraftBill[]>([]);
   const [actionError, setActionError] = useState("");
   const [saving, setSaving] = useState(false);
-  const [settlementData, setSettlementData] = useState<SettlementResult>({ balances: [], settlements: [] });
+  const [settlementData, setSettlementData] = useState<SettlementResult>({
+    balances: [],
+    settlements: [],
+  });
   const [expandedDrafts, setExpandedDrafts] = useState<Set<string>>(new Set());
-  const [expandedExpenses, setExpandedExpenses] = useState<Set<string>>(new Set());
-  const [randomSplitTarget, setRandomSplitTarget] = useState<
-    { draftId: string; itemId?: string } | null
-  >(null);
+  const [expandedExpenses, setExpandedExpenses] = useState<Set<string>>(
+    new Set(),
+  );
+  const [randomSplitTarget, setRandomSplitTarget] = useState<{
+    draftId: string;
+    itemId?: string;
+  } | null>(null);
 
   useEffect(() => {
     const load = async () => {
@@ -74,8 +97,11 @@ export const GroupPage = () => {
 
     const storedWhoAmI = getWhoAmI(slug);
     const storedParticipantId = storedWhoAmI?.participantId ?? null;
-    const validSelection = storedParticipantId && group.people.some((person) => person.id === storedParticipantId);
-    const shouldPrompt = searchParams.get("chooseParticipant") === "1" || !validSelection;
+    const validSelection =
+      storedParticipantId &&
+      group.people.some((person) => person.id === storedParticipantId);
+    const shouldPrompt =
+      searchParams.get("chooseParticipant") === "1" || !validSelection;
     setShowWhoAreYou(shouldPrompt);
   }, [group, slug, searchParams]);
 
@@ -123,12 +149,14 @@ export const GroupPage = () => {
   };
 
   const currentParticipantId = getWhoAmI(slug)?.participantId ?? null;
-  const currentParticipant = group?.people.find((person) => person.id === currentParticipantId);
+  const currentParticipant = group?.people.find(
+    (person) => person.id === currentParticipantId,
+  );
 
   const updateDraftShares = async (
     draftId: string,
     itemId: string,
-    personIds: string[]
+    personIds: string[],
   ) => {
     const uniquePersonIds = [...new Set(personIds)];
     const draft = drafts.find((entry) => entry.id === draftId);
@@ -157,33 +185,36 @@ export const GroupPage = () => {
                         personId,
                         amount:
                           Number(item.price) /
-                          Math.max(uniquePersonIds.length, 1)
-                      }))
-                    }
-              )
-            }
-      )
+                          Math.max(uniquePersonIds.length, 1),
+                      })),
+                    },
+              ),
+            },
+      ),
     );
 
     try {
       setActionError("");
       setSaving(true);
 
-      const nextDraft = await api.updateDraftExpenseItem(
-        slug,
-        draftId,
-        itemId,
-        { shares }
-      );
-      console.log("aaaaaaaaaaaaa");
+      const nextDraft =
+        !draft?.canManage && currentParticipantId
+          ? await api.ownItem(
+              slug,
+              draftId,
+              itemId,
+              uniquePersonIds.includes(currentParticipantId),
+            )
+          : await api.updateDraftExpenseItem(slug, draftId, itemId, { shares });
+
       setDrafts((current) =>
         current.map((entry) =>
           entry.id === draftId
             ? {
-                ...normalizeDraft(nextDraft)
+                ...normalizeDraft(nextDraft),
               }
-            : entry
-        )
+            : entry,
+        ),
       );
     } catch (error) {
       try {
@@ -194,9 +225,7 @@ export const GroupPage = () => {
       }
 
       setActionError(
-        error instanceof Error
-          ? error.message
-          : t("somethingWentWrong")
+        error instanceof Error ? error.message : t("somethingWentWrong"),
       );
     } finally {
       setSaving(false);
@@ -206,7 +235,9 @@ export const GroupPage = () => {
   const applyRandomSplit = async (personIds: string[]) => {
     if (!randomSplitTarget) return;
 
-    const targetDraft = drafts.find((draft) => draft.id === randomSplitTarget.draftId);
+    const targetDraft = drafts.find(
+      (draft) => draft.id === randomSplitTarget.draftId,
+    );
     if (!targetDraft) {
       setRandomSplitTarget(null);
       return;
@@ -216,7 +247,7 @@ export const GroupPage = () => {
       await updateDraftShares(
         targetDraft.id,
         randomSplitTarget.itemId,
-        personIds
+        personIds,
       );
       setRandomSplitTarget(null);
       return;
@@ -232,7 +263,7 @@ export const GroupPage = () => {
 
   const assignDraftItemToCurrentParticipant = async (
     draftId: string,
-    itemId: string
+    itemId: string,
   ) => {
     if (!currentParticipantId) {
       setSearchParams((current) => {
@@ -261,7 +292,9 @@ export const GroupPage = () => {
     const target = drafts.find((draft) => draft.id === draftId);
     if (!target || !group) return;
 
-    const validItems = target.items.filter((item) => item.name.trim() && Number(item.price || 0) > 0);
+    const validItems = target.items.filter(
+      (item) => item.name.trim() && Number(item.price || 0) > 0,
+    );
     if (validItems.length === 0) {
       setActionError(t("noAssignment"));
       return;
@@ -280,7 +313,9 @@ export const GroupPage = () => {
         return next;
       });
     } catch (error) {
-      setActionError(error instanceof Error ? error.message : t("somethingWentWrong"));
+      setActionError(
+        error instanceof Error ? error.message : t("somethingWentWrong"),
+      );
     } finally {
       setSaving(false);
     }
@@ -293,7 +328,9 @@ export const GroupPage = () => {
       const nextGroup = await callback();
       setGroupState(nextGroup);
     } catch (error) {
-      setActionError(error instanceof Error ? error.message : t("somethingWentWrong"));
+      setActionError(
+        error instanceof Error ? error.message : t("somethingWentWrong"),
+      );
       window.setTimeout(() => setActionError(""), 3500);
     } finally {
       setSaving(false);
@@ -319,7 +356,9 @@ export const GroupPage = () => {
       const nextGroup = await api.lockGroup(slug, !group.locked);
       setGroup(nextGroup);
     } catch (error) {
-      setActionError(error instanceof Error ? error.message : t("somethingWentWrong"));
+      setActionError(
+        error instanceof Error ? error.message : t("somethingWentWrong"),
+      );
     } finally {
       setSaving(false);
     }
@@ -333,18 +372,23 @@ export const GroupPage = () => {
 
     return new Intl.DateTimeFormat(locale, {
       dateStyle: "medium",
-      timeStyle: "short"
+      timeStyle: "short",
     }).format(date);
   };
 
   const formatPaymentLine = (payment: Group["payments"][number]) => {
-    const payer = group?.people.find((person) => person.id === payment.personId);
+    const payer = group?.people.find(
+      (person) => person.id === payment.personId,
+    );
     const participantIds = payment.participantIds ?? [];
-    const splitNames = group?.people
-      .filter((person) => participantIds.includes(person.id))
-      .map((person) => person.name)
-      .join(", ") ?? "";
-    const share = payment.amount / Math.max(participantIds.length || (group?.people.length ?? 1), 1);
+    const splitNames =
+      group?.people
+        .filter((person) => participantIds.includes(person.id))
+        .map((person) => person.name)
+        .join(", ") ?? "";
+    const share =
+      payment.amount /
+      Math.max(participantIds.length || (group?.people.length ?? 1), 1);
     const createdAtText = formatLocalDateTime(payment.createdAt);
 
     return `${payer?.name ?? t("someone")} ${t("paid")} ${payment.amount.toFixed(2)}${payment.note ? ` · ${payment.note}` : ""}${createdAtText ? ` · ${createdAtText}` : ""} · ${t("split")} ${splitNames || t("everyone")} · ${share.toFixed(2)} ${t("each")}`;
@@ -356,7 +400,11 @@ export const GroupPage = () => {
 
   return (
     <main className="page wide">
-      {saving && <div className="screenLoader"><div className="spinner large" /></div>}
+      {saving && (
+        <div className="screenLoader">
+          <div className="spinner large" />
+        </div>
+      )}
       {actionError && <div className="toastError">{actionError}</div>}
 
       <div className="topBar">
@@ -369,42 +417,69 @@ export const GroupPage = () => {
 
       <section className="groupHeader">
         <div>
-          <p className="eyebrow">{t("code")}: {group.code}</p>
+          <p className="eyebrow">
+            {t("code")}: {group.code}
+          </p>
           <h1>{group.name}</h1>
-          
+
           <div className="groupMetaRow">
             <p className="muted">{group.locked ? t("groupLocked") : ""}</p>
-            <button type="button" className="participantsToggle" onClick={() => setShowParticipants((current) => !current)}>
+            <button
+              type="button"
+              className="participantsToggle"
+              onClick={() => setShowParticipants((current) => !current)}
+            >
               <Users size={16} />
               <span>{t("participantsLabel")},</span>
               {currentParticipant && (
-                <span className="">{t("youAre")}: {currentParticipant.name}</span>
+                <span className="">
+                  {t("youAre")}: {currentParticipant.name}
+                </span>
               )}
             </button>
-             
           </div>
         </div>
         <div className="headerActions">
           <button
             className="secondaryButton"
-            onClick={() => navigator.clipboard.writeText(`${window.location.origin}/join?code=${group.code}`)}
+            onClick={() =>
+              navigator.clipboard.writeText(
+                `${window.location.origin}/join?code=${group.code}`,
+              )
+            }
           >
             <Copy size={18} /> {t("copyLink")}
           </button>
           <button className="secondaryButton" onClick={toggleLock}>
-            <Lock size={18} /> {group.locked ? t("unlockGroup") : t("lockGroup")}
+            <Lock size={18} />{" "}
+            {group.locked ? t("unlockGroup") : t("lockGroup")}
           </button>
         </div>
       </section>
 
       {showWhoAreYou && (
-        <div className="participantsOverlay" onClick={() => setShowWhoAreYou(false)}>
-          <section className="card participantsCard" onClick={(event) => event.stopPropagation()}>
+        <div
+          className="participantsOverlay"
+          onClick={() => setShowWhoAreYou(false)}
+        >
+          <section
+            className="card participantsCard"
+            onClick={(event) => event.stopPropagation()}
+          >
             <div className="participantsHeader">
               <h3>{t("whoAreYou")}</h3>
-              <button type="button" className="iconButton" onClick={() => setShowWhoAreYou(false)} aria-label={t("whoAreYou")}>×</button>
+              <button
+                type="button"
+                className="iconButton"
+                onClick={() => setShowWhoAreYou(false)}
+                aria-label={t("whoAreYou")}
+              >
+                ×
+              </button>
             </div>
-            <p className="muted participantPrompt">{t("selectYourParticipant")}</p>
+            <p className="muted participantPrompt">
+              {t("selectYourParticipant")}
+            </p>
             <div className="list">
               {group.people.map((person) => (
                 <button
@@ -422,39 +497,83 @@ export const GroupPage = () => {
       )}
 
       {showParticipants && (
-        <div className="participantsOverlay" onClick={() => setShowParticipants(false)}>
-          <section className="card participantsCard" onClick={(event) => event.stopPropagation()}>
+        <div
+          className="participantsOverlay"
+          onClick={() => setShowParticipants(false)}
+        >
+          <section
+            className="card participantsCard"
+            onClick={(event) => event.stopPropagation()}
+          >
             <div className="participantsHeader">
               <h3>{t("participantsPanelTitle")}</h3>
-              <button type="button" className="iconButton" onClick={() => setShowParticipants(false)} aria-label={t("participantsPanelTitle")}>×</button>
+              <button
+                type="button"
+                className="iconButton"
+                onClick={() => setShowParticipants(false)}
+                aria-label={t("participantsPanelTitle")}
+              >
+                ×
+              </button>
             </div>
             <div className="list">
               {group.people.map((person) => (
                 <div className="personRow" key={person.id}>
                   <strong>{person.name}</strong>
-                  <small>{person.payments.length} {person.payments.length === 1 ? t("expense") : t("expenses")}</small>
+                  <small>
+                    {person.payments.length}{" "}
+                    {person.payments.length === 1
+                      ? t("expense")
+                      : t("expenses")}
+                  </small>
                 </div>
               ))}
             </div>
-            <form onSubmit={addPerson} className="inlineInput addParticipantForm">
-              <input placeholder={t("addParticipantInput")} value={personName} onChange={(event) => setPersonName(event.target.value)} disabled={group.locked} />
-              <button className="iconButton" type="submit" disabled={group.locked}><Plus size={18} /></button>
+            <form
+              onSubmit={addPerson}
+              className="inlineInput addParticipantForm"
+            >
+              <input
+                placeholder={t("addParticipantInput")}
+                value={personName}
+                onChange={(event) => setPersonName(event.target.value)}
+                disabled={group.locked}
+              />
+              <button
+                className="iconButton"
+                type="submit"
+                disabled={group.locked}
+              >
+                <Plus size={18} />
+              </button>
             </form>
           </section>
         </div>
       )}
 
       <section className="buttons-container-right">
-        <button className="open-drafts-btn" onClick={() => setShowDrafts((current) => !current)}>{drafts.length}</button>
-        <Link className="primaryButton compactButton" to={`/g/${slug}/add-expense`}>
-            <Plus size={18} /> {t("addExpense")}
+        <button
+          className="open-drafts-btn"
+          onClick={() => setShowDrafts((current) => !current)}
+        >
+          {drafts.length}
+        </button>
+        <Link
+          className="primaryButton compactButton"
+          to={`/g/${slug}/add-expense`}
+        >
+          <Plus size={18} /> {t("addExpense")}
         </Link>
       </section>
 
       <section className="buttons-container-left">
-        <button className="open-expenses-btn" onClick={() => setShowExpensesContainer((current) => !current)}>Expenses!</button>
+        <button
+          className="open-expenses-btn"
+          onClick={() => setShowExpensesContainer((current) => !current)}
+        >
+          Expenses!
+        </button>
       </section>
-
 
       <div className="grid">
         <section className="card resultCard">
@@ -462,7 +581,11 @@ export const GroupPage = () => {
           <div className="totalSpentSummary">
             <div>
               <small>{t("totalSpent")}: </small>
-              <strong>{balances.reduce((sum, balance) => sum + balance.paid, 0).toFixed(2)}</strong>
+              <strong>
+                {balances
+                  .reduce((sum, balance) => sum + balance.paid, 0)
+                  .toFixed(2)}
+              </strong>
             </div>
           </div>
           {settlements.length === 0 ? (
@@ -490,268 +613,459 @@ export const GroupPage = () => {
           >
             <X size={16} strokeWidth={2.5} />
           </button>
-        <div className="grid">
-          <section className="card">
-            <div className="sectionHeaderWithButton">
-              <div>
-                <h2>{t("draftBills")}</h2>
-                <p className="muted">{t("draftBillsHint")}</p>
+          <div className="grid">
+            <section className="card">
+              <div className="sectionHeaderWithButton">
+                <div>
+                  <h2>{t("draftBills")}</h2>
+                  <p className="muted">{t("draftBillsHint")}</p>
+                </div>
               </div>
-            </div>
 
-            <div className="list">
-              {drafts.map((draft) => {
-                const itemTotal = draft.items.reduce((sum, item) => sum + Number(item.price || 0), 0);
-                const assignedTotal = draft.items.reduce(
-                  (sum, item) =>
-                    sum +
-                    item.shares.reduce(
-                      (shareSum, share) => shareSum + Number(share.amount || 0),
-                      0
-                    ),
-                  0
-                );
-                const payerTotal = draft.payers.reduce((sum, payer) => sum + Number(payer.amount || 0), 0);
-                const unassignedCount = draft.items.filter((item) => item.shares.length === 0).length;
-                const payerNames = draft.payers
-                  .map((payer) => group.people.find((person) => person.id === payer.personId)?.name)
-                  .filter(Boolean)
-                  .join(", ");
+              <div className="list">
+                {drafts.map((draft) => {
+                  const itemTotal = draft.items.reduce(
+                    (sum, item) => sum + Number(item.price || 0),
+                    0,
+                  );
+                  const assignedTotal = draft.items.reduce(
+                    (sum, item) =>
+                      sum +
+                      item.shares.reduce(
+                        (shareSum, share) =>
+                          shareSum + Number(share.amount || 0),
+                        0,
+                      ),
+                    0,
+                  );
+                  const payerTotal = draft.payers.reduce(
+                    (sum, payer) => sum + Number(payer.amount || 0),
+                    0,
+                  );
+                  const unassignedCount = draft.items.filter(
+                    (item) => item.shares.length === 0,
+                  ).length;
+                  const payerNames = draft.payers
+                    .map(
+                      (payer) =>
+                        group.people.find(
+                          (person) => person.id === payer.personId,
+                        )?.name,
+                    )
+                    .filter(Boolean)
+                    .join(", ");
 
-                const expanded = expandedDrafts.has(draft.id);
-                return (
-                  <div key={draft.id} className="paymentRow draftCard">
-                    <div className="contentRow draftContentRow">
-                      <button type="button" className="expenseSummary" onClick={() => setExpandedDrafts((current) => { const next = new Set(current); if (next.has(draft.id)) next.delete(draft.id); else next.add(draft.id); return next; })}>
-                        <div className="expenseSummaryMain">
-                          <strong>{draft.note || t("draftBill")}</strong>
-                          <small>{formatLocalDateTime(draft.createdAt)} · {draft.items.length} {t("itemsCount")}</small>
-                        </div>
-                        <strong>{itemTotal.toFixed(2)} €</strong>
-                      </button>
-                      <button
-                        type="button"
-                        className="spinTriggerButton"
-                        onClick={() => setRandomSplitTarget({ draftId: draft.id })}
-                        disabled={group.locked || saving || group.people.length === 0 || itemTotal <= 0}
-                        title={t("randomSplitGlobal")}
-                      >
-                        <Dices size={17} />
-                        <span>SPIN</span>
-                      </button>
-                      {expanded ? (
-                        <div>
-
-                      <div className="card draftDetailsCard">
-                        <div className="stats">
-                          <div><small>{t("itemsTotal")}</small><strong>{itemTotal.toFixed(2)}</strong></div>
-                          <div><small>{t("paidTotal")}</small><strong>{payerTotal.toFixed(2)}</strong></div>
-                          <div><small>{t("assignedTotal")}</small><strong>{assignedTotal.toFixed(2)}</strong></div>
-                          <div><small>{t("unassignedItems")}</small><strong>{unassignedCount}</strong></div>
-                        </div>
-                        <p className="muted noBottomMargin">
-                          {t("billPayers")}: {payerNames || t("noPayersAdded")}
-                        </p>  
-                      </div>
-
-                      <div className="list draftItemsList">
-                        {draft.items.map((item) => {
-                          return (
-                            <div
-                              key={item.id}
-                              className="draftItemRow"
-                            >
-                              <span>
-                                <strong>{item.ordinalNumber}. {item.name} - {Number(item.price || 0).toFixed(2)}</strong>
-                                {item.shares.length > 0 && (
-                                  <small className="blockText">
-                                    {item.shares
-                                      .map((share) => {
-                                        const name = group.people.find(
-                                          (person) => share.personId === person.id
-                                        )?.name;
-                                        return name
-                                          ? `${name} (${Number(share.amount).toFixed(2)} €)`
-                                          : null;
-                                      })
-                                      .filter(Boolean)
-                                      .join(", ")}
-                                  </small>
-                                )}
-                              </span>
-
-                              <div className="draftItemSplitActions">
-                                <button
-                                  type="button"
-                                  className="miniSpinButton"
-                                  onClick={() =>
-                                    setRandomSplitTarget({
-                                      draftId: draft.id,
-                                      itemId: item.id
-                                    })
-                                  }
-                                  disabled={group.locked || saving || group.people.length === 0 || Number(item.price) <= 0}
-                                  title={t("randomSplitItem")}
-                                >
-                                  <Dices size={15} />
-                                  <span>SPIN</span>
-                                </button>
-                              </div>
-
-                              <div className="sharePicker" aria-label={t("assignedTo")}>
-                                {group.people.map((person) => {
-                                  const checked = item.shares.some((share) => share.personId === person.id);
-                                  return (
-                                    <label key={person.id} className="shareOption">
-                                      <input
-                                        type="checkbox"
-                                        checked={checked}
-                                        disabled={group.locked || saving}
-                                        onChange={() => {
-                                          const currentIds = item.shares.map((share) => share.personId);
-                                          const nextIds = checked
-                                            ? currentIds.filter((id) => id !== person.id)
-                                            : [...currentIds, person.id];
-                                          void updateDraftShares(draft.id, item.id, nextIds);
-                                        }}
-                                      />
-                                      <span>{person.name}</span>
-                                    </label>
-                                  );
-                                })}
-                              </div>
-
-                              
-                            </div>
-                          );
-                        })}
-                      </div>
-
-                      <div className="draftConfirmRow">
+                  const expanded = expandedDrafts.has(draft.id);
+                  return (
+                    <div key={draft.id} className="paymentRow draftCard">
+                      <div className="contentRow draftContentRow">
                         <button
                           type="button"
-                          className="primaryButton"
-                          onClick={() => void finalizeDraft(draft.id)}
-                          disabled={group.locked || saving}
+                          className="expenseSummary"
+                          onClick={() =>
+                            setExpandedDrafts((current) => {
+                              const next = new Set(current);
+                              if (next.has(draft.id)) next.delete(draft.id);
+                              else next.add(draft.id);
+                              return next;
+                            })
+                          }
                         >
-                          {t("confirmSelection")}
+                          <div className="expenseSummaryMain">
+                            <strong>{draft.note || t("draftBill")}</strong>
+                            <small>
+                              {formatLocalDateTime(draft.createdAt)} ·{" "}
+                              {draft.items.length} {t("itemsCount")}
+                            </small>
+                          </div>
+                          <strong>{itemTotal.toFixed(2)} €</strong>
                         </button>
-                        {unassignedCount > 0 && (
-                          <span className="muted">{t("assignItemsBeforeConfirm")}</span>
-                        )}
-                        </div>
-                        </div>
-                      ) : null}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </section>
-        </div>
-        </section>
-      )}
-
-      {showExpensesContainer && (<section id="expenses-container">
-        <button
-            type="button"
-            className="close-drafts-btn"
-            onClick={() => setShowExpensesContainer((current) => !current)}
-          ></button>
-        <div className="grid">
-        <section className="card">
-          <div className="sectionHeaderWithButton">
-            <div>
-              <h2>{t("expenses")}</h2>
-            </div>
-          </div>
-          {true && (() => {
-            const expenses = group.expenses;
-            if (expenses.length === 0) return <p className="muted">{t("noExpensesYet")}</p>;
-            return (
-              <div className="list">
-                {expenses.map((expense) => {
-                  const expanded = expandedExpenses.has(expense.id);
-                  return (
-                    <div className="expenseCard" key={expense.id}>
-                      <button
-                        type="button"
-                        className="expenseSummary"
-                        onClick={() => setExpandedExpenses((current) => {
-                          const next = new Set(current);
-                          if (next.has(expense.id)) next.delete(expense.id); else next.add(expense.id);
-                          return next;
-                        })}
-                      >
-                        <div className="expenseSummaryMain">
-                          <strong>{expense.note || t("expense")}</strong>
-                          <small>{formatLocalDateTime(expense.createdAt)} · {expense.items?.length ?? 0} {t("itemsCount")}</small>
-                        </div>
-                        <strong>{Number(expense.totalAmount || 0).toFixed(2)} €</strong>
-                      </button>
-
-                      {expanded && (
-                        <div className="expenseDetails">
-                          <div className="expenseDetailsBlock expense-payers">
-                            <strong>{t("billPayers")}</strong>
-                            {(expense.payers ?? []).map((payer: ExpensePayer) => (
-                              <div className="detailLine" key={payer.id}>
-                                <span>{payer.person?.name ?? group.people.find((p) => p.id === payer.personId)?.name}</span>
-                                <strong>{Number(payer.amount).toFixed(2)} €</strong>
-                              </div>
-                            ))}
-                          </div>
-
-                          <div className="expenseDetailsBlock expense-items">
-                            <strong>{t("billItems")}</strong>
-                            {(expense.items ?? []).map((item: ExpenseItem) => (
-                              <div className="expenseDetailItem" key={item.id}>
-                                <div className="expenseDetailItemTop">
-                                  <strong>{item.ordinalNumber}. {item.name}</strong>
-                                  <strong>{Number(item.price).toFixed(2)} €</strong>
+                        <button
+                          type="button"
+                          className="spinTriggerButton"
+                          hidden={!draft.canManage}
+                          onClick={() =>
+                            setRandomSplitTarget({ draftId: draft.id })
+                          }
+                          disabled={
+                            !draft.canManage ||
+                            group.locked ||
+                            saving ||
+                            group.people.length === 0 ||
+                            itemTotal <= 0
+                          }
+                          title={t("randomSplitGlobal")}
+                        >
+                          <Dices size={17} />
+                          <span>SPIN</span>
+                        </button>
+                        {expanded ? (
+                          <div>
+                            <div className="card draftDetailsCard">
+                              <div className="stats">
+                                <div>
+                                  <small>{t("itemsTotal")}</small>
+                                  <strong>{itemTotal.toFixed(2)}</strong>
                                 </div>
-                                <div className="shareNames">
-                                  {(item.shares ?? []).length === 0
-                                    ? t("noItemAssigned")
-                                    : item.shares.map((share: ExpenseItemShare) => {
-                                        const name = share.person?.name ?? group.people.find((p) => p.id === share.personId)?.name ?? share.personId;
-                                        return `${name} (${Number(share.amount).toFixed(2)} €)`;
-                                      }).join(", ")}
+                                <div>
+                                  <small>{t("paidTotal")}</small>
+                                  <strong>{payerTotal.toFixed(2)}</strong>
+                                </div>
+                                <div>
+                                  <small>{t("assignedTotal")}</small>
+                                  <strong>{assignedTotal.toFixed(2)}</strong>
+                                </div>
+                                <div>
+                                  <small>{t("unassignedItems")}</small>
+                                  <strong>{unassignedCount}</strong>
                                 </div>
                               </div>
-                            ))}
-                          </div>
-
-                          <div className="expenseDetailsBlock expense-participants">
-                            <strong>{t("selectedParticipants")}</strong>
-                            <div className="shareNames">
-                              {(expense.shares ?? []).map((share) => {
-                                const name = share.person?.name ?? group.people.find((p) => p.id === share.personId)?.name ?? share.personId;
-                                return `${name} (${Number(share.amount).toFixed(2)} €)`;
-                              }).join(", ")}
+                              <p className="muted noBottomMargin">
+                                {t("billPayers")}:{" "}
+                                {payerNames || t("noPayersAdded")}
+                              </p>
                             </div>
+
+                            <div className="list draftItemsList">
+                              {draft.items.map((item) => {
+                                return (
+                                  <div key={item.id} className="draftItemRow">
+                                    <span>
+                                      <strong>
+                                        {item.ordinalNumber}. {item.name} -{" "}
+                                        {Number(item.price || 0).toFixed(2)}
+                                      </strong>
+                                      {item.shares.length > 0 && (
+                                        <small className="blockText">
+                                          {item.shares
+                                            .map((share) => {
+                                              const name = group.people.find(
+                                                (person) =>
+                                                  share.personId === person.id,
+                                              )?.name;
+                                              return name
+                                                ? `${name} (${Number(share.amount).toFixed(2)} €)`
+                                                : null;
+                                            })
+                                            .filter(Boolean)
+                                            .join(", ")}
+                                        </small>
+                                      )}
+                                    </span>
+
+                                    <div className="draftItemSplitActions">
+                                      <button
+                                        type="button"
+                                        className="miniSpinButton"
+                                        hidden={!draft.canManage}
+                                        onClick={() =>
+                                          setRandomSplitTarget({
+                                            draftId: draft.id,
+                                            itemId: item.id,
+                                          })
+                                        }
+                                        disabled={
+                                          !draft.canManage ||
+                                          group.locked ||
+                                          saving ||
+                                          group.people.length === 0 ||
+                                          Number(item.price) <= 0
+                                        }
+                                        title={t("randomSplitItem")}
+                                      >
+                                        <Dices size={15} />
+                                        <span>SPIN</span>
+                                      </button>
+                                    </div>
+
+                                    <div
+                                      className="sharePicker"
+                                      aria-label={t("assignedTo")}
+                                    >
+                                      {group.people
+                                        .filter(
+                                          (person) =>
+                                            draft.canManage ||
+                                            person.id === currentParticipantId,
+                                        )
+                                        .map((person) => {
+                                          const checked = item.shares.some(
+                                            (share) =>
+                                              share.personId === person.id,
+                                          );
+                                          return (
+                                            <label
+                                              key={person.id}
+                                              className="shareOption"
+                                            >
+                                              <input
+                                                type="checkbox"
+                                                checked={checked}
+                                                disabled={
+                                                  group.locked || saving
+                                                }
+                                                onChange={() => {
+                                                  const currentIds =
+                                                    item.shares.map(
+                                                      (share) => share.personId,
+                                                    );
+                                                  const nextIds = checked
+                                                    ? currentIds.filter(
+                                                        (id) =>
+                                                          id !== person.id,
+                                                      )
+                                                    : [
+                                                        ...currentIds,
+                                                        person.id,
+                                                      ];
+                                                  void updateDraftShares(
+                                                    draft.id,
+                                                    item.id,
+                                                    nextIds,
+                                                  );
+                                                }}
+                                              />
+                                              <span>{person.name}</span>
+                                            </label>
+                                          );
+                                        })}
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+
+                            {draft.canManage && (
+                              <div className="draftConfirmRow">
+                                <button
+                                  type="button"
+                                  className="primaryButton"
+                                  onClick={() => void finalizeDraft(draft.id)}
+                                  disabled={group.locked || saving}
+                                >
+                                  {t("confirmSelection")}
+                                </button>
+                                {unassignedCount > 0 && (
+                                  <span className="muted">
+                                    {t("assignItemsBeforeConfirm")}
+                                  </span>
+                                )}
+                              </div>
+                            )}
                           </div>
-                        </div>
-                      )}
+                        ) : null}
+                      </div>
                     </div>
                   );
                 })}
               </div>
-            );
-          })()}
+            </section>
+          </div>
         </section>
-      </div>
-      </section>)}
-      
+      )}
 
+      {showExpensesContainer && (
+        <section id="expenses-container">
+          <button
+            type="button"
+            className="close-drafts-btn"
+            onClick={() => setShowExpensesContainer((current) => !current)}
+          ></button>
+          <div className="grid">
+            <section className="card">
+              <div className="sectionHeaderWithButton">
+                <div>
+                  <h2>{t("expenses")}</h2>
+                </div>
+              </div>
+              {true &&
+                (() => {
+                  const expenses = group.expenses;
+                  if (expenses.length === 0)
+                    return <p className="muted">{t("noExpensesYet")}</p>;
+                  return (
+                    <div className="list">
+                      {expenses.map((expense) => {
+                        const expanded = expandedExpenses.has(expense.id);
+                        return (
+                          <div className="expenseCard" key={expense.id}>
+                            <button
+                              type="button"
+                              className="expenseSummary"
+                              onClick={() =>
+                                setExpandedExpenses((current) => {
+                                  const next = new Set(current);
+                                  if (next.has(expense.id))
+                                    next.delete(expense.id);
+                                  else next.add(expense.id);
+                                  return next;
+                                })
+                              }
+                            >
+                              <div className="expenseSummaryMain">
+                                <strong>{expense.note || t("expense")}</strong>
+                                <small>
+                                  {formatLocalDateTime(expense.createdAt)} ·{" "}
+                                  {expense.items?.length ?? 0} {t("itemsCount")}
+                                </small>
+                              </div>
+                              <strong>
+                                {Number(expense.totalAmount || 0).toFixed(2)} €
+                              </strong>
+                            </button>
+
+                            {expanded && (
+                              <div className="expenseDetails">
+                                <div className="expenseDetailsBlock expense-payers">
+                                  <strong>{t("billPayers")}</strong>
+                                  {(expense.payers ?? []).map(
+                                    (payer: ExpensePayer) => (
+                                      <div
+                                        className="detailLine"
+                                        key={payer.id}
+                                      >
+                                        <span>
+                                          {payer.person?.name ??
+                                            group.people.find(
+                                              (p) => p.id === payer.personId,
+                                            )?.name}
+                                        </span>
+                                        <strong>
+                                          {Number(payer.amount).toFixed(2)} €
+                                        </strong>
+                                      </div>
+                                    ),
+                                  )}
+                                </div>
+
+                                <div className="expenseDetailsBlock expense-items">
+                                  <strong>{t("billItems")}</strong>
+                                  {(expense.items ?? []).map(
+                                    (item: ExpenseItem) => (
+                                      <div
+                                        className="expenseDetailItem"
+                                        key={item.id}
+                                      >
+                                        <label>
+                                          <input
+                                            type="checkbox"
+                                            checked={item.shares.some(
+                                              (s) =>
+                                                s.personId ===
+                                                currentParticipantId,
+                                            )}
+                                            disabled={
+                                              group.locked ||
+                                              saving ||
+                                              !currentParticipantId
+                                            }
+                                            onChange={async (event) => {
+                                              const selected =
+                                                event.target.checked;
+                                              setSaving(true);
+                                              setActionError("");
+                                              try {
+                                                await api.ownItem(
+                                                  slug,
+                                                  expense.id,
+                                                  item.id,
+                                                  selected,
+                                                  true,
+                                                );
+                                                setGroup(
+                                                  await api.getGroup(slug),
+                                                );
+                                                setSettlementData(
+                                                  await api.getSettlements(
+                                                    slug,
+                                                  ),
+                                                );
+                                              } catch (error) {
+                                                setActionError(
+                                                  error instanceof Error
+                                                    ? error.message
+                                                    : "Error",
+                                                );
+                                              } finally {
+                                                setSaving(false);
+                                              }
+                                            }}
+                                          />
+                                          {locale.startsWith("hr")
+                                            ? "Moja stavka"
+                                            : "My item"}
+                                        </label>
+                                        <div className="expenseDetailItemTop">
+                                          <strong>
+                                            {item.ordinalNumber}. {item.name}
+                                          </strong>
+                                          <strong>
+                                            {Number(item.price).toFixed(2)} €
+                                          </strong>
+                                        </div>
+                                        <div className="shareNames">
+                                          {(item.shares ?? []).length === 0
+                                            ? t("noItemAssigned")
+                                            : item.shares
+                                                .map(
+                                                  (share: ExpenseItemShare) => {
+                                                    const name =
+                                                      share.person?.name ??
+                                                      group.people.find(
+                                                        (p) =>
+                                                          p.id ===
+                                                          share.personId,
+                                                      )?.name ??
+                                                      share.personId;
+                                                    return `${name} (${Number(share.amount).toFixed(2)} €)`;
+                                                  },
+                                                )
+                                                .join(", ")}
+                                        </div>
+                                      </div>
+                                    ),
+                                  )}
+                                </div>
+
+                                <div className="expenseDetailsBlock expense-participants">
+                                  <strong>{t("selectedParticipants")}</strong>
+                                  <div className="shareNames">
+                                    {(expense.shares ?? [])
+                                      .map((share) => {
+                                        const name =
+                                          share.person?.name ??
+                                          group.people.find(
+                                            (p) => p.id === share.personId,
+                                          )?.name ??
+                                          share.personId;
+                                        return `${name} (${Number(share.amount).toFixed(2)} €)`;
+                                      })
+                                      .join(", ")}
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })()}
+            </section>
+          </div>
+        </section>
+      )}
 
       <RandomSplitWheel
         open={randomSplitTarget !== null}
         title={
           randomSplitTarget?.itemId
-            ? `${t("randomSplitItem")} ${drafts
-                .find((draft) => draft.id === randomSplitTarget.draftId)
-                ?.items.find((item) => item.id === randomSplitTarget.itemId)?.name ?? ""}`.trim()
+            ? `${t("randomSplitItem")} ${
+                drafts
+                  .find((draft) => draft.id === randomSplitTarget.draftId)
+                  ?.items.find((item) => item.id === randomSplitTarget.itemId)
+                  ?.name ?? ""
+              }`.trim()
             : t("randomSplitGlobal")
         }
         amount={
@@ -759,21 +1073,26 @@ export const GroupPage = () => {
             ? Number(
                 drafts
                   .find((draft) => draft.id === randomSplitTarget.draftId)
-                  ?.items.find((item) => item.id === randomSplitTarget.itemId)?.price ?? 0
+                  ?.items.find((item) => item.id === randomSplitTarget.itemId)
+                  ?.price ?? 0,
               )
-            : drafts
+            : (drafts
                 .find((draft) => draft.id === randomSplitTarget?.draftId)
-                ?.items.reduce((sum, item) => sum + Number(item.price || 0), 0) ?? 0
+                ?.items.reduce(
+                  (sum, item) => sum + Number(item.price || 0),
+                  0,
+                ) ?? 0)
         }
         people={group.people}
         initialSelectedIds={
           randomSplitTarget?.itemId
-            ? drafts
+            ? (drafts
                 .find((draft) => draft.id === randomSplitTarget.draftId)
                 ?.items.find((item) => item.id === randomSplitTarget.itemId)
-                ?.shares.map((share) => share.personId) ?? []
-            : drafts.find((draft) => draft.id === randomSplitTarget?.draftId)
-                ?.items[0]?.shares.map((share) => share.personId) ?? []
+                ?.shares.map((share) => share.personId) ?? [])
+            : (drafts
+                .find((draft) => draft.id === randomSplitTarget?.draftId)
+                ?.items[0]?.shares.map((share) => share.personId) ?? [])
         }
         onConfirm={(personIds) => void applyRandomSplit(personIds)}
         onClose={() => setRandomSplitTarget(null)}

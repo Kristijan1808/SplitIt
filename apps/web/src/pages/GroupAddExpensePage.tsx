@@ -136,6 +136,8 @@ export const GroupAddExpensePage = () => {
   };
 
   const addDraftItem = () => {
+    if (!group) return;
+    const personIds = group.people.map((person) => person.id);
     setDraftItems((current) => [
       ...current,
       {
@@ -143,7 +145,7 @@ export const GroupAddExpensePage = () => {
         ordinalNumber: current.length + 1,
         name: "",
         price: "",
-        assignedPersonIds: group.people.map((person) => person.id)
+        assignedPersonIds: personIds
       }
     ]);
   };

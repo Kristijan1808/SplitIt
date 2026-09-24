@@ -1,20 +1,12 @@
+import { creatorKey } from "./bill-permissions.js";
 import type { NextFunction, Request, Response } from "express";
-import {
-  buildItemShares,
-  prisma
-} from "../core.js";
-import {
-  createDraftExpenseSchema
-} from "../schemas/schemas.js";
+import { buildItemShares, prisma } from "../core.js";
+import { createDraftExpenseSchema } from "../schemas/schemas.js";
 import { serializeDraftExpense } from "../utils.js";
 import { ensureCanEditGroup, ensureCanViewGroup } from "./access.service.js";
 
 export class DraftExpenseService {
-  list = async (
-    req: Request,
-    res: Response,
-    next: NextFunction
-  ) => {
+  list = async (req: Request, res: Response, next: NextFunction) => {
     try {
       const group = await prisma.group.findUnique({
         where: { slug: req.params.slug as string },
@@ -25,11 +17,11 @@ export class DraftExpenseService {
               payers: true,
               items: {
                 orderBy: { ordinalNumber: "asc" },
-                include: { shares: true }
-              }
-            }
-          }
-        }
+                include: { shares: true },
+              },
+            },
+          },
+        },
       });
 
       if (!group) {
@@ -48,15 +40,11 @@ export class DraftExpenseService {
     }
   };
 
-  create = async (
-    req: Request,
-    res: Response,
-    next: NextFunction
-  ) => {
+  create = async (req: Request, res: Response, next: NextFunction) => {
     try {
       const body = createDraftExpenseSchema.parse(req.body);
       const group = await prisma.group.findUnique({
-        where: { slug: req.params.slug as string }
+        where: { slug: req.params.slug as string },
       });
 
       if (!group) {
@@ -71,7 +59,7 @@ export class DraftExpenseService {
 
       const people = await prisma.person.findMany({
         where: { groupId: group.id },
-        select: { id: true }
+        select: { id: true },
       });
       const validPersonIds = new Set(people.map((person) => person.id));
 
@@ -79,17 +67,17 @@ export class DraftExpenseService {
 
       if (new Set(payerIds).size !== payerIds.length) {
         return res.status(400).json({
-          error: "A participant can only be added as a payer once"
+          error: "A participant can only be added as a payer once",
         });
       }
 
       const invalidPayer = body.payers.find(
-        (payer) => !validPersonIds.has(payer.personId)
+        (payer) => !validPersonIds.has(payer.personId),
       );
 
       if (invalidPayer) {
         return res.status(400).json({
-          error: "Payer must be a participant in this group"
+          error: "Payer must be a participant in this group",
         });
       }
 
@@ -105,16 +93,18 @@ export class DraftExpenseService {
         }
 
         const uniqueShares = [
-          ...new Map(item.shares.map((share) => [share.personId, share])).values()
+          ...new Map(
+            item.shares.map((share) => [share.personId, share]),
+          ).values(),
         ];
 
         const invalidShare = uniqueShares.find(
-          (share) => !validPersonIds.has(share.personId)
+          (share) => !validPersonIds.has(share.personId),
         );
 
         if (invalidShare) {
           throw new Error(
-            `Participant ${invalidShare.personId} is not in this group`
+            `Participant ${invalidShare.personId} is not in this group`,
           );
         }
 
@@ -123,44 +113,46 @@ export class DraftExpenseService {
           price: item.price,
           shares: buildItemShares({
             price: item.price,
-            shares: uniqueShares
-          })
+            shares: uniqueShares,
+          }),
         };
       });
 
       const nextDraft = await prisma.expenseDraft.create({
         data: {
+          creatorKey: creatorKey(req),
           groupId: group.id,
           note: body.note?.trim() || null,
           payers: {
             create: body.payers.map((payer) => ({
               personId: payer.personId,
-              amount: payer.amount
-            }))
+              amount: payer.amount,
+            })),
           },
           items: {
             create: preparedItems.map((item, index) => ({
               ordinalNumber: index + 1,
               name: item.name,
               price: item.price,
-              shares: item.shares.length > 0
-                ? {
-                    create: item.shares.map((share) => ({
-                      personId: share.personId,
-                      amount: share.amount
-                    }))
-                  }
-                : undefined
-            }))
-          }
+              shares:
+                item.shares.length > 0
+                  ? {
+                      create: item.shares.map((share) => ({
+                        personId: share.personId,
+                        amount: share.amount,
+                      })),
+                    }
+                  : undefined,
+            })),
+          },
         },
         include: {
           payers: true,
           items: {
             orderBy: { ordinalNumber: "asc" },
-            include: { shares: true }
-          }
-        }
+            include: { shares: true },
+          },
+        },
       });
 
       return res.status(201).json(serializeDraftExpense(nextDraft));

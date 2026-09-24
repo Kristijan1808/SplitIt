@@ -65,18 +65,7 @@ export class GroupService {
     const body = joinGroupSchema.parse(req.body);
     const currentUser = getUserFromRequest(req);
 
-    const group = body.code
-      ? await prisma.group.findUnique({
-          where: { code: body.code.toUpperCase() }
-        })
-      : await prisma.group.findFirst({
-          where: {
-            name: {
-              equals: body.name?.trim() ?? "",
-              mode: "insensitive"
-            }
-          }
-        });
+    const group = await prisma.group.findUnique({where:{code:body.code.toUpperCase()}});
 
     if (!group) throw new Error("Group not found");
 

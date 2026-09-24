@@ -1,4 +1,3 @@
-
 import { PrismaClient, Prisma } from "@prisma/client";
 import jwt from "jsonwebtoken";
 import express from "express";
@@ -13,22 +12,16 @@ export type AuthUser = {
   username: string;
 };
 
-export const calculateEqualShares = (
-  amount: number,
-  personIds: string[]
-) => {
+export const calculateEqualShares = (amount: number, personIds: string[]) => {
   if (personIds.length === 0) return [];
 
-  const base = roundMoney(amount / personIds.length);
-
-  return personIds.map((_, index) => {
-    if (index === personIds.length - 1) {
-      const previousTotal = base * (personIds.length - 1);
-      return roundMoney(amount - previousTotal);
-    }
-
-    return base;
-  });
+  const cents = Math.round(amount * 100);
+  return personIds.map(
+    (_, index) =>
+      (Math.floor(cents / personIds.length) +
+        (index < cents % personIds.length ? 1 : 0)) /
+      100,
+  );
 };
 
 export type ItemShareInput = {
@@ -45,41 +38,41 @@ export const buildItemShares = (item: ItemInput) => {
   if (item.shares.length === 0) return [];
 
   const hasExplicitAmount = item.shares.some(
-    (share) => share.amount !== undefined
+    (share) => share.amount !== undefined,
   );
 
   if (!hasExplicitAmount) {
     const amounts = calculateEqualShares(
       item.price,
-      item.shares.map((share) => share.personId)
+      item.shares.map((share) => share.personId),
     );
 
     return item.shares.map((share, index) => ({
       personId: share.personId,
-      amount: amounts[index]
+      amount: amounts[index],
     }));
   }
 
   if (item.shares.some((share) => share.amount === undefined)) {
     throw new Error(
-      "Either all item share amounts must be provided or all must be omitted"
+      "Either all item share amounts must be provided or all must be omitted",
     );
   }
 
   const total = item.shares.reduce(
     (sum, share) => sum + Number(share.amount),
-    0
+    0,
   );
 
   if (!moneyEqual(total, item.price)) {
     throw new Error(
-      `Item shares (${total.toFixed(2)}) must equal item price (${item.price.toFixed(2)})`
+      `Item shares (${total.toFixed(2)}) must equal item price (${item.price.toFixed(2)})`,
     );
   }
 
   return item.shares.map((share) => ({
     personId: share.personId,
-    amount: roundMoney(share.amount as number)
+    amount: roundMoney(share.amount as number),
   }));
 };
 
@@ -87,39 +80,30 @@ export const aggregateExpenseShares = (
   items: Array<{
     shares: Array<{
       personId: string;
-      amount: number  | Prisma.Decimal;
+      amount: number | Prisma.Decimal;
     }>;
-  }>
+  }>,
 ) => {
   const totals = new Map<string, number>();
 
   for (const item of items) {
     for (const share of item.shares) {
       const current = totals.get(share.personId) ?? 0;
-      totals.set(
-        share.personId,
-        roundMoney(current + Number(share.amount))
-      );
+      totals.set(share.personId, roundMoney(current + Number(share.amount)));
     }
   }
 
   return [...totals.entries()].map(([personId, amount]) => ({
     personId,
-    amount: roundMoney(amount)
+    amount: roundMoney(amount),
   }));
 };
 
+export const roundMoney = (value: number) => Number(value.toFixed(2));
 
-export const roundMoney = (value: number) =>
-  Number(value.toFixed(2));
+export const moneyEqual = (a: number, b: number) => Math.abs(a - b) < 0.01;
 
-export const moneyEqual = (a: number, b: number) =>
-  Math.abs(a - b) < 0.01;
-
-
-export const getUserFromRequest = (
-  req: express.Request
-): AuthUser | null => {
+export const getUserFromRequest = (req: express.Request): AuthUser | null => {
   const token = getTokenFromRequest(req);
 
   if (!token) {
@@ -127,17 +111,14 @@ export const getUserFromRequest = (
   }
 
   try {
-    const payload = jwt.verify(
-      token,
-      JWT_SECRET
-    ) as {
+    const payload = jwt.verify(token, JWT_SECRET) as {
       userId: string;
       username: string;
     };
 
     return {
       id: payload.userId,
-      username: payload.username
+      username: payload.username,
     };
   } catch {
     return null;
@@ -161,11 +142,11 @@ export const createToken = (user: AuthUser) => {
   return jwt.sign(
     {
       userId: user.id,
-      username: user.username
+      username: user.username,
     },
     JWT_SECRET,
     {
-      expiresIn: "30d"
-    }
+      expiresIn: "30d",
+    },
   );
 };
