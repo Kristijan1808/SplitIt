@@ -1,4 +1,3 @@
-
 import { FormEvent, useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { ArrowLeft, UserRoundPlus } from "lucide-react";
@@ -7,7 +6,7 @@ import { useLanguage } from "../i18n";
 
 export function JoinGroupPage() {
   const navigate = useNavigate();
-  const { t } = useLanguage();
+  const { t, locale } = useLanguage();
   const [code, setCode] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -39,6 +38,16 @@ export function JoinGroupPage() {
       </div>
 
       <section className="card">
+        {/^[A-Z0-9]{6}$/.test(code) && (
+          <a
+            className="secondaryButton"
+            href={`splitit://join?code=${encodeURIComponent(code)}`}
+          >
+            {locale.startsWith("hr")
+              ? "Otvori u mobilnoj aplikaciji"
+              : "Open in the mobile app"}
+          </a>
+        )}
         <h1>{t("joinTitle")}</h1>
         <p className="muted">{t("joinHint")}</p>
 
@@ -56,7 +65,12 @@ export function JoinGroupPage() {
 
           <label>
             {t("password")}
-            <input type="password" value={password} onChange={(event) => setPassword(event.target.value)} required />
+            <input
+              type="password"
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              required
+            />
           </label>
 
           {error && <p className="error">{error}</p>}

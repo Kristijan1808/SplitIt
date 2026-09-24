@@ -3,7 +3,7 @@ import type { AuthUser } from "./core.js";
 
 export const groupDetailsInclude = {
   people: {
-    orderBy: { createdAt: "asc" }
+    orderBy: { createdAt: "asc" },
   },
   expenses: {
     orderBy: { createdAt: "desc" },
@@ -12,20 +12,20 @@ export const groupDetailsInclude = {
       items: {
         orderBy: { ordinalNumber: "asc" },
         include: {
-          shares: { include: { person: true } }
-        }
+          shares: { include: { person: true } },
+        },
       },
-      shares: { include: { person: true } }
-    }
+      shares: { include: { person: true } },
+    },
   },
   history: {
-    orderBy: { createdAt: "desc" }
+    orderBy: { createdAt: "desc" },
   },
   members: {
     include: {
-      user: { select: { username: true } }
+      user: { select: { username: true } },
     },
-    orderBy: { createdAt: "asc" }
+    orderBy: { createdAt: "asc" },
   },
   draftExpenses: {
     orderBy: { createdAt: "desc" },
@@ -33,10 +33,10 @@ export const groupDetailsInclude = {
       payers: true,
       items: {
         orderBy: { ordinalNumber: "asc" },
-        include: { shares: true }
-      }
-    }
-  }
+        include: { shares: true },
+      },
+    },
+  },
 } satisfies Prisma.GroupInclude;
 
 export type GroupWithDetails = Prisma.GroupGetPayload<{
@@ -48,10 +48,10 @@ export const expenseDetailsInclude = {
   items: {
     orderBy: { ordinalNumber: "asc" },
     include: {
-      shares: { include: { person: true } }
-    }
+      shares: { include: { person: true } },
+    },
   },
-  shares: { include: { person: true } }
+  shares: { include: { person: true } },
 } satisfies Prisma.ExpenseInclude;
 
 export type ExpenseWithDetails = Prisma.ExpenseGetPayload<{
@@ -62,8 +62,8 @@ export const draftExpenseDetailsInclude = {
   payers: true,
   items: {
     orderBy: { ordinalNumber: "asc" },
-    include: { shares: true }
-  }
+    include: { shares: true },
+  },
 } satisfies Prisma.ExpenseDraftInclude;
 
 export type DraftExpenseWithDetails = Prisma.ExpenseDraftGetPayload<{
@@ -81,10 +81,11 @@ export const serializePaymentFromPayer = (payer: PaymentPayer) => ({
   amount: Number(payer.amount),
   note: payer.expense?.note ?? null,
   createdAt: payer.expense?.createdAt ?? payer.createdAt,
-  updatedAt: payer.expense?.updatedAt ?? payer.updatedAt
+  updatedAt: payer.expense?.updatedAt ?? payer.updatedAt,
 });
 
 export const serializeDraftExpense = (draft: DraftExpenseWithDetails) => ({
+  creatorKey: draft.creatorKey,
   id: draft.id,
   groupId: draft.groupId,
   note: draft.note ?? null,
@@ -96,7 +97,7 @@ export const serializeDraftExpense = (draft: DraftExpenseWithDetails) => ({
     personId: payer.personId,
     amount: Number(payer.amount),
     createdAt: payer.createdAt,
-    updatedAt: payer.updatedAt
+    updatedAt: payer.updatedAt,
   })),
   items: draft.items.map((item) => ({
     id: item.id,
@@ -112,12 +113,13 @@ export const serializeDraftExpense = (draft: DraftExpenseWithDetails) => ({
       personId: share.personId,
       amount: Number(share.amount),
       createdAt: share.createdAt,
-      updatedAt: share.updatedAt
-    }))
-  }))
+      updatedAt: share.updatedAt,
+    })),
+  })),
 });
 
 export const serializeExpense = (expense: ExpenseWithDetails) => ({
+  creatorKey: expense.creatorKey,
   id: expense.id,
   groupId: expense.groupId,
   totalAmount: Number(expense.totalAmount),
@@ -131,7 +133,7 @@ export const serializeExpense = (expense: ExpenseWithDetails) => ({
     amount: Number(payer.amount),
     person: payer.person
       ? { id: payer.person.id, name: payer.person.name }
-      : undefined
+      : undefined,
   })),
   items: expense.items.map((item) => ({
     id: item.id,
@@ -146,8 +148,8 @@ export const serializeExpense = (expense: ExpenseWithDetails) => ({
       amount: Number(share.amount),
       person: share.person
         ? { id: share.person.id, name: share.person.name }
-        : undefined
-    }))
+        : undefined,
+    })),
   })),
   shares: expense.shares.map((share) => ({
     id: share.id,
@@ -156,13 +158,13 @@ export const serializeExpense = (expense: ExpenseWithDetails) => ({
     amount: Number(share.amount),
     person: share.person
       ? { id: share.person.id, name: share.person.name }
-      : undefined
-  }))
+      : undefined,
+  })),
 });
 
 export const serializeGroup = (
   group: GroupWithDetails,
-  currentUser?: AuthUser | null
+  currentUser?: AuthUser | null,
 ) => {
   const { passwordHash, ...restGroup } = group;
 
@@ -172,8 +174,8 @@ export const serializeGroup = (
 
   const payments = group.expenses.flatMap((expense) =>
     expense.payers.map((payer) =>
-      serializePaymentFromPayer({ ...payer, expense })
-    )
+      serializePaymentFromPayer({ ...payer, expense }),
+    ),
   );
 
   return {
@@ -191,10 +193,8 @@ export const serializeGroup = (
       payments: group.expenses.flatMap((expense) =>
         expense.payers
           .filter((payer) => payer.personId === person.id)
-          .map((payer) =>
-            serializePaymentFromPayer({ ...payer, expense })
-          )
-      )
+          .map((payer) => serializePaymentFromPayer({ ...payer, expense })),
+      ),
     })),
     history: group.history,
     members: group.members.map((member) => ({
@@ -203,8 +203,8 @@ export const serializeGroup = (
       userId: member.userId,
       username: member.user?.username,
       role: member.role,
-      createdAt: member.createdAt
+      createdAt: member.createdAt,
     })),
-    draftExpenses: group.draftExpenses.map(serializeDraftExpense)
+    draftExpenses: group.draftExpenses.map(serializeDraftExpense),
   };
 };

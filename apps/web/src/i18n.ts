@@ -613,6 +613,10 @@ export const translations = {
     randomSplitConfirm: "Aufteilung bestätigen",
     randomSplitSpin: "SPIN",
     randomSplitCurrentSelection: "Aktuelle Aufteilung",
+    randomSplitParticipantsTitle: "Wer nimmt teil?",
+    randomSplitParticipantsIntro: "Wähle die Personen für diese Ausgabe. Nur ausgewählte Personen nehmen am Rad teil.",
+    randomSplitContinue: "Weiter",
+    checkAll: "Alle auswählen",
     close: "Schließen"
   }
 } as const;

@@ -3,7 +3,7 @@ import { getUserFromRequest } from "../core.js";
 import type { Prisma,Group  } from "@prisma/client";
 import { groupMemberService } from "./group-member.service.js";
 
-export type GroupAccess = Pick<Group, "id" | "accessType">;
+export type GroupAccess = Pick<Group, "id" | "accessType"> & {locked?:boolean};
 
 export const ensureCanViewGroup = async (
   group: GroupAccess ,
@@ -40,6 +40,7 @@ export const ensureCanEditGroup = async (
   req: Request
 ) => {
   const currentUser = getUserFromRequest(req);
+  if(group.locked) return {allowed:false,user:currentUser,status:423,error:"Group is locked"};
 
   if (
     group.accessType === "ANONYMOUS_ONLY" ||

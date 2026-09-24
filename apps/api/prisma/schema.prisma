@@ -89,6 +89,7 @@ model Person {
 //
 
 model Expense {
+  creatorKey String?
   id          String   @id @default(uuid())
   groupId     String
   totalAmount Decimal  @db.Decimal(12, 2)
@@ -220,6 +221,7 @@ model ExpenseShare {
 //
 
 model ExpenseDraft {
+  creatorKey String?
   id        String   @id @default(uuid())
   groupId   String
   note      String?

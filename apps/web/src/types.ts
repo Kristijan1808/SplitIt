@@ -102,6 +102,8 @@ export type ExpenseShare = {
 };
 
 export type Expense = {
+  canManage?: boolean;
+  legacyOwner?: boolean;
   id: string;
   groupId: string;
   totalAmount: number;

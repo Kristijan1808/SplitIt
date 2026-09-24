@@ -9,16 +9,10 @@ export const createGroupSchema = z.object({
     .default("ANONYMOUS_ONLY")
 });
 
-export const joinGroupSchema = z
-  .object({
-    code: z.string().trim().regex(/^[A-Z0-9]{6}$/i).optional(),
-    name: z.string().trim().min(1).max(80).optional(),
-    password: z.string().min(1).max(80)
-  })
-  .refine((value) => Boolean(value.code || value.name), {
-    message: "Either group code or name is required",
-    path: ["code"]
-  });
+export const joinGroupSchema = z.object({
+  code:z.string().trim().regex(/^[A-Z0-9]{6}$/i),
+  password:z.string().min(1).max(80)
+});
 
 export const addPersonSchema = z.object({
   name: z.string().min(1).max(60)

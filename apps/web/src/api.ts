@@ -13,9 +13,12 @@ import type {
   SettlementResult,
 } from "./types";
 import { getAuthToken } from "./auth";
-import { saveGroupToLocalStorage, syncSavedGroupToLocalStorage } from "./storage";
+import {
+  getWhoAmI,
+  saveGroupToLocalStorage,
+  syncSavedGroupToLocalStorage,
+} from "./storage";
 import { startApiLoading, endApiLoading } from "./loading";
-
 
 type DraftItemShareRequest = {
   personId: string;
@@ -63,34 +66,70 @@ export type DraftExpenseItem = {
 };
 
 export type DraftExpense = {
+  canManage?: boolean;
+  legacyOwner?: boolean;
   id: string;
   groupId: string;
   note?: string | null;
   createdAt: string;
   updatedAt?: string;
-  payers: Array<{ id: string; draftId: string; personId: string; amount: number }>;
+  payers: Array<{
+    id: string;
+    draftId: string;
+    personId: string;
+    amount: number;
+  }>;
   items: DraftExpenseItem[];
 };
 
 const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:4000";
 
+let guestPromise: Promise<string> | undefined;
+function guestToken() {
+  if (!guestPromise)
+    guestPromise = (async () => {
+      const saved = localStorage.getItem("splitit.guest-token");
+      if (saved) return saved;
+      const response = await fetch(`${API_URL}/guest-session`, {
+        method: "POST",
+      });
+      const data = await response.json();
+      if (!response.ok || !data?.token)
+        throw new Error("API treba nadograditi.");
+      localStorage.setItem("splitit.guest-token", data.token);
+      return data.token as string;
+    })().catch((e) => {
+      guestPromise = undefined;
+      throw e;
+    });
+  return guestPromise;
+}
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   startApiLoading();
 
   try {
     const token = getAuthToken();
+    const guest = await guestToken();
+    const slug = path.match(/^\/groups\/([^/]+)/)?.[1];
+    const participantId = slug
+      ? getWhoAmI(decodeURIComponent(slug))?.participantId
+      : null;
 
     const response = await fetch(`${API_URL}${path}`, {
       ...options,
       headers: {
         "Content-Type": "application/json",
+        "X-SplitIt-Guest-Token": guest,
+        ...(participantId ? { "X-SplitIt-Participant-Id": participantId } : {}),
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        ...(options?.headers ?? {})
-      }
+        ...(options?.headers ?? {}),
+      },
     });
 
     if (!response.ok) {
-      const error = await response.json().catch(() => ({ error: "Request failed" }));
+      const error = await response
+        .json()
+        .catch(() => ({ error: "Request failed" }));
       throw new Error(error.error ?? error.message ?? "Request failed");
     }
 
@@ -101,22 +140,36 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 }
 
 export const api = {
+  ownItem: (
+    slug: string,
+    id: string,
+    itemId: string,
+    selected: boolean,
+    finalized = false,
+  ) =>
+    request<DraftExpense>(
+      `/groups/${slug}/${finalized ? "expenses" : "draft-expenses"}/${id}/items/${itemId}/mine`,
+      { method: "PATCH", body: JSON.stringify({ selected }) },
+    ),
   parseBillImage: async (file: File): Promise<{ items: ParsedBillItem[] }> => {
     startApiLoading();
 
     try {
       const token = getAuthToken();
+      const guest = await guestToken();
       const formData = new FormData();
       formData.append("file", file);
 
       const response = await fetch(`${API_URL}/ai/parse-bill`, {
         method: "POST",
         headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-        body: formData
+        body: formData,
       });
 
       if (!response.ok) {
-        const error = await response.json().catch(() => ({ error: "Request failed" }));
+        const error = await response
+          .json()
+          .catch(() => ({ error: "Request failed" }));
         throw new Error(error.error ?? error.message ?? "Request failed");
       }
 
@@ -129,19 +182,19 @@ export const api = {
   login: (body: LoginRequest) =>
     request<AuthResponse>("/auth/login", {
       method: "POST",
-      body: JSON.stringify(body)
+      body: JSON.stringify(body),
     }),
 
   register: (body: RegisterRequest) =>
     request<AuthResponse>("/auth/register", {
       method: "POST",
-      body: JSON.stringify(body)
+      body: JSON.stringify(body),
     }),
 
   createGroup: async (body: CreateGroupRequest) => {
     const group = await request<Group>("/groups", {
       method: "POST",
-      body: JSON.stringify(body)
+      body: JSON.stringify(body),
     });
     saveGroupToLocalStorage(group);
     return group;
@@ -150,16 +203,17 @@ export const api = {
   joinGroup: async (body: JoinGroupRequest) => {
     const group = await request<Group>("/groups/join", {
       method: "POST",
-      body: JSON.stringify(body)
+      body: JSON.stringify(body),
     });
     saveGroupToLocalStorage(group);
     return group;
   },
 
-  lockGroup: (slug: string, locked: boolean) => request<Group>(`/groups/${slug}/lock`, {
-    method: "PATCH",
-    body: JSON.stringify({ locked })
-  }),
+  lockGroup: (slug: string, locked: boolean) =>
+    request<Group>(`/groups/${slug}/lock`, {
+      method: "PATCH",
+      body: JSON.stringify({ locked }),
+    }),
 
   getGroup: async (slug: string) => {
     const group = await request<Group>(`/groups/${slug}`);
@@ -170,63 +224,77 @@ export const api = {
   updateGroup: (slug: string, name: string) =>
     request<Group>(`/groups/${slug}`, {
       method: "PATCH",
-      body: JSON.stringify({ name })
+      body: JSON.stringify({ name }),
     }),
 
   addPerson: (slug: string, body: AddPersonRequest) =>
     request<Group>(`/groups/${slug}/people`, {
       method: "POST",
-      body: JSON.stringify(body)
+      body: JSON.stringify(body),
     }),
 
   updatePerson: (slug: string, personId: string, name: string) =>
     request<Group>(`/groups/${slug}/people/${personId}`, {
       method: "PATCH",
-      body: JSON.stringify({ name })
+      body: JSON.stringify({ name }),
     }),
 
   deletePerson: (slug: string, personId: string) =>
     request<Group>(`/groups/${slug}/people/${personId}`, {
-      method: "DELETE"
+      method: "DELETE",
     }),
 
   addPayment: (slug: string, body: AddPaymentRequest) =>
     request<Group>(`/groups/${slug}/payments`, {
       method: "POST",
-      body: JSON.stringify(body)
+      body: JSON.stringify(body),
     }),
 
-  getDraftExpenses: (slug: string) => request<DraftExpense[]>(`/groups/${slug}/draft-expenses`),
+  getDraftExpenses: (slug: string) =>
+    request<DraftExpense[]>(`/groups/${slug}/draft-expenses`),
 
   createDraftExpense: (slug: string, body: CreateDraftExpenseRequest) =>
     request<DraftExpense>(`/groups/${slug}/draft-expenses`, {
       method: "POST",
-      body: JSON.stringify(body)
+      body: JSON.stringify(body),
     }),
 
-  updateDraftExpenseItem: (slug: string, draftId: string, itemId: string, body: UpdateDraftExpenseItemRequest) =>
-    request<DraftExpense>(`/groups/${slug}/draft-expenses/${draftId}/items/${itemId}`, {
-      method: "PATCH",
-      body: JSON.stringify(body)
-    }),
+  updateDraftExpenseItem: (
+    slug: string,
+    draftId: string,
+    itemId: string,
+    body: UpdateDraftExpenseItemRequest,
+  ) =>
+    request<DraftExpense>(
+      `/groups/${slug}/draft-expenses/${draftId}/items/${itemId}`,
+      {
+        method: "PATCH",
+        body: JSON.stringify(body),
+      },
+    ),
 
   confirmDraftExpense: (slug: string, draftId: string) =>
-    request<{ expense: Expense; group: Group }>(`/groups/${slug}/draft-expenses/${draftId}/confirm`, {
-      method: "POST"
-    }),
+    request<{ expense: Expense; group: Group }>(
+      `/groups/${slug}/draft-expenses/${draftId}/confirm`,
+      {
+        method: "POST",
+      },
+    ),
 
   updatePayment: (slug: string, paymentId: string, body: PatchPaymentRequest) =>
     request<Group>(`/groups/${slug}/payments/${paymentId}`, {
       method: "PATCH",
-      body: JSON.stringify(body)
+      body: JSON.stringify(body),
     }),
 
   deletePayment: (slug: string, paymentId: string) =>
     request<Group>(`/groups/${slug}/payments/${paymentId}`, {
-      method: "DELETE"
+      method: "DELETE",
     }),
 
-  getSettlements: (slug: string) => request<SettlementResult>(`/groups/${slug}/settlements`),
+  getSettlements: (slug: string) =>
+    request<SettlementResult>(`/groups/${slug}/settlements`),
 
-  getHistory: (slug: string) => request<HistoryItem[]>(`/groups/${slug}/history`)
+  getHistory: (slug: string) =>
+    request<HistoryItem[]>(`/groups/${slug}/history`),
 };
