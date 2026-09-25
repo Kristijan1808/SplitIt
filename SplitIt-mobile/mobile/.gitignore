@@ -1,0 +1,10 @@
+node_modules/
+.expo/
+dist/
+android/
+ios/
+.env
+*.jks
+*.keystore
+web-preview/
+android-export/

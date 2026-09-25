@@ -1,0 +1,40 @@
+{
+  "expo": {
+    "name": "SplitIt",
+    "slug": "splitit-mobile",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "splitit",
+    "userInterfaceStyle": "automatic",
+    "android": {
+      "package": "com.splitit.mobile",
+      "versionCode": 1,
+      "softwareKeyboardLayoutMode": "resize"
+    },
+    "ios": {
+      "bundleIdentifier": "com.splitit.mobile",
+      "supportsTablet": true,
+      "config": {
+        "usesNonExemptEncryption": false
+      }
+    },
+    "plugins": [
+      "expo-secure-store",
+      [
+        "expo-image-picker",
+        {
+          "cameraPermission": "Dopusti fotografiranje računa.",
+          "photosPermission": "Odaberi sliku računa za podjelu troška.",
+          "microphonePermission": false
+        }
+      ]
+    ],
+    "icon": "./assets/icon.png",
+    "extra": {
+      "eas": {
+        "projectId": "1db53a27-7316-4bc7-8400-f727f8002dbf"
+      }
+    },
+    "owner": "kmicajura"
+  }
+}
