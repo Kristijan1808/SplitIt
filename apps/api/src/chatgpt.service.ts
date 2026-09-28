@@ -76,7 +76,14 @@ export class ChatGptService {
                 "Do not include subtotal, tax, VAT, service charge, tip, discount totals, grand total, payment, or other summary rows as items.",
                 "If the same product appears on multiple separate lines, keep the separate lines.",
                 "Use the numeric price exactly as shown on the bill when it can be read.",
-                "Do not invent items or prices. If a line cannot be identified reliably, omit it."
+                "Do not invent items or prices. If a line cannot be identified reliably, omit it.",
+
+                "IMPORTANT: Always return item names using Latin script.",
+                "If an item name is written in a non-Latin script such as Japanese, Chinese, Korean, Arabic, Hebrew, Greek, Cyrillic, or another non-Latin writing system, do not return the original script.",
+                "Instead, transliterate the name into Latin characters or, when appropriate and reliably identifiable, translate it into English.",
+                "If the item name is in a language other than English and its English meaning can be reliably determined, return the English name.",
+                "For Japanese, Chinese, Korean, and other non-Latin receipts, prefer a natural English product name when it can be determined reliably.",
+                "Never return an item name containing non-Latin characters."
               ].join(" ")
             },
             {
