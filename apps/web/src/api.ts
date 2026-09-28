@@ -31,12 +31,14 @@ export type ParsedBillItem = {
 };
 
 export type CreateDraftExpenseRequest = {
+  requestId?:string;
   note?: string;
   payers: Array<{ personId: string; amount: number }>;
   items: Array<{
     ordinalNumber: number;
     name: string;
     price: number;
+    quantity?:number;
     shares: DraftItemShareRequest[];
   }>;
 };
@@ -140,6 +142,10 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 }
 
 export const api = {
+  createExpense:(slug:string,body:CreateDraftExpenseRequest)=>request<Expense>(`/groups/${slug}/expenses`,{method:"POST",body:JSON.stringify(body)}),
+  workflow: (slug:string)=>request<any>(`/groups/${slug}/workflow`),
+  claim: (slug:string,personId:string)=>request(`/groups/${slug}/workflow/identity`,{method:"POST",body:JSON.stringify({personId})}),
+  response: (slug:string,id:string,status:string)=>request(`/groups/${slug}/workflow/drafts/${id}/response`,{method:"POST",body:JSON.stringify({status})}),
   ownItem: (
     slug: string,
     id: string,

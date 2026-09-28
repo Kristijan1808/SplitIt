@@ -7,6 +7,7 @@ import type { Group } from "../types";
 import { RandomSplitWheel } from "../components/RandomSplitWheel";
 //push comment
 type DraftItem = {
+  quantity?:string;
   id: string;
   ordinalNumber: number;
   name: string;
@@ -22,7 +23,7 @@ type DraftPayer = {
 
 
 const sanitizeDecimalInput = (value: string): string => {
-  const sanitized = value.replace(/[^0-9.]/g, "");
+  const sanitized = value.replace(",", ".").replace(/[^0-9.]/g, "");
   const firstDotIndex = sanitized.indexOf(".");
 
   if (firstDotIndex === -1) {
@@ -41,6 +42,9 @@ export const GroupAddExpensePage = () => {
   const { t } = useLanguage();
 
   const [group, setGroup] = useState<Group | null>(null);
+  const [assignNow,setAssignNow]=useState(false);
+  const [requestId]=useState(()=>crypto.randomUUID());
+  const [saved,setSaved]=useState(false);
   const [note, setNote] = useState("");
   const [draftItems, setDraftItems] = useState<DraftItem[]>([]);
   const [draftPayers, setDraftPayers] = useState<DraftPayer[]>([]);
@@ -77,7 +81,7 @@ export const GroupAddExpensePage = () => {
   const itemTotal = useMemo(
     () =>
       draftItems.reduce((sum, item) => {
-        const value = Number(item.price);
+        const value = (Math.round(Number(item.price)*100)*Number(item.quantity??1)/100);
         return sum + (Number.isFinite(value) && value >= 0 ? value : 0);
       }, 0),
     [draftItems]
@@ -97,14 +101,14 @@ export const GroupAddExpensePage = () => {
   const assignedTotal = useMemo(
     () =>
       draftItems.reduce((sum, item) => {
-        if (item.assignedPersonIds.length === 0) return sum;
-        const value = Number(item.price);
+        if (!assignNow || item.assignedPersonIds.length === 0) return sum;
+        const value = (Math.round(Number(item.price)*100)*Number(item.quantity??1)/100);
         return sum + (Number.isFinite(value) && value > 0 ? value : 0);
       }, 0),
-    [draftItems]
+    [draftItems,assignNow]
   );
 
-  const unassignedAmount = Number((itemTotal - assignedTotal).toFixed(2));
+  const unassignedAmount = Number((itemTotal - (assignNow?assignedTotal:0)).toFixed(2));
 
   const allItemsAssigned = useMemo(
     () =>
@@ -251,13 +255,16 @@ export const GroupAddExpensePage = () => {
   };
 
   const saveDraftBill = async () => {
-    if (!group || group.locked || paymentOverpaid || assignmentAmountInvalid) return;
+    if (!group || group.locked || saving) return;
+    if(saved){navigate(`/g/${slug}`);return;}
+    if(draftItems.some(i=>!Number.isInteger(Number(i.quantity??1))||Number(i.quantity??1)<1||Number(i.quantity??1)>999)){setActionError("Količina treba biti cijeli broj od 1 do 999.");return;}
 
+    if(draftItems.some(i=>!/^\d+(\.\d{1,2})?$/.test(i.price))){setActionError("Unesi jedinične cijene s najviše dvije decimale.");return;}
     const validItems = draftItems.filter(
       (item) =>
         item.name.trim().length > 0 &&
-        Number.isFinite(Number(item.price)) &&
-        Number(item.price) >= 0
+        Number.isFinite((Math.round(Number(item.price)*100)*Number(item.quantity??1)/100)) &&
+        (Math.round(Number(item.price)*100)*Number(item.quantity??1)/100) >= 0
     );
 
     if (validItems.length === 0) {
@@ -270,7 +277,7 @@ export const GroupAddExpensePage = () => {
     );
 
     const validItemsTotal = validItems.reduce(
-      (sum, item) => sum + Number(item.price),
+      (sum, item) => sum + (Math.round(Number(item.price)*100)*Number(item.quantity??1)/100),
       0
     );
 
@@ -299,7 +306,7 @@ export const GroupAddExpensePage = () => {
 
     const validAssignedTotal = validItems.reduce((sum, item) => {
       if (item.assignedPersonIds.length === 0) return sum;
-      const value = Number(item.price);
+      const value = (Math.round(Number(item.price)*100)*Number(item.quantity??1)/100);
       return sum + (Number.isFinite(value) && value > 0 ? value : 0);
     }, 0);
     const finalUnassignedAmount = Number(
@@ -313,21 +320,7 @@ export const GroupAddExpensePage = () => {
     // total is incomplete. It can only become a real expense when every
     // item is assigned, no assignment amount is over the item total, and
     // the full item total has been paid.
-    if (allValidItemsAssigned) {
-      if (finalUnassignedAmount < -0.009) {
-        setActionError(
-          "Assigned amount cannot be greater than the total of all items."
-        );
-        return;
-      }
-
-      if (Math.abs(finalUnassignedAmount) >= 0.01) {
-        setActionError(
-          "All item amounts must be assigned before adding the expense."
-        );
-        return;
-      }
-
+    {
       if (Math.abs(finalPaymentDifference) >= 0.01) {
         setActionError(
           `Paid total must equal the item total (${validItemsTotal.toFixed(2)}).`
@@ -340,7 +333,8 @@ export const GroupAddExpensePage = () => {
       setSaving(true);
       setActionError("");
 
-      const draft = await api.createDraftExpense(slug, {
+      const expense = await api.createExpense(slug, {
+        requestId,
         note: note.trim() || undefined,
         payers: validPayers.map((payer) => ({
           personId: payer.personId,
@@ -348,17 +342,16 @@ export const GroupAddExpensePage = () => {
         })),
         items: validItems.map((item, index) => ({
           ordinalNumber: index + 1,
+          quantity:Number(item.quantity??1),
           name: item.name.trim(),
-          price: Number(item.price),
-          shares: item.assignedPersonIds.map((personId) => ({
+          price: (Math.round(Number(item.price)*100)*Number(item.quantity??1)/100),
+          shares: (assignNow?item.assignedPersonIds:[]).map((personId) => ({
             personId
           }))
         }))
       });
 
-      if (allValidItemsAssigned) {
-        await api.confirmDraftExpense(slug, draft.id);
-      }
+      setSaved(true);
 
       navigate(`/g/${slug}`);
     } catch (error) {
@@ -390,7 +383,7 @@ export const GroupAddExpensePage = () => {
       <section className="card formCard">
         <div className="sectionHeaderWithButton">
           <div>
-            <p className="eyebrow">{t("draftBill")}</p>
+            <p className="eyebrow">Novi račun</p>
             <h2>{t("addItems")}</h2>
           </div>
           <div className="randomSplitHeaderAction">
@@ -466,6 +459,8 @@ export const GroupAddExpensePage = () => {
             </div>
 
             <div className="list">
+              <label><input type="checkbox" checked={assignNow} onChange={e=>setAssignNow(e.target.checked)}/> Podijeli sada</label>
+              <p>Račun odmah ulazi u troškove. Ako ne uključiš podjelu, svi članovi sami označuju svoje stavke. Količina ne ograničava broj osoba koje dijele stavku.</p>
               {draftItems.map((item, index) => (
                 <div
                   key={item.id}
@@ -488,7 +483,7 @@ export const GroupAddExpensePage = () => {
                     </label>
 
                     <label>
-                      <span>{t("price")}</span>
+                      <span>Jedinična cijena (€)</span>
                       <input
                         type="text"
                         inputMode="decimal"
@@ -505,7 +500,8 @@ export const GroupAddExpensePage = () => {
                       />
                     </label>
 
-                    <div className="draftItemShares">
+                    <label>Količina<input type="number" min="1" max="999" step="1" value={item.quantity??"1"} onChange={e=>updateDraftItem(item.id,"quantity",e.target.value)}/></label>
+                    <div className="draftItemShares" hidden={!assignNow}>
                       <div className="draftItemSharesHeader">
                         <div className="draftItemSharesTitle">
                           <span>{t("assignedTo")}</span>
@@ -534,7 +530,7 @@ export const GroupAddExpensePage = () => {
                           type="button"
                           className="miniSpinButton"
                           onClick={() => setRandomSplitTarget(item.id)}
-                          disabled={group.locked || group.people.length === 0 || Number(item.price) <= 0}
+                          disabled={group.locked || group.people.length === 0 || (Math.round(Number(item.price)*100)*Number(item.quantity??1)/100) <= 0}
                           title={t("randomSplitItem")}
                         >
                           <Dices size={15} />
@@ -705,7 +701,7 @@ export const GroupAddExpensePage = () => {
             disabled={group.locked || saving || paymentOverpaid || assignmentAmountInvalid}
           >
             <Plus size={18} />
-            {canAddExpense ? t("addExpense") : t("saveDraft")}
+            Kreiraj račun
           </button>
         </div>
       </section>

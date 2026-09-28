@@ -29,7 +29,7 @@ test("invalid assignments, foreign group people and mismatched payments rejected
   assert.throws(() => prepareExpenseEdit(bill(), ["a", "b"]));
   const y = bill();
   y.items[0].shares = [];
-  assert.throws(() => prepareExpenseEdit(y, ["a", "b", "c"]));
+  assert.deepEqual(prepareExpenseEdit(y, ["a", "b", "c"]).shares, []);
   const z = bill();
   z.payers.push({ personId: "a", amount: 1 });
   assert.throws(() => prepareExpenseEdit(z, ["a", "b", "c"]));

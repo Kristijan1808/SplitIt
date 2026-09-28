@@ -1,3 +1,4 @@
+import {ask} from "./src/WorkflowPanels";
 import { invitationCode } from "./src/domain.mjs";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -28,6 +29,7 @@ import {
   Heading,
   Icon,
   Loading,
+  Field,
   Page,
   Txt,
   s,
@@ -59,6 +61,9 @@ function Main() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [screen, setScreen] = useState<Screen>("home");
+  const [groupSearch,setGroupSearch]=useState("");
+  const [showArchived,setShowArchived]=useState(false);
+  const [duplicate,setDuplicate]=useState<Expense|undefined>();
   const [groups, setGroups] = useState<SavedGroup[]>([]);
   const [auth, setAuth] = useState<AuthResponse | null>(null);
   const [data, setData] = useState<Snapshot | null>(null);
@@ -82,6 +87,8 @@ function Main() {
     const p = g.people.find((x) => x.id === id);
     await persistGroups([
       {
+        ...prior,
+        archived:g.archived,avatar:g.avatar,memberCount:g.people.filter(p=>!p.inactive).length,
         slug: g.slug,
         name: g.name,
         code: g.code,
@@ -108,14 +115,25 @@ function Main() {
     }
   }, []);
   async function load(slug: string) {
-    const [group, drafts, settlements, history] = await Promise.all([
+    try {
+    const [group, drafts, settlements, history, workflow] = await Promise.all([
       api.group(slug),
-      api.drafts(slug),
+      Promise.resolve([]),
       api.settlements(slug),
       api.history(slug),
+      api.workflow(slug),
     ]);
     await saveGroup(group);
-    setData({ group, drafts, settlements, history });
+    const snapshot={group,drafts,settlements,history,workflow};
+    await storage.write(`snapshot.${auth?.user.id||"guest"}.${slug}`,snapshot);
+    const mine=workflow.people.find(p=>p.mine&&!p.inactive);
+    await persistGroups(groupsRef.current.map(x=>x.slug===slug?{...x,participantId:mine?.id,participantName:mine?.name,balance:settlements.balances.find(p=>p.id===mine?.id)?.balance,draftCount:group.expenses.filter(e=>e.allocationComplete===false||e.paymentIncomplete).length}:x));
+    setParticipant(mine?.id);
+    setData(snapshot);
+    } catch(error) {
+      if(error instanceof Error && /network|fetch|timeout|veza|isteklo/i.test(error.message) && !(error as any).status){const cached=await storage.read<Snapshot|null>(`snapshot.${auth?.user.id||"guest"}.${slug}`,null);if(cached){setData({...cached,offline:true});return;}}
+      throw error;
+    }
   }
   async function openGroup(g: Group) {
     await load(g.slug);
@@ -132,23 +150,7 @@ function Main() {
   function back() {
     if (gate.current) return;
     if (screen === "expense") {
-      Alert.alert(
-        t("Napustiti unos?", "Leave editor?"),
-        t(
-          "Nespremljene promjene bit će izgubljene.",
-          "Unsaved changes will be lost.",
-        ),
-        [
-          { text: t("Nastavi unos", "Keep editing"), style: "cancel" },
-          {
-            text: t("Napusti", "Leave"),
-            onPress: () => {
-              nav("group");
-              void run(refresh);
-            },
-          },
-        ],
-      );
+      ask(t("Napustiti unos?", "Leave editor?"),t("Novi unos čuva se na uređaju. Izmjene postojećeg računa nisu spremljene.","New entries are kept locally. Existing bill edits are not saved."),()=>{nav("group");void run(refresh)});
     } else nav("groups");
   }
   useEffect(() => {
@@ -162,6 +164,7 @@ function Main() {
       setToken(a?.token);
       groupsRef.current = gs;
       setGroups(gs);
+      if(gs.length)setScreen("groups");
       setLocale(prefs.locale === "en" ? "en" : "hr");
       setDark(!!prefs.dark);
     }).then(() => setReady(true));
@@ -229,7 +232,7 @@ function Main() {
       ],
     );
   const groupList = (limit?: number) =>
-    (limit ? groups.slice(0, limit) : groups).map((g, i) => (
+    (limit ? groups.filter(g=>!g.archived).slice(0,limit) : groups.filter(g=>!!g.archived===showArchived && g.name.toLowerCase().includes(groupSearch.toLowerCase())).sort((a,b)=>Number(!!b.pinned)-Number(!!a.pinned))).map((g, i) => (
       <Card key={g.slug}>
         <View style={s.row}>
           <View
@@ -242,7 +245,7 @@ function Main() {
               justifyContent: "center",
             }}
           >
-            <Icon name="groups" color={c.accent} />
+            <Txt size={24}>{g.avatar||"👥"}</Txt>
           </View>
           <View style={{ flex: 1 }}>
             <Txt bold size={18}>
@@ -254,6 +257,8 @@ function Main() {
             </Txt>
           </View>
         </View>
+        <View style={s.between}><Txt muted size={12}>{g.memberCount??"—"} {t("članova", "members")} · {g.draftCount??0} {t("čeka podjelu", "awaiting split")}</Txt><Txt bold style={{color:(g.balance??0)<0?c.debt:c.accent}}>{g.balance===undefined?"—":`${g.balance>0?"+":""}${g.balance.toFixed(2)} €`}</Txt></View>
+        {!limit&&<Button secondary label={g.pinned?t("Makni iz omiljenih", "Unpin"):t("Prikvači grupu", "Pin group")} onPress={()=>void run(()=>persistGroups(groupsRef.current.map(x=>x.slug===g.slug?{...x,pinned:!x.pinned}:x)))}/>}
         <Button
           secondary
           label={t("Otvori grupu", "Open group")}
@@ -486,6 +491,8 @@ function Main() {
                       />
                     </View>
                   </View>
+                  <Field label={t("Pretraži grupe", "Search groups")} value={groupSearch} onChange={setGroupSearch}/>
+                  <View style={s.wrap}><Chip label={t("Aktivne", "Active")} selected={!showArchived} onPress={()=>setShowArchived(false)}/><Chip label={t("Arhivirane", "Archived")} selected={showArchived} onPress={()=>setShowArchived(true)}/></View>
                   {groups.length ? (
                     groupList()
                   ) : (
@@ -618,6 +625,8 @@ function Main() {
                   refresh={refresh}
                   participantId={current?.participantId}
                   choose={async (id) => {
+                    await api.claim(data.group.slug,id);
+                    setParticipant(id);
                     const person = data.group.people.find((x) => x.id === id);
                     await persistGroups(
                       groupsRef.current.map((x) =>
@@ -630,14 +639,18 @@ function Main() {
                           : x,
                       ),
                     );
+                    await refresh();
                   }}
+                  onDuplicate={expense=>{setDuplicate(expense);setEditingExpense(undefined);setStartCamera(false);setEditorKey(k=>k+1);nav("expense")}}
                   onAdd={(camera = false) => {
+                    setDuplicate(undefined);
                     setEditingExpense(undefined);
                     setStartCamera(camera);
                     setEditorKey((k) => k + 1);
                     nav("expense");
                   }}
                   onEdit={(expense) => {
+                    setDuplicate(undefined);
                     setEditingExpense(expense);
                     setStartCamera(false);
                     setEditorKey((k) => k + 1);
@@ -649,12 +662,14 @@ function Main() {
                 <ExpenseEditor
                   key={editorKey}
                   expense={editingExpense}
+                  template={duplicate}
+                  participantId={current?.participantId}
                   startCamera={startCamera}
-                  group={data.group}
+                  group={{...data.group,people:editingExpense?data.group.people:data.group.people.filter(p=>!p.inactive),locked:data.group.locked||!!data.group.archived||!!data.offline}}
                   run={run}
                   done={async (draft) => {
                     await refresh();
-                    setTab(draft ? "drafts" : "overview");
+                    setTab("overview");
                     nav("group");
                   }}
                 />

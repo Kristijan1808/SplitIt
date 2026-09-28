@@ -5,6 +5,12 @@ import type { AuthResponse, Group } from "./types";
 export type SavedGroup = Pick<Group, "slug" | "name" | "code"> & {
   participantId?: string;
   participantName?: string;
+  pinned?: boolean;
+  archived?: boolean;
+  balance?: number;
+  draftCount?: number;
+  avatar?: string;
+  memberCount?: number;
 };
 // Browser preview keeps auth in memory; native tokens always use SecureStore.
 let previewAuth: AuthResponse | null = null;

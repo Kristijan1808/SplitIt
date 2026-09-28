@@ -1,3 +1,5 @@
+import { creatorKey, billKeys } from "./bill-permissions.js";
+import { randomInt } from "node:crypto";
 import bcrypt from "bcryptjs";
 import { nanoid } from "nanoid";
 import { z } from "zod";
@@ -30,6 +32,8 @@ export class GroupService {
 
     const group = await prisma.group.create({
       data: {
+        ownerKey: creatorKey(req),
+        sessions: {create: {key: creatorKey(req), role:"OWNER"}},
         name: body.name.trim(),
         slug: nanoid(12),
         code,
@@ -76,6 +80,8 @@ export class GroupService {
 
     if (!validPassword) throw new Error("Invalid password");
 
+    if (group.accessType === "REGISTERED_ONLY" && !currentUser) throw Object.assign(new Error("Prijavi se za pristup ovoj grupi."), {status:401});
+    await prisma.groupSession.upsert({where:{groupId_key:{groupId:group.id,key:creatorKey(req)}}, create:{groupId:group.id,key:creatorKey(req)}, update:{}});
     if (currentUser) {
       await groupMemberService.addIfNeeded(group.id, currentUser);
     }
@@ -154,7 +160,8 @@ export class GroupService {
 
     const currentUser = getUserFromRequest(req);
 
-    if (!currentUser || group.ownerUserId !== currentUser.id) {
+    const session = await prisma.groupSession.findFirst({where:{groupId:group.id,key:{in:billKeys(req)},role:{in:["OWNER","ADMIN"]}}});
+    if (!session) {
       throw new Error("Only the group owner can lock or unlock it");
     }
 
@@ -191,7 +198,7 @@ export class GroupService {
     const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
 
     return Array.from({ length: 6 }, () =>
-      alphabet[Math.floor(Math.random() * alphabet.length)]
+      alphabet[randomInt(alphabet.length)]
     ).join("");
   };
 

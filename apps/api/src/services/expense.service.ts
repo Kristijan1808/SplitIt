@@ -30,7 +30,7 @@ export class ExpenseService {
       }
 
       const expenses = await prisma.expense.findMany({
-        where: { groupId: group.id },
+        where: { groupId: group.id, deletedAt:null },
         orderBy: { createdAt: "desc" },
         include: {
           payers: { include: { person: true } },
@@ -68,6 +68,7 @@ export class ExpenseService {
         where: {
           id: req.params.expenseId as string,
           groupId: group.id,
+            deletedAt:null,
         },
         include: {
           payers: { include: { person: true } },
@@ -108,7 +109,7 @@ export class ExpenseService {
           });
           if (liveGroup.locked) throw new Error("Group is locked");
           const existing = await tx.expense.findFirst({
-            where: { id: req.params.expenseId as string, groupId: group.id },
+            where: { id: req.params.expenseId as string, groupId: group.id, deletedAt:null },
           });
           if (!existing) throw new Error("Expense not found");
           if (!canManageBill(existing, req))
@@ -131,6 +132,8 @@ export class ExpenseService {
           const updated = await tx.expense.updateMany({
             where: { id: existing.id, updatedAt: existing.updatedAt },
             data: {
+              billDate:prepared.body.billDate?new Date(prepared.body.billDate):existing.billDate,
+              category:prepared.body.category??existing.category,
               note: prepared.body.note || null,
               totalAmount: prepared.totalAmount,
               updatedAt: new Date(),
@@ -216,6 +219,7 @@ export class ExpenseService {
         where: {
           id: req.params.expenseId as string,
           groupId: group.id,
+            deletedAt:null,
         },
       });
 
@@ -239,7 +243,8 @@ export class ExpenseService {
           const current = await tx.expense.findFirstOrThrow({
             where: { id: expense.id, groupId: group.id },
           });
-          await tx.expense.delete({ where: { id: expense.id } });
+          await tx.expense.update({
+          data:{deletedAt:new Date()}, where: { id: expense.id } });
           await tx.history.create({
             data: {
               groupId: group.id,

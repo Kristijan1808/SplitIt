@@ -43,6 +43,10 @@ export const registerSchema = authSchema.extend({
 // is completely valid.
 //
 export const createDraftExpenseSchema = z.object({
+  requestId: z.string().uuid().optional(),
+  requireResponses: z.boolean().default(false),
+  billDate: z.string().datetime().optional(),
+  category: z.enum(["other","food","travel","home","fun"]).default("other"),
   note: z.string().max(200).optional(),
 
   payers: z

@@ -32,7 +32,7 @@ export class PaymentService {
 
       const expenses = await prisma.expense.findMany({
         where: {
-          groupId: group.id,
+          groupId: group.id, deletedAt:null,
         },
 
         orderBy: {

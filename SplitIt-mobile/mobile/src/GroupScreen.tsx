@@ -1,3 +1,5 @@
+import {Comments,IdentityPanel,TransferPanel,GroupUtilities,ask} from "./WorkflowPanels";
+import {AppState} from "react-native";
 import { ItemCheck } from "./ItemCheck";
 import React, { useState, useEffect } from "react";
 import { Alert, View, Share, Pressable } from "react-native";
@@ -15,22 +17,23 @@ import {
   s,
   Icon,
 } from "./ui";
-import { Wheel } from "./Wheel";
 import { ExpenseCard } from "./ExpenseCard";
 import { historyDetails } from "./domain.mjs";
-import { cents, draftReadiness } from "./domain.mjs";
 import type {
   Expense,
   Group,
   DraftExpense,
   SettlementResult,
   HistoryItem,
+  Workflow,
 } from "./types";
 export type Snapshot = {
   group: Group;
   drafts: DraftExpense[];
   settlements: SettlementResult;
   history: HistoryItem[];
+  workflow: Workflow;
+  offline?: boolean;
 };
 export type Run = (f: () => Promise<void>) => Promise<boolean>;
 export function GroupScreen({
@@ -43,6 +46,7 @@ export function GroupScreen({
   choose,
   onAdd,
   onEdit,
+  onDuplicate,
 }: {
   data: Snapshot;
   tab: string;
@@ -53,28 +57,28 @@ export function GroupScreen({
   choose: (id: string) => Promise<void>;
   onAdd: (camera?: boolean) => void;
   onEdit: (expense: Expense) => void;
+  onDuplicate: (expense: Expense) => void;
 }) {
   const { c, t, busy } = useUI();
-  const { group: g, drafts, settlements, history } = data;
+  const { group: rawGroup, drafts, settlements, history, workflow } = data;
+  const g = {...rawGroup, locked: rawGroup.locked || workflow.archived || !!data.offline};
+  const [receiptFilter,setReceiptFilter]=useState("all");
+  const pending=g.expenses.filter(e=>e.allocationComplete===false||e.paymentIncomplete);
+  const [allDebts,setAllDebts]=useState(false);
+  const [search,setSearch]=useState("");
+  const [category,setCategory]=useState("all");
+  const [month,setMonth]=useState("");
+  const [showFilters,setShowFilters]=useState(false);
+  const [filter,setFilter]=useState("all");
+  const [historyFilter,setHistoryFilter]=useState("all");
+  const [limit,setLimit]=useState(30);
+  const visibleExpenses=g.expenses.filter(e=>(receiptFilter!=="pending"||e.allocationComplete===false||e.paymentIncomplete)&&(category==="all"||e.category===category)&&(!month||(e.billDate||e.createdAt).startsWith(month))&&(!search||`${e.note} ${e.items.map(i=>i.name).join(' ')} ${e.payers.map(p=>g.people.find(x=>x.id===p.personId)?.name).join(' ')}`.toLowerCase().includes(search.toLowerCase()))&&(filter!=="mine"||e.shares.some(p=>p.personId===participantId)||e.payers.some(p=>p.personId===participantId)));
+
   const [name, setName] = useState("");
   const [rename, setRename] = useState(g.name);
   const [editPerson, setEditPerson] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<string[]>([]);
-  const [wheel, setWheel] = useState<{
-    draft: DraftExpense;
-    itemId?: string;
-  } | null>(null);
-  const [payerEdit, setPayerEdit] = useState<{
-    id: string;
-    values: { personId: string; amount: string }[];
-  } | null>(null);
-  const [manageDraft, setManageDraft] = useState<string | null>(null);
-  const [allDebts, setAllDebts] = useState(false);
-  const [selectedDraft, setSelectedDraft] = useState<string | null>(null);
-  useEffect(() => {
-    if (selectedDraft && !drafts.some((d) => d.id === selectedDraft))
-      setSelectedDraft(null);
-  }, [drafts, selectedDraft]);
+  useEffect(()=>{if(tab!=="overview"||busy||data.offline)return;let running=false;const timer=setInterval(()=>{if(AppState.currentState!=="active"||running)return;running=true;refresh().catch(()=>{}).finally(()=>{running=false})},15000);return()=>clearInterval(timer)},[tab,busy,data.offline,refresh]);
   const outgoing = settlements.settlements.filter(
     (x) => x.from === participantId,
   );
@@ -94,41 +98,21 @@ export function GroupScreen({
       await refresh();
     });
   function confirmDelete(title: string, fn: () => Promise<unknown>) {
-    Alert.alert(
-      title,
-      t(
-        "Ova promjena vrijedi i na webu.",
-        "This change also applies on the web.",
-      ),
-      [
-        { text: t("Odustani", "Cancel"), style: "cancel" },
-        {
-          text: t("Obriši", "Delete"),
-          style: "destructive",
-          onPress: () => void act(fn),
-        },
-      ],
-    );
+    ask(title, t("Račun se može vratiti iz Mojih obrisanih računa.", "Bills can be restored from My deleted bills."), () => void act(fn));
+
   }
   async function share() {
     await Share.share({
       message: `${g.name}\n${t("Kod grupe", "Group code")}: ${g.code}${WEB_URL && !WEB_URL.includes("YOUR-") ? `\n${WEB_URL}/join?code=${g.code}` : ""}\nsplitit://join?code=${g.code}`,
     });
   }
-  async function applyRandom(ids: string[]) {
-    if (!wheel) return;
-    const target = wheel;
-    setWheel(null);
-    await act(async () => {
-      for (const item of target.draft.items.filter(
-        (i) => !target.itemId || i.id === target.itemId,
-      ))
-        await api.shares(g.slug, target.draft.id, item.id, ids);
-    });
-  }
   return (
     <View style={{ flex: 1 }}>
       <Page refresh={() => void run(refresh)}>
+        {data.offline&&<Card><Txt bold>{t("Prikaz spremljenih podataka · bez veze", "Cached data · offline")}</Txt><Txt muted>{t("Izmjene su onemogućene dok se ponovno ne povežeš.", "Changes are disabled until you reconnect.")}</Txt><Button secondary label={t("Pokušaj ponovno", "Retry")} onPress={()=>void run(refresh)}/></Card>}
+        {!workflow.people.some(p=>p.mine&&!p.inactive)&&!data.offline&&<IdentityPanel group={g} workflow={workflow} choose={async id=>{await run(()=>choose(id))}}/>}
+        
+
         <View
           style={{
             backgroundColor: c.hero,
@@ -152,7 +136,7 @@ export function GroupScreen({
                 justifyContent: "center",
               }}
             >
-              <Icon name="groups" color="#FFFFFF" size={30} />
+              <Txt size={26}>{workflow.avatar||"👥"}</Txt>
             </View>
             <Txt size={22} bold style={{ color: "#FFFFFF", flex: 1 }}>
               {g.name}
@@ -295,7 +279,12 @@ export function GroupScreen({
                 </Txt>
               </Card>
             )}
-            {g.expenses.map((e) => (
+            <View accessibilityRole="tablist" style={s.row}>{[["all",`${t("Računi","Bills")} (${g.expenses.length})`],["pending",`${t("Čekaju podjelu","Awaiting split")} (${pending.length})`]].map(([id,label])=><Pressable key={id} accessibilityRole="tab" accessibilityState={{selected:receiptFilter===id}} onPress={()=>setReceiptFilter(id)} style={{flex:1,minHeight:46,padding:8,borderBottomWidth:2,borderColor:receiptFilter===id?c.info:c.line}}><Txt bold style={{color:receiptFilter===id?c.info:c.muted}}>{label}</Txt></Pressable>)}</View>
+            {!!pending.length&&<Txt muted size={12}>{t("Saldo je privremen: nedodijeljene stavke ostaju na platiteljima dok ih članovi ne označe.","Balances are provisional: unclaimed items remain with payers until members select them.")}</Txt>}
+            <Button secondary label={t("Pretraži i filtriraj račune", "Search and filter bills")} onPress={()=>setShowFilters(!showFilters)}/>
+            {showFilters&&<Card><Field label={t("Pretraži račune ili platitelje", "Search bills or payers")} value={search} onChange={value=>{setSearch(value);setLimit(30)}}/><View style={s.wrap}><Chip label={t("Svi računi", "All bills")} selected={filter==="all"} onPress={()=>setFilter("all")}/><Chip label={t("Moji računi", "My bills")} selected={filter==="mine"} onPress={()=>setFilter("mine")}/></View><Field label={t("Mjesec (GGGG-MM)", "Month (YYYY-MM)")} value={month} onChange={setMonth} maxLength={7}/><View style={s.wrap}>{[["all",t("Sve", "All")],["food",t("Hrana", "Food")],["travel",t("Putovanje", "Travel")],["home",t("Dom", "Home")],["fun",t("Zabava", "Fun")],["other",t("Ostalo", "Other")]].map(([id,label])=><Chip key={id} selected={category===id} label={label} onPress={()=>setCategory(id)}/>)}</View><Button secondary label={t("Poništi filtre", "Clear filters")} onPress={()=>{setSearch("");setMonth("");setCategory("all");setFilter("all")}}/></Card>}
+            {!visibleExpenses.length&&!!g.expenses.length&&<Txt muted>{t("Nema računa za odabrane filtre.", "No bills match these filters.")}</Txt>}
+            {visibleExpenses.slice(0,limit).map((e) => (
               <ExpenseCard
                 key={e.id}
                 expense={e}
@@ -310,6 +299,7 @@ export function GroupScreen({
                   )
                 }
               >
+                {!!e.unassignedAmount&&<Txt bold style={{color:c.info}}>{t("Nedodijeljeno", "Unassigned")}: {money(e.unassignedAmount)}</Txt>}
                 <Txt muted size={12}>
                   {t(
                     "Označi samo svoje stavke. Promjena se sprema odmah i ponovno dijeli stavku jednako.",
@@ -336,7 +326,7 @@ export function GroupScreen({
                   .map((item) => (
                     <View key={item.id} style={{ gap: 4 }}>
                       <ItemCheck
-                        name={item.name}
+                        name={`${item.name} · ${item.quantity||1} × ${(Number(item.price)/(item.quantity||1)).toFixed(2)} €`}
                         price={Number(item.price)}
                         checked={
                           !!me && item.shares.some((x) => x.personId === me.id)
@@ -355,7 +345,7 @@ export function GroupScreen({
                         }
                       />
                       <Txt muted size={12}>
-                        {item.shares
+                        {!item.shares.length?t("Nedodijeljeno — označi ako dijeliš ovu stavku.","Unassigned — select if you shared this item."):item.shares
                           .map(
                             (x) => `${person(x.personId)} ${money(x.amount)}`,
                           )
@@ -395,8 +385,11 @@ export function GroupScreen({
                     </View>
                   </View>
                 )}
+                <Comments slug={g.slug} expenseId={e.id} disabled={g.locked||!participantId} run={run}/>
+                <Button secondary label={t("Dupliciraj račun", "Duplicate bill")} disabled={g.locked} onPress={()=>onDuplicate(e)} />
               </ExpenseCard>
             ))}
+            {visibleExpenses.length>limit&&<Button secondary label={t("Prikaži više računa", "Show more bills")} onPress={()=>setLimit(n=>n+30)}/>}
           </>
         )}
         {tab === "debts" && <>
@@ -413,7 +406,9 @@ export function GroupScreen({
               {incoming.map((x, i) => <View key={`in${i}`} style={[s.between, { padding: 10, borderRadius: 12, backgroundColor: c.tint }]}>
                 <View style={{ flex: 1 }}><Txt muted size={12}>{t("Duguje ti", "Owes you")}</Txt><Txt bold>{x.fromName}</Txt></View><Txt bold style={{ color: c.accent }}>{money(x.amount)}</Txt>
               </View>)}
-            </>}
+              <TransferPanel group={g} workflow={workflow} personId={participantId} run={run} refresh={refresh} settlements={settlements}/>
+          <Txt muted size={12}>{t("Preporučene uplate pojednostavljuju dugovanja i ne moraju pratiti pojedini račun.", "Suggested repayments simplify balances and may not match individual bills.")}</Txt>
+        </>}
           </Card>
           <Card>
             <Pressable accessibilityRole="button" accessibilityState={{ expanded: allDebts }} onPress={() => setAllDebts(!allDebts)} style={[s.between, { minHeight: 44 }]}>
@@ -426,6 +421,7 @@ export function GroupScreen({
         </>}
         {tab === "people" && (
           <>
+            <GroupUtilities group={g} workflow={workflow} run={run} refresh={refresh}/>
             <Card>
               <Txt bold size={18}>
                 {t("Pozovi ekipu", "Invite your people")}
@@ -462,6 +458,7 @@ export function GroupScreen({
                   <Chip
                     key={p.id}
                     selected={participantId === p.id}
+                    disabled={!!p.inactive || (workflow.people.some(x=>x.id===p.id&&x.claimed&&!x.mine))}
                     label={p.name}
                     onPress={() => void run(() => choose(p.id))}
                   />
@@ -520,7 +517,7 @@ export function GroupScreen({
                     <Button
                       secondary
                       label={t("Uredi", "Edit")}
-                      disabled={g.locked}
+                      disabled={g.locked || !workflow.canAdmin}
                       onPress={() => {
                         setEditPerson(p.id);
                         setName(p.name);
@@ -530,12 +527,12 @@ export function GroupScreen({
                   <View style={{ flex: 1 }}>
                     <Button
                       secondary
-                      label={t("Ukloni", "Remove")}
-                      disabled={g.locked}
+                      label={p.inactive?t("Vrati sudionika", "Reactivate"):t("Deaktiviraj", "Deactivate")}
+                      disabled={g.locked || !workflow.canAdmin}
                       onPress={() =>
                         confirmDelete(
                           t("Ukloniti sudionika?", "Remove participant?"),
-                          () => api.deletePerson(g.slug, p.id),
+                          () => api.inactive(g.slug, p.id, !p.inactive),
                         )
                       }
                     />
@@ -553,20 +550,20 @@ export function GroupScreen({
               <Button
                 secondary
                 label={t("Spremi naziv", "Save name")}
-                disabled={g.locked || !rename.trim()}
+                disabled={g.locked || !workflow.canAdmin || !rename.trim()}
                 onPress={() =>
                   void act(() => api.rename(g.slug, rename.trim()))
                 }
               />
-              {g.currentUserRole === "OWNER" && (
+              {workflow.canAdmin && (
                 <Button
                   secondary
                   label={
-                    g.locked
+                    rawGroup.locked
                       ? t("Otključaj grupu", "Unlock group")
                       : t("Zaključaj grupu", "Lock group")
                   }
-                  onPress={() => void act(() => api.lock(g.slug, !g.locked))}
+                  onPress={() => void act(() => api.lock(g.slug, !rawGroup.locked))}
                 />
               )}
               <Txt muted size={12}>
@@ -587,316 +584,6 @@ export function GroupScreen({
             )}
           </>
         )}
-        {tab === "drafts" && (
-          <>
-            <Button
-              secondary
-              label={
-                selectedDraft
-                  ? t("Svi draft računi", "All drafts")
-                  : t("Natrag na troškove", "Back to expenses")
-              }
-              onPress={() =>
-                selectedDraft ? setSelectedDraft(null) : setTab("overview")
-              }
-            />
-            {!selectedDraft && <Heading
-              title={t("Računi u pripremi", "Bills in progress")}
-              subtitle={t(
-                "Podijelite stavke prije potvrde.",
-                "Assign items before confirming.",
-              )}
-            />}
-            {!drafts.length && (
-              <Card>
-                <Txt muted>
-                  {t("Nema spremljenih nacrta.", "No saved drafts.")}
-                </Txt>
-              </Card>
-            )}
-            {!selectedDraft &&
-              drafts.map((d, index) => (
-                <Pressable
-                  key={d.id}
-                  accessibilityRole="button"
-                  accessibilityLabel={`${t("Otvori nacrt", "Open draft")}: ${d.note || index + 1}`}
-                  onPress={() => setSelectedDraft(d.id)}
-                  disabled={busy}
-                  style={[
-                    s.card,
-                    { backgroundColor: c.card, borderColor: c.line },
-                  ]}
-                >
-                  <View style={s.between}>
-                    <View style={{ flex: 1, gap: 5 }}>
-                      <Txt bold size={17}>
-                        {d.note || `${t("Nacrt", "Draft")} ${index + 1}`}
-                      </Txt>
-                      <Txt size={12} style={{ color: c.info }}>
-                        {draftReadiness(d).assigned}/{d.items.length} {t("stavki odabrano", "items assigned")}
-                      </Txt>
-                      <Txt muted size={12}>
-                        {date(d.createdAt)} · {d.items.length}{" "}
-                        {t("stavki", "items")}
-                      </Txt>
-                    </View>
-                    <Txt bold style={{ color: c.accent }}>
-                      {money(
-                        d.items.reduce((sum, i) => sum + Number(i.price), 0),
-                      )}
-                    </Txt>
-                    <Txt muted>›</Txt>
-                  </View>
-                </Pressable>
-              ))}
-            {drafts
-              .filter((d) => d.id === selectedDraft)
-              .map((d) => (
-                <Card key={d.id}>
-                  <View style={{ backgroundColor: c.infoTint, padding: 12, borderRadius: 12, gap: 6 }}>
-                    <Txt bold style={{ color: c.info }}>{t("ZAJEDNIČKI DRAFT", "SHARED DRAFT")} · {draftReadiness(d).assigned}/{d.items.length}</Txt>
-                    <Txt size={13}>{draftReadiness(d).missing ? `${t("Stavke bez odabira", "Unassigned items")}: ${draftReadiness(d).missing}` : t("Sve stavke imaju sudionike. Autor može pregledati i potvrditi račun.", "All items are assigned. The author can review and confirm the bill.")}</Txt>
-                  </View>
-                  <Txt bold size={20}>
-                    {d.note || t("Nacrt računa", "Draft bill")}
-                  </Txt>
-                  <Txt muted>
-                    {money(
-                      d.items.reduce((sum, i) => sum + Number(i.price), 0),
-                    )}{" "}
-                    · {date(d.createdAt)}
-                  </Txt>
-                  {!me && (
-                    <Button
-                      secondary
-                      label={t(
-                        "Odaberi tko si za označavanje stavki",
-                        "Choose your identity to select items",
-                      )}
-                      onPress={() => setTab("people")}
-                    />
-                  )}
-                  <Txt muted size={12}>
-                    {t(
-                      "Kvačicom označi što si jeo/la ili kupio/la. Promjene se spremaju odmah.",
-                      "Check what you ate or bought. Changes save immediately.",
-                    )}
-                  </Txt>
-                  {d.legacyOwner && (
-                    <Txt muted size={12}>
-                      {t(
-                        "Stariji nacrt nema zabilježenog autora; dostupne su samo vlastite kvačice.",
-                        "Older draft has no recorded author; only personal selections are available.",
-                      )}
-                    </Txt>
-                  )}
-                  <View style={s.between}>
-                    <View style={{ flex: 1 }}><Txt muted size={12}>{t("Tvoj trenutačni dio", "Your current share")}</Txt><Txt bold style={{ color: c.info }}>{me ? money(d.items.reduce((sum, item) => sum + item.shares.filter(x => x.personId === me.id).reduce((part, x) => part + Number(x.amount), 0), 0)) : "—"}</Txt></View>
-                    <Button secondary info label={t("Osvježi", "Refresh")} onPress={() => void run(refresh)} />
-                  </View>
-                  {d.canManage && <Button secondary label={manageDraft === d.id ? t("Zatvori uređivanje podjele", "Close allocation controls") : t("Uredi podjelu · autor", "Edit allocation · author")} onPress={() => setManageDraft(manageDraft === d.id ? null : d.id)} />}
-                  {d.items.map((item) => (
-                    <View
-                      key={item.id}
-                      style={{
-                        gap: 8,
-                        paddingVertical: 10,
-                        borderTopWidth: 1,
-                        borderColor: c.line,
-                      }}
-                    >
-                      <ItemCheck
-                        name={item.name}
-                        price={Number(item.price)}
-                        checked={
-                          !!me && item.shares.some((x) => x.personId === me.id)
-                        }
-                        disabled={g.locked || !me}
-                        onPress={() =>
-                          void act(() =>
-                            api.ownItem(
-                              g.slug,
-                              d.id,
-                              item.id,
-                              !item.shares.some((x) => x.personId === me?.id),
-                            ),
-                          )
-                        }
-                      />
-                      <Txt muted size={12}>
-                        {item.shares
-                          .map(
-                            (x) => `${person(x.personId)} ${money(x.amount)}`,
-                          )
-                          .join(" · ") ||
-                          t("Još nitko nije označio.", "No selections yet.")}
-                      </Txt>
-                      {d.canManage && manageDraft === d.id && (
-                        <>
-                          <Txt muted size={12}>
-                            {t(
-                              "Podjela stavke · autor",
-                              "Item participants · author",
-                            )}
-                          </Txt>
-                          <View style={s.wrap}>
-                            {g.people.map((p) => (
-                              <Chip
-                                key={p.id}
-                                label={p.name}
-                                selected={item.shares.some(
-                                  (x) => x.personId === p.id,
-                                )}
-                                disabled={g.locked}
-                                onPress={() =>
-                                  void act(() =>
-                                    api.shares(
-                                      g.slug,
-                                      d.id,
-                                      item.id,
-                                      item.shares.some(
-                                        (x) => x.personId === p.id,
-                                      )
-                                        ? item.shares
-                                            .filter((x) => x.personId !== p.id)
-                                            .map((x) => x.personId)
-                                        : [
-                                            ...item.shares.map(
-                                              (x) => x.personId,
-                                            ),
-                                            p.id,
-                                          ],
-                                    ),
-                                  )
-                                }
-                              />
-                            ))}
-                          </View>
-                          <Button
-                            secondary
-                            label={t(
-                              "Zavrti za ovu stavku",
-                              "Spin for this item",
-                            )}
-                            disabled={g.locked || !g.people.length}
-                            onPress={() =>
-                              setWheel({ draft: d, itemId: item.id })
-                            }
-                          />
-                        </>
-                      )}
-                    </View>
-                  ))}
-                  <Txt bold>{t("Platitelji", "Payers")}</Txt>
-                  {d.payers.map((p) => (
-                    <Txt key={p.id}>
-                      {person(p.personId)} · {money(p.amount)}
-                    </Txt>
-                  ))}
-                  {d.canManage && (
-                    <>
-                      <Button
-                        secondary
-                        label={t(
-                          "Nasumična podjela računa",
-                          "Random bill split",
-                        )}
-                        disabled={g.locked || !g.people.length}
-                        onPress={() => setWheel({ draft: d })}
-                      />
-                      <Button
-                        secondary
-                        label={t("Uredi platitelje", "Edit payers")}
-                        disabled={g.locked}
-                        onPress={() =>
-                          setPayerEdit({
-                            id: d.id,
-                            values: g.people.map((p) => ({
-                              personId: p.id,
-                              amount: String(
-                                d.payers.find((x) => x.personId === p.id)
-                                  ?.amount ?? 0,
-                              ),
-                            })),
-                          })
-                        }
-                      />
-                      {payerEdit?.id === d.id && (
-                        <View style={{ gap: 10 }}>
-                          {g.people.map((p) => (
-                            <Field
-                              key={p.id}
-                              label={`${p.name} (€)`}
-                              decimal
-                              value={
-                                payerEdit.values.find(
-                                  (x) => x.personId === p.id,
-                                )?.amount ?? "0"
-                              }
-                              onChange={(amount) =>
-                                setPayerEdit({
-                                  id: d.id,
-                                  values: [
-                                    ...payerEdit.values.filter(
-                                      (x) => x.personId !== p.id,
-                                    ),
-                                    { personId: p.id, amount },
-                                  ],
-                                })
-                              }
-                            />
-                          ))}
-                          <Button
-                            label={t("Spremi platitelje", "Save payers")}
-                            onPress={() =>
-                              void act(async () => {
-                                const values = payerEdit.values.map((x) => ({
-                                  personId: x.personId,
-                                  amount: cents(x.amount || "0") / 100,
-                                }));
-                                if (
-                                  values.reduce(
-                                    (sum, x) =>
-                                      sum + Math.round(x.amount * 100),
-                                    0,
-                                  ) !==
-                                  d.items.reduce(
-                                    (sum, i) =>
-                                      sum + Math.round(Number(i.price) * 100),
-                                    0,
-                                  )
-                                )
-                                  throw new Error(
-                                    t(
-                                      "Zbroj uplata mora biti jednak računu.",
-                                      "Payments must match the bill total.",
-                                    ),
-                                  );
-                                await api.payers(
-                                  g.slug,
-                                  d.id,
-                                  values.filter((x) => x.amount > 0),
-                                );
-                                setPayerEdit(null);
-                              })
-                            }
-                          />
-                        </View>
-                      )}
-                      {!draftReadiness(d).ready && <Txt size={13} style={{ color: c.debt }}>{draftReadiness(d).missing ? t("Prije potvrde dodijelite svaku stavku barem jednoj osobi.", "Assign every item to at least one person before confirming.") : t("Za potvrdu pozitivan iznos računa mora odgovarati uplatama.", "A positive bill total must match payments before confirming.")}</Txt>}
-                      <Button
-                        label={t("Potvrdi trošak", "Confirm expense")}
-                        disabled={g.locked || !draftReadiness(d).ready}
-                        onPress={() =>
-                          void act(() => api.confirm(g.slug, d.id))
-                        }
-                      />
-                    </>
-                  )}
-                </Card>
-              ))}
-          </>
-        )}
         {tab === "history" && (
           <>
             <Heading title={t("Povijest grupe", "Group activity")} />
@@ -905,7 +592,8 @@ export function GroupScreen({
                 <Txt muted>{t("Još nema aktivnosti.", "No activity yet.")}</Txt>
               </Card>
             )}
-            {history.map((h) => {
+            <View style={s.wrap}>{[["all",t("Sve", "All")],["EXPENSE",t("Računi", "Bills")],["TRANSFER",t("Uplate", "Repayments")],["PERSON",t("Sudionici", "People")]].map(([id,label])=><Chip key={id} label={label} selected={historyFilter===id} onPress={()=>setHistoryFilter(id)}/>)}</View>
+            {history.filter(h=>historyFilter==="all"||h.entity===historyFilter).map((h) => {
               const meta = historyDetails(h);
               const action =
                 h.action === "CREATE"
@@ -985,7 +673,7 @@ export function GroupScreen({
             })}
           </>
         )}
-        {tab === "overview" && <View style={{ height: 180 }} />}
+        {tab === "overview" && <View style={{ height: 120 }} />}
       </Page>
       {tab === "overview" && (
         <View
@@ -1001,16 +689,6 @@ export function GroupScreen({
         >
           <Button
             secondary
-            info
-            icon="receipt"
-            label={`Draft · ${drafts.length}`}
-            onPress={() => {
-              setSelectedDraft(null);
-              setTab("drafts");
-            }}
-          />
-          <Button
-            secondary
             icon="camera"
             label={t("Fotografiraj račun", "Photograph receipt")}
             disabled={g.locked || !g.people.length}
@@ -1024,28 +702,7 @@ export function GroupScreen({
           />
         </View>
       )}
-      {wheel && (
-        <Wheel
-          people={g.people}
-          initial={
-            wheel.itemId
-              ? (wheel.draft.items
-                  .find((i) => i.id === wheel.itemId)
-                  ?.shares.map((x) => x.personId) ?? [])
-              : g.people.map((p) => p.id)
-          }
-          amount={
-            wheel.itemId
-              ? Number(
-                  wheel.draft.items.find((i) => i.id === wheel.itemId)?.price ??
-                    0,
-                )
-              : wheel.draft.items.reduce((sum, i) => sum + Number(i.price), 0)
-          }
-          onClose={() => setWheel(null)}
-          onConfirm={(ids) => void applyRandom(ids)}
-        />
-      )}
+
     </View>
   );
 }

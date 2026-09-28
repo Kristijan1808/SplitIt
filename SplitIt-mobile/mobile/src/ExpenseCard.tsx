@@ -18,7 +18,8 @@ export function ExpenseCard({
   onPress: () => void;
 }>) {
   const { c, t, busy } = useUI();
-  const net = expenseNet(e, personId);
+  const pending=e.allocationComplete===false;
+  const net = e.paymentIncomplete?null:expenseNet(e, personId);
   const names = e.payers
     .map(
       (p) =>
@@ -28,19 +29,20 @@ export function ExpenseCard({
     )
     .join(", ");
   const label =
+    e.paymentIncomplete?t("Saldo nakon ispravka", "Balance after correction"):
     net === null
       ? t("Odaberi svoj profil", "Choose your identity")
       : !net.involved
-        ? t("Ne sudjeluješ", "Not involved")
+        ? pending?t("Još nema tvog odabira", "Not selected yet"):t("Ne sudjeluješ", "Not involved")
         : net.net > 0
           ? t("Posudio/la si", "You lent")
           : net.net < 0
             ? t("Duguješ", "You borrowed")
-            : t("Poravnato", "Settled");
+            : pending?t("Privremeni saldo", "Provisional balance"):t("Poravnato", "Settled");
   const color = net && net.net < 0 ? c.debt : c.accent;
-  const date = new Date(e.createdAt);
+  const date = new Date(e.billDate||e.createdAt);
   return (
-    <View style={{ borderBottomWidth: 1, borderColor: c.line }}>
+    <View style={{ borderBottomWidth: 1, borderColor: pending?c.info:c.line,backgroundColor:pending?c.infoTint:undefined,borderRadius:pending?12:0,paddingHorizontal:pending?6:0 }}>
       <Pressable
         accessibilityRole="button"
         accessibilityState={{ expanded, disabled: busy }}
@@ -79,6 +81,8 @@ export function ExpenseCard({
           <Txt bold size={15}>
             {e.note || t("Zajednički račun", "Shared bill")}
           </Txt>
+          {pending&&<Txt bold size={11} style={{color:c.info}}>{t("Čeka podjelu", "Awaiting split")} · {e.unassignedCount}/{e.items.length}</Txt>}
+          {e.paymentIncomplete&&<Txt bold size={11} style={{color:c.danger}}>{t("Provjeri platitelje", "Check payers")}</Txt>}
           <Txt muted size={11}>
             {names} · {t("plaćeno", "paid")} {Number(e.totalAmount).toFixed(2)}{" "}
             €

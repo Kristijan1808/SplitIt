@@ -60,6 +60,8 @@ export type Payment = {
 };
 
 export type Person = {
+  claimed?: boolean;
+  inactive?: boolean;
   id: string;
   name: string;
   groupId: string;
@@ -76,6 +78,7 @@ export type ExpenseItemShare = {
 };
 
 export type ExpenseItem = {
+  quantity?:number;
   id: string;
   expenseId: string;
   ordinalNumber: number;
@@ -101,6 +104,13 @@ export type ExpenseShare = {
 };
 
 export type Expense = {
+  allocationComplete?:boolean;
+  unassignedCount?:number;
+  unassignedAmount?:number;
+  paymentIncomplete?:boolean;
+  provisionalShares?:{personId:string;amount:number}[];
+  billDate?: string;
+  category?: string;
   canManage?: boolean;
   legacyOwner?: boolean;
   id: string;
@@ -144,6 +154,9 @@ export type DraftExpensePayer = {
 };
 
 export type DraftExpense = {
+  requireResponses?: boolean;
+  billDate?: string;
+  category?: string;
   canManage?: boolean;
   legacyOwner?: boolean;
   id: string;
@@ -177,6 +190,8 @@ export type HistoryItem = {
 };
 
 export type Group = {
+  archived?: boolean;
+  avatar?: string;
   id: string;
   name: string;
   slug: string;
@@ -214,4 +229,11 @@ export type Settlement = {
 export type SettlementResult = {
   balances: Balance[];
   settlements: Settlement[];
+};
+
+export type Workflow = {
+ avatar: string; archived: boolean; canAdmin: boolean; canOwn: boolean;
+ people: {id:string;name:string;role?:string;claimed:boolean;mine:boolean;inactive:boolean}[];
+ selections: {draftId:string;personId:string;status:"DONE"|"SKIP"|"PENDING"}[];
+ transfers: {id:string;fromId:string;toId:string;amount:number;note?:string;occurredAt:string;voidedAt?:string;canManage:boolean}[];
 };

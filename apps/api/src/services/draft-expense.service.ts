@@ -34,7 +34,7 @@ export class DraftExpenseService {
         return res.status(access.status).json({ error: access.error });
       }
 
-      return res.json(group.draftExpenses.map(serializeDraftExpense));
+      return res.json(group.draftExpenses.filter(d=>!d.confirmedExpenseId).map(serializeDraftExpense));
     } catch (error) {
       next(error);
     }
@@ -58,7 +58,7 @@ export class DraftExpenseService {
       }
 
       const people = await prisma.person.findMany({
-        where: { groupId: group.id },
+        where: { groupId: group.id, inactive:false },
         select: { id: true },
       });
       const validPersonIds = new Set(people.map((person) => person.id));
@@ -118,9 +118,15 @@ export class DraftExpenseService {
         };
       });
 
+      const requestId = body.requestId ? `${group.id}:${creatorKey(req)}:${body.requestId}` : undefined;
+      if(requestId){const previous=await prisma.expenseDraft.findUnique({where:{requestId},include:{payers:true,items:{include:{shares:true}}}});if(previous)return res.json(serializeDraftExpense(previous));}
       const nextDraft = await prisma.expenseDraft.create({
         data: {
           creatorKey: creatorKey(req),
+          requestId,
+          requireResponses: body.requireResponses,
+          billDate: body.billDate ? new Date(body.billDate) : new Date(),
+          category: body.category,
           groupId: group.id,
           note: body.note?.trim() || null,
           payers: {

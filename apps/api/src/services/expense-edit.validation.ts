@@ -10,6 +10,8 @@ const money = z
     "Use at most two decimals",
   );
 export const editExpenseSchema = z.object({
+  billDate:z.string().datetime().optional(),
+  category:z.enum(["other","food","travel","home","fun"]).optional(),
   expectedUpdatedAt: z.string().datetime(),
   note: z.string().trim().max(200).optional(),
   payers: z
@@ -25,12 +27,12 @@ export const editExpenseSchema = z.object({
       z.object({
         name: z.string().trim().min(1).max(120),
         price: money,
+        quantity: z.number().int().min(1).max(999).default(1),
         ordinalNumber: z.number().int().positive().optional(),
         shares: z
           .array(
             z.object({ personId: z.string().min(1), amount: money.optional() }),
-          )
-          .min(1),
+          ),
       }),
     )
     .min(1),
@@ -68,7 +70,7 @@ export function prepareExpenseEdit(input: unknown, people: string[]) {
           (_, i) =>
             Math.floor(value / ids.length) + (i < value % ids.length ? 1 : 0),
         );
-    if (amounts.reduce((s, n) => s + n, 0) !== value)
+    if (ids.length && amounts.reduce((s, n) => s + n, 0) !== value)
       throw new ExpenseInputError("Item shares must equal item price");
     const shares = ids.map((personId, i) => {
       totals.set(personId, (totals.get(personId) ?? 0) + amounts[i]);
@@ -76,6 +78,7 @@ export function prepareExpenseEdit(input: unknown, people: string[]) {
     });
     return {
       ordinalNumber: index + 1,
+      quantity:item.quantity,
       name: item.name,
       price: item.price,
       shares,

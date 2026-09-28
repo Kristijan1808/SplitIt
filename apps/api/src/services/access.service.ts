@@ -1,76 +1,16 @@
 import type { Request } from "express";
-import { getUserFromRequest } from "../core.js";
-import type { Prisma,Group  } from "@prisma/client";
-import { groupMemberService } from "./group-member.service.js";
-
-export type GroupAccess = Pick<Group, "id" | "accessType"> & {locked?:boolean};
-
-export const ensureCanViewGroup = async (
-  group: GroupAccess ,
-  req: Request
-) => {
-  const currentUser = getUserFromRequest(req);
-
-  if (group.accessType === "ANONYMOUS_ONLY") {
-    return { allowed: true, user: currentUser, status: 200, error: null as string | null };
-  }
-
-  if (group.accessType === "MIXED") {
-    if (currentUser) {
-      await groupMemberService.addIfNeeded(group.id, currentUser);
-    }
-    return { allowed: true, user: currentUser, status: 200, error: null as string | null };
-  }
-
-  if (!currentUser) {
-    return {
-      allowed: false,
-      user: null,
-      status: 401,
-      error: "Login is required to open this registered-only group"
-    };
-  }
-
-  await groupMemberService.addIfNeeded(group.id, currentUser);
-  return { allowed: true, user: currentUser, status: 200, error: null as string | null };
-};
-
-export const ensureCanEditGroup = async (
-  group: GroupAccess,
-  req: Request
-) => {
-  const currentUser = getUserFromRequest(req);
-  if(group.locked) return {allowed:false,user:currentUser,status:423,error:"Group is locked"};
-
-  if (
-    group.accessType === "ANONYMOUS_ONLY" ||
-    group.accessType === "MIXED"
-  ) {
-    if (currentUser && group.accessType === "MIXED") {
-      await groupMemberService.addIfNeeded(group.id, currentUser);
-    }
-    return { allowed: true, user: currentUser, status: 200, error: null as string | null };
-  }
-
-  if (!currentUser) {
-    return {
-      allowed: false,
-      user: null,
-      status: 401,
-      error: "Login is required to edit this group"
-    };
-  }
-
-  const membership = await groupMemberService.findByUser(group.id, currentUser.id);
-
-  if (!membership) {
-    return {
-      allowed: false,
-      user: currentUser,
-      status: 403,
-      error: "Only group members can edit this registered-only group"
-    };
-  }
-
-  return { allowed: true, user: currentUser, status: 200, error: null as string | null };
-};
+import { getUserFromRequest, prisma } from "../core.js";
+import { billKeys } from "./bill-permissions.js";
+export type GroupAccess = {id:string;accessType:string;locked?:boolean;archived?:boolean};
+export async function ensureCanViewGroup(group:GroupAccess,req:Request) {
+ const user=getUserFromRequest(req);
+ if(group.accessType === "REGISTERED_ONLY" && !user) return {allowed:false,user,status:401,error:"Prijavi se za pristup grupi."};
+ const session=await prisma.groupSession.findFirst({where:{groupId:group.id,key:{in:billKeys(req)}}});
+ return {allowed:!!session,user,status:session?200:403,error:session?null:"Ponovno se pridruži grupi kodom i lozinkom."};
+}
+export async function ensureCanEditGroup(group:GroupAccess,req:Request){
+ const access=await ensureCanViewGroup(group,req);
+ if(!access.allowed)return access;
+ if(group.locked || group.archived)return {...access,allowed:false,status:423,error:"Grupa je zaključana ili arhivirana."};
+ return access;
+}

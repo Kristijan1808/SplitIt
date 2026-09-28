@@ -8,6 +8,7 @@ import type {
   SettlementResult,
   HistoryItem,
   Expense,
+  Workflow,
 } from "./types";
 export const API_URL = (process.env.EXPO_PUBLIC_API_URL ?? "").replace(
   /\/+$/,
@@ -114,6 +115,10 @@ export async function request<T>(
 }
 const base = (slug: string) => `/groups/${encodeURIComponent(slug)}`;
 export type DraftBody = {
+  requestId?: string;
+  requireResponses?: boolean;
+  billDate?: string;
+  category?: string;
   note?: string;
   payers: { personId: string; amount: number }[];
   items: {
@@ -124,6 +129,22 @@ export type DraftBody = {
   }[];
 };
 export const api = {
+  createExpense:(slug:string,body:object)=>request<Expense>(`${base(slug)}/expenses`,"POST",body),
+  comments:(slug:string,id:string)=>request<{id:string;message:string;createdAt:string}[]>(`/groups/${slug}/workflow/comments/${id}`),
+  comment:(slug:string,id:string,message:string)=>request(`/groups/${slug}/workflow/comments/${id}`,"POST",{message}),
+  release:(slug:string,id:string)=>request(`/groups/${slug}/workflow/people/${id}/release`,"POST"),
+  role:(slug:string,id:string,role:string)=>request(`/groups/${slug}/workflow/people/${id}/role`,"PATCH",{role}),
+  workflow: (slug:string) => request<Workflow>(`${base(slug)}/workflow`),
+  claim: (slug:string,personId:string) => request(`${base(slug)}/workflow/identity`,"POST",{personId}),
+  response: (slug:string,id:string,status:string) => request(`${base(slug)}/workflow/drafts/${id}/response`,"POST",{status}),
+  removeDraft: (slug:string,id:string) => request(`${base(slug)}/workflow/drafts/${id}`,"DELETE"),
+  transfer: (slug:string,body:object) => request(`${base(slug)}/workflow/transfers`,"POST",body),
+  voidTransfer: (slug:string,id:string) => request(`${base(slug)}/workflow/transfers/${id}`,"DELETE"),
+  groupSettings: (slug:string,body:object) => request(`${base(slug)}/workflow/settings`,"PATCH",body),
+  inactive: (slug:string,id:string,inactive:boolean) => request(`${base(slug)}/workflow/people/${id}`,"PATCH",{inactive}),
+  trash: (slug:string) => request<{id:string;note:string;totalAmount:number}[]>(`${base(slug)}/workflow/trash`),
+  restore: (slug:string,id:string) => request(`${base(slug)}/workflow/expenses/${id}/restore`,"POST"),
+  rotateInvite: (slug:string,password:string) => request(`${base(slug)}/workflow/rotate-invite`,"POST",{password}),
   ownItem: (
     slug: string,
     id: string,

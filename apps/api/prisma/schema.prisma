@@ -35,6 +35,11 @@ model Group {
   accessType   GroupAccessType @default(ANONYMOUS_ONLY)
   passwordHash String          @default("")
   ownerUserId  String?
+  ownerKey String?
+  archived Boolean @default(false)
+  avatar String @default("👥")
+  sessions GroupSession[]
+  transfers SettlementTransfer[]
   createdAt    DateTime        @default(now())
   updatedAt    DateTime        @updatedAt
 
@@ -63,6 +68,9 @@ model GroupMember {
 }
 
 model Person {
+  identityKey String?
+  @@unique([groupId, identityKey])
+  inactive Boolean @default(false)
   id        String   @id @default(uuid())
   name      String
   groupId   String
@@ -89,6 +97,11 @@ model Person {
 //
 
 model Expense {
+  requestId String? @unique
+  sourceDraftId String? @unique
+  deletedAt DateTime?
+  billDate DateTime @default(now())
+  category String @default("other")
   creatorKey String?
   id          String   @id @default(uuid())
   groupId     String
@@ -133,6 +146,7 @@ model ExpensePayer {
 //
 
 model ExpenseItem {
+  quantity Int @default(1)
   id            String   @id @default(uuid())
   expenseId     String
   ordinalNumber Int
@@ -221,6 +235,12 @@ model ExpenseShare {
 //
 
 model ExpenseDraft {
+  requestId String? @unique
+  confirmedExpenseId String?
+  billDate DateTime @default(now())
+  category String @default("other")
+  selections DraftSelection[]
+  requireResponses Boolean @default(false)
   creatorKey String?
   id        String   @id @default(uuid())
   groupId   String
@@ -365,4 +385,38 @@ model History {
   group Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
 
   @@map("history")
+}
+model GroupSession {
+ id String @id @default(uuid())
+ groupId String
+ key String
+ role String @default("MEMBER")
+ group Group @relation(fields:[groupId], references:[id], onDelete:Cascade)
+ @@unique([groupId,key])
+ @@map("group_sessions")
+}
+model DraftSelection {
+ id String @id @default(uuid())
+ draftId String
+ personId String
+ status String
+ updatedAt DateTime @updatedAt
+ draft ExpenseDraft @relation(fields:[draftId], references:[id], onDelete:Cascade)
+ @@unique([draftId,personId])
+ @@map("draft_selections")
+}
+model SettlementTransfer {
+ id String @id @default(uuid())
+ requestId String @unique
+ groupId String
+ fromId String
+ toId String
+ amount Decimal @db.Decimal(12,2)
+ note String?
+ occurredAt DateTime @default(now())
+ creatorKey String
+ voidedAt DateTime?
+ createdAt DateTime @default(now())
+ group Group @relation(fields:[groupId],references:[id],onDelete:Cascade)
+ @@map("settlement_transfers")
 }

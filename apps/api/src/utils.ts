@@ -1,3 +1,4 @@
+import { expenseAllocation } from "./services/allocation.js";
 import type { Prisma } from "@prisma/client";
 import type { AuthUser } from "./core.js";
 
@@ -6,6 +7,7 @@ export const groupDetailsInclude = {
     orderBy: { createdAt: "asc" },
   },
   expenses: {
+    where: { deletedAt: null },
     orderBy: { createdAt: "desc" },
     include: {
       payers: { include: { person: true } },
@@ -28,6 +30,7 @@ export const groupDetailsInclude = {
     orderBy: { createdAt: "asc" },
   },
   draftExpenses: {
+    where: { confirmedExpenseId: null },
     orderBy: { createdAt: "desc" },
     include: {
       payers: true,
@@ -86,6 +89,9 @@ export const serializePaymentFromPayer = (payer: PaymentPayer) => ({
 
 export const serializeDraftExpense = (draft: DraftExpenseWithDetails) => ({
   creatorKey: draft.creatorKey,
+  billDate: draft.billDate,
+  category: draft.category,
+  requireResponses: draft.requireResponses,
   id: draft.id,
   groupId: draft.groupId,
   note: draft.note ?? null,
@@ -120,6 +126,10 @@ export const serializeDraftExpense = (draft: DraftExpenseWithDetails) => ({
 
 export const serializeExpense = (expense: ExpenseWithDetails) => ({
   creatorKey: expense.creatorKey,
+  ...expenseAllocation(expense),
+  billDate: expense.billDate,
+  category: expense.category,
+  deletedAt: expense.deletedAt,
   id: expense.id,
   groupId: expense.groupId,
   totalAmount: Number(expense.totalAmount),
@@ -138,6 +148,7 @@ export const serializeExpense = (expense: ExpenseWithDetails) => ({
   items: expense.items.map((item) => ({
     id: item.id,
     expenseId: item.expenseId,
+    quantity:item.quantity,
     ordinalNumber: item.ordinalNumber,
     name: item.name,
     price: Number(item.price),
@@ -166,7 +177,7 @@ export const serializeGroup = (
   group: GroupWithDetails,
   currentUser?: AuthUser | null,
 ) => {
-  const { passwordHash, ...restGroup } = group;
+  const { passwordHash, ownerKey, ...restGroup } = group;
 
   const currentMembership = currentUser
     ? group.members.find((member) => member.userId === currentUser.id)
@@ -188,6 +199,8 @@ export const serializeGroup = (
     people: group.people.map((person) => ({
       id: person.id,
       name: person.name,
+      claimed: !!person.identityKey,
+      inactive: person.inactive,
       groupId: person.groupId,
       createdAt: person.createdAt,
       payments: group.expenses.flatMap((expense) =>

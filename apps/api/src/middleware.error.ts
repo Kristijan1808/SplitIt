@@ -9,6 +9,7 @@ export const errorHandler: ErrorRequestHandler = (error, _req, res, _next) => {
     return;
   }
 
+  if (error && ["P2002","P2034"].includes(error.code)) {res.status(409).json({error:"Podatak je upravo promijenjen. Osvježi i ponovi radnju; spremljeni račun neće se udvostručiti."});return;}
   if (error instanceof MulterError) {
     res.status(400).json({
       error:

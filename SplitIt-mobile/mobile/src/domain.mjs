@@ -81,7 +81,7 @@ export function expenseNet(expense, personId) {
   const paid = expense.payers
     .filter((p) => p.personId === personId)
     .reduce((s, p) => s + Math.round(Number(p.amount) * 100), 0);
-  const owed = expense.shares
+  const owed = [...expense.shares,...(expense.provisionalShares||[])]
     .filter((p) => p.personId === personId)
     .reduce((s, p) => s + Math.round(Number(p.amount) * 100), 0);
   return {
@@ -127,7 +127,12 @@ export function historyDetails(entry) {
 // A total-only bill uses one accounting line so existing API/web remain compatible.
 export function prepareBillItems(mode, amount, ids, items, assignNow) {
   if (mode === "equal") return [{ key: "equal", name: "Jednaka podjela", price: amount, ids: [...ids] }];
-  return items.map(item => assignNow ? item : { ...item, ids: [], originalShares: undefined });
+  return items.flatMap(item => {
+    const quantity=item.quantity===undefined?1:Number(item.quantity);
+    if(!Number.isInteger(quantity)||quantity<1||quantity>999)return [{...item,name:"",ids:[]}];
+    let price;try{price=(cents(item.price)*quantity/100).toFixed(2)}catch{return [{...item,name:"",ids:[]}]}
+    const row={...item,quantity,price};return [assignNow?row:{...row,ids:[],originalShares:undefined}];
+  });
 }
 export function draftReadiness(draft) {
   const total = draft.items.reduce((sum, item) => sum + Math.round(Number(item.price) * 100), 0);
@@ -135,4 +140,26 @@ export function draftReadiness(draft) {
   const assigned = draft.items.filter(item => item.shares.length > 0).length;
   return { total, paid, assigned, missing: draft.items.length - assigned,
     ready: total > 0 && total === paid && assigned === draft.items.length && assigned > 0 };
+}
+
+export const requestKey = () => "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, c => {
+ const n = Math.floor(Math.random() * 16); return (c === 'x' ? n : (n & 3) | 8).toString(16);
+});
+export function exportCSV(group) {
+ const cell=value=>'"'+String(value??'').replace(/"/g,'""').replace(/^[=+@-]/,"'")+'"';
+ return '\uFEFF'+[['Datum','Račun','Ukupno EUR','Platitelji'],...group.expenses.map(e=>[(e.billDate||e.createdAt).slice(0,10),e.note||'Račun',Number(e.totalAmount).toFixed(2),e.payers.map(p=>(group.people.find(x=>x.id===p.personId)?.name||'?')+': '+Number(p.amount).toFixed(2)).join('; ')])].map(row=>row.map(cell).join(',')).join('\r\n');
+}
+
+export function allocateWeighted(total,weights) {
+ if(!Number.isSafeInteger(total)||total<0||!weights.length||weights.some(w=>!Number.isFinite(w)||w<0)||weights.reduce((a,b)=>a+b,0)<=0)throw new Error('Provjeri omjere podjele.');
+ const sum=weights.reduce((a,b)=>a+b,0),raw=weights.map(w=>total*w/sum),out=raw.map(Math.floor);
+ const order=raw.map((v,i)=>({i,f:v-out[i]})).sort((a,b)=>b.f-a.f||a.i-b.i);
+ const left=total-out.reduce((a,b)=>a+b,0);for(let i=0;i<left;i++)out[order[i%order.length].i]++;
+ return out;
+}
+export function customAllocation(total,ids,values,mode){
+ const numbers=ids.map(id=>cents(values[id]||'0'));
+ if(mode==='amount'){if(numbers.reduce((a,b)=>a+b,0)!==total)throw new Error('Zbroj pojedinačnih iznosa mora biti jednak računu.');return numbers;}
+ if(mode==='percent'&&numbers.reduce((a,b)=>a+b,0)!==10000)throw new Error('Zbroj postotaka mora biti 100 %.');
+ return allocateWeighted(total,numbers);
 }

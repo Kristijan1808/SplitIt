@@ -37,7 +37,7 @@ export class DraftExpensePayerService {
         },
       });
 
-      if (!draft) {
+      if (!draft || draft.confirmedExpenseId) {
         return res.status(404).json({
           error: "Draft bill not found",
         });
@@ -81,8 +81,9 @@ export class DraftExpensePayerService {
       }
 
       await prisma.$transaction(async (tx) => {
+        await tx.draftSelection.deleteMany({where:{draftId:draft.id}});
         await tx.expenseDraft.update({
-          where: { id: draft.id },
+          where: { id: draft.id, confirmedExpenseId:null },
           data: { updatedAt: new Date() },
         });
         await tx.expenseDraftPayer.deleteMany({

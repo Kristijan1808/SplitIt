@@ -1,3 +1,4 @@
+import {actorPerson} from "./workflow.service.js";
 import type { RequestHandler } from "express";
 import { Prisma } from "@prisma/client";
 import { z } from "zod";
@@ -52,7 +53,7 @@ export const ownItem =
         return res.status(access.status).json({ error: access.error });
       if (!billKeys(req).length) throw fail("Ponovno otvori aplikaciju.", 401);
       // Guest groups intentionally use a self-selected participant, as in the existing group identity flow.
-      const personId = req.get("X-SplitIt-Participant-Id");
+      const personId = (await actorPerson(req,group.id)).id;
       if (
         !personId ||
         !(await prisma.person.findFirst({
@@ -66,13 +67,13 @@ export const ownItem =
           const currentGroup = await tx.group.findUniqueOrThrow({
             where: { id: group.id },
           });
-          if (currentGroup.locked) throw fail("Grupa je zaključana.", 423);
+          if (currentGroup.locked || currentGroup.archived) throw fail("Grupa je zaključana.", 423);
           const id = (
             finalized ? req.params.expenseId : req.params.draftId
           ) as string;
           if (finalized) {
             const bill = await tx.expense.findFirst({
-              where: { id, groupId: group.id },
+              where: { id, groupId: group.id, deletedAt:null },
             });
             if (!bill) throw fail("Expense not found", 404);
             await tx.expense.update({
@@ -96,7 +97,7 @@ export const ownItem =
               item.shares,
               personId,
               selected,
-              true,
+              false,
             );
             await tx.expenseItemShare.deleteMany({
               where: { itemId: item.id },
@@ -136,7 +137,7 @@ export const ownItem =
           const draft = await tx.expenseDraft.findFirst({
             where: { id, groupId: group.id },
           });
-          if (!draft) throw fail("Draft not found", 404);
+          if (!draft || draft.confirmedExpenseId) throw fail("Draft not found", 404);
           await tx.expenseDraft.update({
             where: { id },
             data: { updatedAt: new Date() },
@@ -159,6 +160,7 @@ export const ownItem =
                 },
               }),
             );
+          await tx.draftSelection.deleteMany({where:{draftId:id,personId}});
           const shares = ownShares(
             Number(item.price),
             item.shares,

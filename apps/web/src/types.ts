@@ -77,6 +77,7 @@ export type ExpenseItemShare = {
 };
 
 export type ExpenseItem = {
+  quantity?:number;
   id: string;
   expenseId: string;
   ordinalNumber: number;
@@ -102,6 +103,10 @@ export type ExpenseShare = {
 };
 
 export type Expense = {
+  allocationComplete?:boolean;
+  unassignedCount?:number;
+  unassignedAmount?:number;
+  paymentIncomplete?:boolean;
   canManage?: boolean;
   legacyOwner?: boolean;
   id: string;

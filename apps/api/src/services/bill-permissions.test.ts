@@ -66,10 +66,12 @@ test("own selection preserves other participants and every cent", () => {
 test("non-creator is rejected by full bill and draft mutation handlers before writes", async () => {
   const original = {
     group: prisma.group.findUnique,
+    session: prisma.groupSession.findFirst,
     draft: prisma.expenseDraft.findFirst,
     expense: prisma.expense.findFirst,
     tx: prisma.$transaction,
   };
+  (prisma.groupSession as any).findFirst = async () => ({role:"MEMBER"});
   const creator = billKeys(request("a".repeat(64)))[0];
   (prisma.group as any).findUnique = async () => ({
     id: "g",
@@ -119,6 +121,7 @@ test("non-creator is rejected by full bill and draft mutation handlers before wr
     }
   } finally {
     (prisma.group as any).findUnique = original.group;
+    (prisma.groupSession as any).findFirst = original.session;
     (prisma.expenseDraft as any).findFirst = original.draft;
     (prisma.expense as any).findFirst = original.expense;
     (prisma as any).$transaction = original.tx;

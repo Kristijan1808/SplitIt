@@ -1,3 +1,4 @@
+import { billKeys } from "./bill-permissions.js";
 import type { Request } from "express";
 import { getUserFromRequest, prisma } from "../core.js";
 
@@ -8,7 +9,7 @@ export async function expenseActor(req: Request, groupId: string) {
   const id = req.get("X-SplitIt-Participant-Id");
   const person = id
     ? await prisma.person.findFirst({
-        where: { id, groupId },
+        where: { id, groupId, identityKey: { in: billKeys(req) } },
         select: { id: true, name: true },
       })
     : null;

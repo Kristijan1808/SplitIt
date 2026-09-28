@@ -146,3 +146,23 @@ test("shared draft starts unchecked, preserves editor input, and cannot confirm 
   serverDraft.payers[0].amount = 9.99;
   assert.equal(draftReadiness(serverDraft).ready, false);
 });
+
+test('custom amounts, percentages and weights conserve cents',async()=>{
+ const {customAllocation,allocateWeighted}=await import('../src/domain.mjs');
+ assert.deepEqual(customAllocation(1001,['a','b','c'],{a:'1',b:'1',c:'1'},'weight'),[334,334,333]);
+ assert.deepEqual(customAllocation(1001,['a','b'],{a:'60',b:'40'},'percent'),[601,400]);
+ assert.throws(()=>customAllocation(1001,['a','b'],{a:'50',b:'40'},'percent'));
+ assert.throws(()=>customAllocation(1001,['a','b'],{a:'5',b:'5'},'amount'));
+ assert.deepEqual(customAllocation(1001,['a','b'],{a:'5',b:'5,01'},'amount'),[500,501]);
+ for(let n=1;n<100;n++)for(let count=1;count<8;count++){const values=allocateWeighted(n*137,Array.from({length:count},(_,i)=>i+1));assert.equal(values.reduce((a,b)=>a+b,0),n*137);}
+});
+test('CSV export escapes quotes and spreadsheet formulas',async()=>{
+ const {exportCSV}=await import('../src/domain.mjs');const csv=exportCSV({people:[],expenses:[{note:'=HYPERLINK("x")',billDate:'2026-09-25',totalAmount:10,payers:[]}]});assert.ok(csv.includes("'HYPERLINK"));assert.ok(csv.includes('""x""'));
+});
+test('quantity scales one line and never limits people sharing it',async()=>{
+ const {prepareBillItems}=await import('../src/domain.mjs');const rows=prepareBillItems('items','',[],[{key:'plata',name:'Mesna plata',price:'20',quantity:'1',ids:['a','b','c']}],true);
+ assert.equal(rows.length,1);assert.equal(cents(rows[0].price),2000);assert.deepEqual(rows[0].ids,['a','b','c']);
+ const two=prepareBillItems('items','',[],[{key:'kava',name:'Kava',price:'2,50',quantity:'2',ids:['a','b','c','d']}],false);
+ assert.equal(two.length,1);assert.equal(cents(two[0].price),500);assert.equal(two[0].quantity,2);assert.deepEqual(two[0].ids,[]);
+ assert.equal(prepareBillItems('items','',[],[{name:'Pizza',price:'8',quantity:'0'}],false)[0].name,'');
+});

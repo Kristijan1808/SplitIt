@@ -1,3 +1,6 @@
+import {createExpense} from "../services/create-expense.service.js";
+import { joinLimit } from "../services/rate-limit.js";
+import {groupGate,adminGate,workflowRouter} from "../services/workflow.service.js";
 import { ownItem } from "../services/own-item.service.js";
 import {
   Router,
@@ -33,6 +36,7 @@ groupRouter.post(
 
 groupRouter.post(
   "/join",
+  joinLimit,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       res.json(await groupService.join(req));
@@ -41,6 +45,14 @@ groupRouter.post(
     }
   },
 );
+
+groupRouter.use("/:slug",groupGate);
+groupRouter.post("/:slug/expenses",createExpense);
+groupRouter.use("/:slug/draft-expenses",(req,res)=>{if(req.method==="GET")res.json([]);else res.status(410).json({error:"Računi se sada kreiraju izravno. Nadogradi aplikaciju i osvježi web."})});
+groupRouter.use("/:slug/workflow",workflowRouter);
+groupRouter.patch("/:slug",adminGate);
+groupRouter.patch("/:slug/people/:personId",adminGate);
+groupRouter.delete("/:slug/people/:personId",adminGate);
 
 groupRouter.get(
   "/:slug",

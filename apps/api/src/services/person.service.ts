@@ -253,7 +253,8 @@ export class PersonService {
         });
       }
 
-      await prisma.person.delete({
+      await prisma.person.update({
+        data:{inactive:true},
         where: {
           id: person.id
         }
@@ -267,7 +268,7 @@ export class PersonService {
           entityId: person.id,
 
           message:
-            `${person.name} was removed`,
+            `${person.name} je deaktiviran; povijest je sačuvana.`,
 
           oldValue:
             person.name

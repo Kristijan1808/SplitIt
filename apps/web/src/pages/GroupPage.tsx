@@ -20,6 +20,7 @@ import { RandomSplitWheel } from "../components/RandomSplitWheel";
 import { getWhoAmI, saveWhoAmI, saveGroupToLocalStorage } from "../storage";
 
 type DraftBill = {
+  requireResponses?: boolean;
   canManage?: boolean;
   legacyOwner?: boolean;
   id: string;
@@ -56,11 +57,13 @@ export const GroupPage = () => {
   const { slug = "" } = useParams();
   const [searchParams, setSearchParams] = useSearchParams();
   const { t, locale } = useLanguage();
+  const [workflow,setWorkflow]=useState<any>(null);
   const [group, setGroup] = useState<Group | null>(null);
   const [personName, setPersonName] = useState("");
   const [showParticipants, setShowParticipants] = useState(false);
   const [showWhoAreYou, setShowWhoAreYou] = useState(false);
-  const [showExpensesContainer, setShowExpensesContainer] = useState(false);
+  const [showExpensesContainer, setShowExpensesContainer] = useState(true);
+  const [receiptFilter,setReceiptFilter]=useState("all");
   const [showDrafts, setShowDrafts] = useState(false);
   const [drafts, setDrafts] = useState<DraftBill[]>([]);
   const [actionError, setActionError] = useState("");
@@ -83,7 +86,10 @@ export const GroupPage = () => {
       try {
         const currentGroup = await api.getGroup(slug);
         saveGroupToLocalStorage(currentGroup);
-        setGroup(currentGroup);
+        setGroup({...currentGroup,locked:currentGroup.locked||!!(currentGroup as any).archived});
+        const flow=await api.workflow(slug);setWorkflow(flow);
+        const mine=flow.people.find((p:any)=>p.mine&&!p.inactive);
+        saveWhoAmI(slug,mine?.id??"",mine?.name??null);
       } catch {
         navigate("/");
       }
@@ -137,7 +143,12 @@ export const GroupPage = () => {
     setPersonName("");
   };
 
-  const chooseParticipant = (participantId: string) => {
+  const chooseParticipant = async (participantId: string) => {
+    if(saving)return;
+    setSaving(true);setActionError("");
+    try {
+    await api.claim(slug,participantId);
+    setWorkflow(await api.workflow(slug));
     const person = group?.people.find((entry) => entry.id === participantId);
     saveWhoAmI(slug, participantId, person?.name ?? null);
     setSearchParams((current) => {
@@ -146,6 +157,7 @@ export const GroupPage = () => {
       return next;
     });
     setShowWhoAreYou(false);
+    }catch(e){setActionError(e instanceof Error?e.message:String(e))}finally{setSaving(false)}
   };
 
   const currentParticipantId = getWhoAmI(slug)?.participantId ?? null;
@@ -207,6 +219,7 @@ export const GroupPage = () => {
             )
           : await api.updateDraftExpenseItem(slug, draftId, itemId, { shares });
 
+      setWorkflow(await api.workflow(slug));
       setDrafts((current) =>
         current.map((entry) =>
           entry.id === draftId
@@ -486,7 +499,8 @@ export const GroupPage = () => {
                   key={person.id}
                   type="button"
                   className="secondaryButton participantChoiceButton"
-                  onClick={() => chooseParticipant(person.id)}
+                  disabled={saving || !!workflow?.people.find((p:any)=>p.id===person.id&&(p.inactive||(p.claimed&&!p.mine)))}
+                  onClick={() => void chooseParticipant(person.id)}
                 >
                   {person.name}
                 </button>
@@ -552,12 +566,6 @@ export const GroupPage = () => {
       )}
 
       <section className="buttons-container-right">
-        <button
-          className="open-drafts-btn"
-          onClick={() => setShowDrafts((current) => !current)}
-        >
-          {drafts.length}
-        </button>
         <Link
           className="primaryButton compactButton"
           to={`/g/${slug}/add-expense`}
@@ -571,7 +579,7 @@ export const GroupPage = () => {
           className="open-expenses-btn"
           onClick={() => setShowExpensesContainer((current) => !current)}
         >
-          Expenses!
+          Računi
         </button>
       </section>
 
@@ -604,266 +612,6 @@ export const GroupPage = () => {
         </section>
       </div>
 
-      {showDrafts && (
-        <section className="drafts-container">
-          <button
-            type="button"
-            className="close-drafts-btn"
-            onClick={() => setShowDrafts((current) => !current)}
-          >
-            <X size={16} strokeWidth={2.5} />
-          </button>
-          <div className="grid">
-            <section className="card">
-              <div className="sectionHeaderWithButton">
-                <div>
-                  <h2>{t("draftBills")}</h2>
-                  <p className="muted">{t("draftBillsHint")}</p>
-                </div>
-              </div>
-
-              <div className="list">
-                {drafts.map((draft) => {
-                  const itemTotal = draft.items.reduce(
-                    (sum, item) => sum + Number(item.price || 0),
-                    0,
-                  );
-                  const assignedTotal = draft.items.reduce(
-                    (sum, item) =>
-                      sum +
-                      item.shares.reduce(
-                        (shareSum, share) =>
-                          shareSum + Number(share.amount || 0),
-                        0,
-                      ),
-                    0,
-                  );
-                  const payerTotal = draft.payers.reduce(
-                    (sum, payer) => sum + Number(payer.amount || 0),
-                    0,
-                  );
-                  const unassignedCount = draft.items.filter(
-                    (item) => item.shares.length === 0,
-                  ).length;
-                  const payerNames = draft.payers
-                    .map(
-                      (payer) =>
-                        group.people.find(
-                          (person) => person.id === payer.personId,
-                        )?.name,
-                    )
-                    .filter(Boolean)
-                    .join(", ");
-
-                  const expanded = expandedDrafts.has(draft.id);
-                  return (
-                    <div key={draft.id} className="paymentRow draftCard">
-                      <div className="contentRow draftContentRow">
-                        <button
-                          type="button"
-                          className="expenseSummary"
-                          onClick={() =>
-                            setExpandedDrafts((current) => {
-                              const next = new Set(current);
-                              if (next.has(draft.id)) next.delete(draft.id);
-                              else next.add(draft.id);
-                              return next;
-                            })
-                          }
-                        >
-                          <div className="expenseSummaryMain">
-                            <strong>{draft.note || t("draftBill")}</strong>
-                            <small>
-                              {formatLocalDateTime(draft.createdAt)} ·{" "}
-                              {draft.items.length} {t("itemsCount")}
-                            </small>
-                          </div>
-                          <strong>{itemTotal.toFixed(2)} €</strong>
-                        </button>
-                        <button
-                          type="button"
-                          className="spinTriggerButton"
-                          hidden={!draft.canManage}
-                          onClick={() =>
-                            setRandomSplitTarget({ draftId: draft.id })
-                          }
-                          disabled={
-                            !draft.canManage ||
-                            group.locked ||
-                            saving ||
-                            group.people.length === 0 ||
-                            itemTotal <= 0
-                          }
-                          title={t("randomSplitGlobal")}
-                        >
-                          <Dices size={17} />
-                          <span>SPIN</span>
-                        </button>
-                        {expanded ? (
-                          <div>
-                            <div className="card draftDetailsCard">
-                              <div className="stats">
-                                <div>
-                                  <small>{t("itemsTotal")}</small>
-                                  <strong>{itemTotal.toFixed(2)}</strong>
-                                </div>
-                                <div>
-                                  <small>{t("paidTotal")}</small>
-                                  <strong>{payerTotal.toFixed(2)}</strong>
-                                </div>
-                                <div>
-                                  <small>{t("assignedTotal")}</small>
-                                  <strong>{assignedTotal.toFixed(2)}</strong>
-                                </div>
-                                <div>
-                                  <small>{t("unassignedItems")}</small>
-                                  <strong>{unassignedCount}</strong>
-                                </div>
-                              </div>
-                              <p className="muted noBottomMargin">
-                                {t("billPayers")}:{" "}
-                                {payerNames || t("noPayersAdded")}
-                              </p>
-                            </div>
-
-                            <div className="list draftItemsList">
-                              {draft.items.map((item) => {
-                                return (
-                                  <div key={item.id} className="draftItemRow">
-                                    <span>
-                                      <strong>
-                                        {item.ordinalNumber}. {item.name} -{" "}
-                                        {Number(item.price || 0).toFixed(2)}
-                                      </strong>
-                                      {item.shares.length > 0 && (
-                                        <small className="blockText">
-                                          {item.shares
-                                            .map((share) => {
-                                              const name = group.people.find(
-                                                (person) =>
-                                                  share.personId === person.id,
-                                              )?.name;
-                                              return name
-                                                ? `${name} (${Number(share.amount).toFixed(2)} €)`
-                                                : null;
-                                            })
-                                            .filter(Boolean)
-                                            .join(", ")}
-                                        </small>
-                                      )}
-                                    </span>
-
-                                    <div className="draftItemSplitActions">
-                                      <button
-                                        type="button"
-                                        className="miniSpinButton"
-                                        hidden={!draft.canManage}
-                                        onClick={() =>
-                                          setRandomSplitTarget({
-                                            draftId: draft.id,
-                                            itemId: item.id,
-                                          })
-                                        }
-                                        disabled={
-                                          !draft.canManage ||
-                                          group.locked ||
-                                          saving ||
-                                          group.people.length === 0 ||
-                                          Number(item.price) <= 0
-                                        }
-                                        title={t("randomSplitItem")}
-                                      >
-                                        <Dices size={15} />
-                                        <span>SPIN</span>
-                                      </button>
-                                    </div>
-
-                                    <div
-                                      className="sharePicker"
-                                      aria-label={t("assignedTo")}
-                                    >
-                                      {group.people
-                                        .filter(
-                                          (person) =>
-                                            draft.canManage ||
-                                            person.id === currentParticipantId,
-                                        )
-                                        .map((person) => {
-                                          const checked = item.shares.some(
-                                            (share) =>
-                                              share.personId === person.id,
-                                          );
-                                          return (
-                                            <label
-                                              key={person.id}
-                                              className="shareOption"
-                                            >
-                                              <input
-                                                type="checkbox"
-                                                checked={checked}
-                                                disabled={
-                                                  group.locked || saving
-                                                }
-                                                onChange={() => {
-                                                  const currentIds =
-                                                    item.shares.map(
-                                                      (share) => share.personId,
-                                                    );
-                                                  const nextIds = checked
-                                                    ? currentIds.filter(
-                                                        (id) =>
-                                                          id !== person.id,
-                                                      )
-                                                    : [
-                                                        ...currentIds,
-                                                        person.id,
-                                                      ];
-                                                  void updateDraftShares(
-                                                    draft.id,
-                                                    item.id,
-                                                    nextIds,
-                                                  );
-                                                }}
-                                              />
-                                              <span>{person.name}</span>
-                                            </label>
-                                          );
-                                        })}
-                                    </div>
-                                  </div>
-                                );
-                              })}
-                            </div>
-
-                            {draft.canManage && (
-                              <div className="draftConfirmRow">
-                                <button
-                                  type="button"
-                                  className="primaryButton"
-                                  onClick={() => void finalizeDraft(draft.id)}
-                                  disabled={group.locked || saving}
-                                >
-                                  {t("confirmSelection")}
-                                </button>
-                                {unassignedCount > 0 && (
-                                  <span className="muted">
-                                    {t("assignItemsBeforeConfirm")}
-                                  </span>
-                                )}
-                              </div>
-                            )}
-                          </div>
-                        ) : null}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </section>
-          </div>
-        </section>
-      )}
-
       {showExpensesContainer && (
         <section id="expenses-container">
           <button
@@ -878,9 +626,11 @@ export const GroupPage = () => {
                   <h2>{t("expenses")}</h2>
                 </div>
               </div>
+              <div role="tablist" style={{display:"flex",gap:12,marginBottom:16}}>{[["all","Računi"],["pending","Čekaju podjelu"]].map(([id,label])=><button type="button" role="tab" aria-selected={receiptFilter===id} key={id} onClick={()=>setReceiptFilter(id)}>{label} ({group.expenses.filter(e=>id==="all"||e.allocationComplete===false||e.paymentIncomplete).length})</button>)}</div>
+              <p className="muted">Nedodijeljeni dio privremeno ostaje na platiteljima. Saldo se osvježava čim članovi označe stavke.</p>
               {true &&
                 (() => {
-                  const expenses = group.expenses;
+                  const expenses = group.expenses.filter(e=>receiptFilter!=="pending"||e.allocationComplete===false||e.paymentIncomplete);
                   if (expenses.length === 0)
                     return <p className="muted">{t("noExpensesYet")}</p>;
                   return (
@@ -888,7 +638,7 @@ export const GroupPage = () => {
                       {expenses.map((expense) => {
                         const expanded = expandedExpenses.has(expense.id);
                         return (
-                          <div className="expenseCard" key={expense.id}>
+                          <div className="expenseCard" key={expense.id} style={expense.allocationComplete===false?{border:"2px solid #4681d8",backgroundColor:"rgba(70,129,216,.1)"}:undefined}>
                             <button
                               type="button"
                               className="expenseSummary"
@@ -904,6 +654,8 @@ export const GroupPage = () => {
                             >
                               <div className="expenseSummaryMain">
                                 <strong>{expense.note || t("expense")}</strong>
+                                {expense.allocationComplete===false&&<small>Čeka podjelu · {expense.unassignedCount}/{expense.items.length} stavki</small>}
+                                {expense.paymentIncomplete&&<small>Provjeri platitelje</small>}
                                 <small>
                                   {formatLocalDateTime(expense.createdAt)} ·{" "}
                                   {expense.items?.length ?? 0} {t("itemsCount")}
@@ -997,7 +749,7 @@ export const GroupPage = () => {
                                         </label>
                                         <div className="expenseDetailItemTop">
                                           <strong>
-                                            {item.ordinalNumber}. {item.name}
+                                            {item.ordinalNumber}. {item.name} · {item.quantity||1} × {(Number(item.price)/(item.quantity||1)).toFixed(2)} €
                                           </strong>
                                           <strong>
                                             {Number(item.price).toFixed(2)} €
