@@ -169,6 +169,75 @@ export const GroupAddExpensePage = () => {
     });
   };
 
+  const resizeImageForUpload = (
+  file: File,
+  maxWidth = 1600,
+  maxHeight = 1600,
+  quality = 0.85
+): Promise<File> => {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const objectUrl = URL.createObjectURL(file);
+
+    img.onload = () => {
+      URL.revokeObjectURL(objectUrl);
+
+      let { width, height } = img;
+
+      const scale = Math.min(
+        maxWidth / width,
+        maxHeight / height,
+        1
+      );
+
+      width = Math.round(width * scale);
+      height = Math.round(height * scale);
+
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+
+      const ctx = canvas.getContext("2d");
+
+      if (!ctx) {
+        reject(new Error("Could not create canvas context"));
+        return;
+      }
+
+      ctx.drawImage(img, 0, 0, width, height);
+
+      canvas.toBlob(
+        (blob) => {
+          if (!blob) {
+            reject(new Error("Could not convert image"));
+            return;
+          }
+
+          resolve(
+            new File(
+              [blob],
+              "bill.jpg",
+              {
+                type: "image/jpeg",
+                lastModified: Date.now()
+              }
+            )
+          );
+        },
+        "image/jpeg",
+        quality
+      );
+    };
+
+    img.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      reject(new Error("Could not load image"));
+    };
+
+    img.src = objectUrl;
+  });
+};
+
   const addDraftPayer = () => {
     if (!group || group.people.length === 0) return;
 
@@ -251,7 +320,15 @@ export const GroupAddExpensePage = () => {
     setBillParseRetryAvailable(false);
     setBillParseRetryUsed(false);
     try {
-      await parseBillImage(file, 1);
+      const resizedFile = await resizeImageForUpload(
+      file,
+      1600,
+      1600,
+      0.85
+    );
+
+    setBillImageFile(resizedFile);
+      await parseBillImage(resizedFile, 1);
     } finally {
       event.target.value = "";
     }
