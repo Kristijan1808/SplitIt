@@ -45,6 +45,11 @@
   font-size: 0.85rem;
 }
 
+.billImageActionButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
 @media (max-width: 720px) {
   .draftItemEditor, .draftPayerEditor, .draftItemRow { grid-template-columns: 1fr; align-items: stretch; }
   .draftItemEditor .iconButton, .draftPayerEditor .iconButton { justify-self: end; }

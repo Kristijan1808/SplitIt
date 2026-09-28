@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { ArrowLeft, Camera, ImagePlus, Plus, Trash2, Dices } from "lucide-react";
+import { ArrowLeft, Camera, ImagePlus, Plus, RefreshCw, Trash2, Dices } from "lucide-react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { api } from "../api";
 import { useLanguage } from "../i18n";
@@ -51,6 +51,9 @@ export const GroupAddExpensePage = () => {
   const [actionError, setActionError] = useState("");
   const [saving, setSaving] = useState(false);
   const [parsingBill, setParsingBill] = useState(false);
+  const [billImageFile, setBillImageFile] = useState<File | null>(null);
+  const [billParseRetryAvailable, setBillParseRetryAvailable] = useState(false);
+  const [billParseRetryUsed, setBillParseRetryUsed] = useState(false);
   const [randomSplitTarget, setRandomSplitTarget] = useState<"global" | string | null>(null);
 
   useEffect(() => {
@@ -202,19 +205,15 @@ export const GroupAddExpensePage = () => {
     );
   };
 
-  const handleBillAsImage = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-
-    if (!file) return;
-
+  const parseBillImage = async (file: File, attempt: number) => {
     try {
       setParsingBill(true);
       setActionError("");
 
-      const result = await api.parseBillImage(file);
+      const result = await api.parseBillImage(file, attempt);
 
       if (result.items.length === 0) {
-        setActionError("No bill items could be recognized from the image.");
+        setActionError(t("billNoItemsRecognized"));
         return;
       }
 
@@ -231,12 +230,36 @@ export const GroupAddExpensePage = () => {
       setActionError(
         error instanceof Error
           ? error.message
-          : "Unable to read the bill image."
+          : t("billParseFailed")
       );
     } finally {
       setParsingBill(false);
+      if (attempt === 1) {
+        setBillParseRetryAvailable(true);
+      } else {
+        setBillParseRetryAvailable(false);
+        setBillParseRetryUsed(true);
+      }
+    }
+  };
+
+  const handleBillAsImage = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setBillImageFile(file);
+    setBillParseRetryAvailable(false);
+    setBillParseRetryUsed(false);
+    try {
+      await parseBillImage(file, 1);
+    } finally {
       event.target.value = "";
     }
+  };
+
+  const handleRetryBillParse = () => {
+    if (!billImageFile || parsingBill || billParseRetryUsed) return;
+    void parseBillImage(billImageFile, 2);
   };
 
   const applyRandomSplit = (personIds: string[]) => {
@@ -440,7 +463,20 @@ export const GroupAddExpensePage = () => {
               <ImagePlus size={18} />
               {t("uploadBillImage")}
             </label>
+
+            {billParseRetryAvailable && !billParseRetryUsed && (
+              <button
+                type="button"
+                className="billImageActionButton"
+                onClick={handleRetryBillParse}
+                disabled={group.locked || parsingBill}
+              >
+                <RefreshCw size={18} />
+                {t("retryBillParse")}
+              </button>
+            )}
           </div>
+          {billParseRetryUsed && <p className="billImageHint">{t("billRetryGuidance")}</p>}
 
           <div>
             <div className="sectionHeaderWithButton sectionHeaderMargin">

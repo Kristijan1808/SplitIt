@@ -17,7 +17,8 @@ export class BillService {
 
       const items = await chatGptService.extractBillItems(
         req.file.buffer,
-        req.file.mimetype
+        req.file.mimetype,
+        Number(req.body?.attempt) === 2 ? 2 : 1
       );
 
       res.json({ items });

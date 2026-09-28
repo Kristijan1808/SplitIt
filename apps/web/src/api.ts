@@ -157,7 +157,7 @@ export const api = {
       `/groups/${slug}/${finalized ? "expenses" : "draft-expenses"}/${id}/items/${itemId}/mine`,
       { method: "PATCH", body: JSON.stringify({ selected }) },
     ),
-  parseBillImage: async (file: File): Promise<{ items: ParsedBillItem[] }> => {
+  parseBillImage: async (file: File, attempt = 1): Promise<{ items: ParsedBillItem[] }> => {
     startApiLoading();
 
     try {
@@ -165,6 +165,7 @@ export const api = {
       const guest = await guestToken();
       const formData = new FormData();
       formData.append("file", file);
+      formData.append("attempt", String(attempt));
 
       const response = await fetch(`${API_URL}/ai/parse-bill`, {
         method: "POST",

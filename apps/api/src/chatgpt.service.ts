@@ -15,9 +15,10 @@ export type ParsedBillItem = z.infer<typeof BillResponse>["items"][number];
 
 const SUPPORTED_IMAGE_TYPES = new Set([
   "image/jpeg",
+  "image/jpg",
   "image/png",
   "image/webp",
-  "image/gif"
+  "image/heic"
 ]);
 
 const MAX_IMAGE_SIZE_BYTES = 10 * 1024 * 1024;
@@ -43,7 +44,8 @@ export class ChatGptService {
 
   extractBillItems = async (
     image: Buffer,
-    mimeType: string
+    mimeType: string,
+    attempt = 1
   ): Promise<ParsedBillItem[]> => {
     if (!image.length) {
       throw new Error("The uploaded image is empty");
@@ -60,7 +62,7 @@ export class ChatGptService {
     }
 
     const imageDataUrl = `data:${mimeType};base64,${image.toString("base64")}`;
-    const model = process.env.OPENAI_BILL_MODEL ?? "gpt-5.5";
+    const model = attempt === 2 ? "gpt-5.5" : "gpt-5-mini";
 
     const response = await this.getClient().responses.parse({
       model,
