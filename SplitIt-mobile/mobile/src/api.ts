@@ -128,10 +128,13 @@ export type DraftBody = {
     shares: { personId: string; amount?: number }[];
   }[];
 };
+async function currencyRequest<T>(path:string,method:string,body:object):Promise<T>{
+ const health=await request<{features?:string[]}>("/health");
+ if(!health.features?.includes("expense-currency"))throw new Error("Prvo objavi API s podrškom za valute. / Deploy the currency API first.");
+ return request<T>(path,method,body);
+}
 export const api = {
-  createExpense:(slug:string,body:object)=>request<Expense>(`${base(slug)}/expenses`,"POST",body),
-  comments:(slug:string,id:string)=>request<{id:string;message:string;createdAt:string}[]>(`/groups/${slug}/workflow/comments/${id}`),
-  comment:(slug:string,id:string,message:string)=>request(`/groups/${slug}/workflow/comments/${id}`,"POST",{message}),
+  createExpense:(slug:string,body:object)=>currencyRequest<Expense>(`${base(slug)}/expenses`,"POST",body),
   release:(slug:string,id:string)=>request(`/groups/${slug}/workflow/people/${id}/release`,"POST"),
   role:(slug:string,id:string,role:string)=>request(`/groups/${slug}/workflow/people/${id}/role`,"PATCH",{role}),
   workflow: (slug:string) => request<Workflow>(`${base(slug)}/workflow`),
@@ -140,10 +143,8 @@ export const api = {
   removeDraft: (slug:string,id:string) => request(`${base(slug)}/workflow/drafts/${id}`,"DELETE"),
   transfer: (slug:string,body:object) => request(`${base(slug)}/workflow/transfers`,"POST",body),
   voidTransfer: (slug:string,id:string) => request(`${base(slug)}/workflow/transfers/${id}`,"DELETE"),
-  groupSettings: (slug:string,body:object) => request(`${base(slug)}/workflow/settings`,"PATCH",body),
+  groupSettings: (slug:string,body:object) => currencyRequest(`${base(slug)}/workflow/settings`,"PATCH",body),
   inactive: (slug:string,id:string,inactive:boolean) => request(`${base(slug)}/workflow/people/${id}`,"PATCH",{inactive}),
-  trash: (slug:string) => request<{id:string;note:string;totalAmount:number}[]>(`${base(slug)}/workflow/trash`),
-  restore: (slug:string,id:string) => request(`${base(slug)}/workflow/expenses/${id}/restore`,"POST"),
   rotateInvite: (slug:string,password:string) => request(`${base(slug)}/workflow/rotate-invite`,"POST",{password}),
   ownItem: (
     slug: string,
@@ -211,7 +212,7 @@ export const api = {
     slug: string,
     id: string,
     body: DraftBody & { expectedUpdatedAt: string },
-  ) => request<Expense>(`${base(slug)}/expenses/${id}`, "PATCH", body),
+  ) => currencyRequest<Expense>(`${base(slug)}/expenses/${id}`, "PATCH", body),
   deleteExpense: (slug: string, id: string) =>
     request(`${base(slug)}/expenses/${id}`, "DELETE"),
   parse: (uri: string) => {

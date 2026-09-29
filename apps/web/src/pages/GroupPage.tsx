@@ -433,7 +433,7 @@ export const GroupPage = () => {
           <p className="eyebrow">
             {t("code")}: {group.code}
           </p>
-          <h1>{group.name}</h1>
+          <h1>{group.name}</h1><p>{group.currency||"EUR"}</p>
 
           <div className="groupMetaRow">
             <p className="muted">{group.locked ? t("groupLocked") : ""}</p>
@@ -604,7 +604,7 @@ export const GroupPage = () => {
                 <div className="settlement" key={index}>
                   <span>{settlement.fromName}</span>
                   <strong>→ {settlement.toName}</strong>
-                  <em>{settlement.amount.toFixed(2)}</em>
+                  <em>{settlement.amount.toFixed(2)} {group?.currency||"EUR"}</em>
                 </div>
               ))}
             </div>
@@ -662,7 +662,7 @@ export const GroupPage = () => {
                                 </small>
                               </div>
                               <strong>
-                                {Number(expense.totalAmount || 0).toFixed(2)} €
+                                {Number(expense.totalAmount || 0).toFixed(2)} {group?.currency||"EUR"}
                               </strong>
                             </button>
 
@@ -683,7 +683,7 @@ export const GroupPage = () => {
                                             )?.name}
                                         </span>
                                         <strong>
-                                          {Number(payer.amount).toFixed(2)} €
+                                          {Number(payer.amount).toFixed(2)} {group?.currency||"EUR"}
                                         </strong>
                                       </div>
                                     ),
@@ -749,10 +749,10 @@ export const GroupPage = () => {
                                         </label>
                                         <div className="expenseDetailItemTop">
                                           <strong>
-                                            {item.ordinalNumber}. {item.name} · {item.quantity||1} × {(Number(item.price)/(item.quantity||1)).toFixed(2)} €
+                                            {item.ordinalNumber}. {item.name} · {item.quantity||1} × {(Number(item.price)/(item.quantity||1)).toFixed(2)} {group?.currency||"EUR"}
                                           </strong>
                                           <strong>
-                                            {Number(item.price).toFixed(2)} €
+                                            {Number(item.price).toFixed(2)} {group?.currency||"EUR"}
                                           </strong>
                                         </div>
                                         <div className="shareNames">
@@ -769,7 +769,7 @@ export const GroupPage = () => {
                                                           share.personId,
                                                       )?.name ??
                                                       share.personId;
-                                                    return `${name} (${Number(share.amount).toFixed(2)} €)`;
+                                                    return `${name} (${Number(share.amount).toFixed(2)} ${group?.currency||"EUR"})`;
                                                   },
                                                 )
                                                 .join(", ")}
@@ -790,7 +790,7 @@ export const GroupPage = () => {
                                             (p) => p.id === share.personId,
                                           )?.name ??
                                           share.personId;
-                                        return `${name} (${Number(share.amount).toFixed(2)} €)`;
+                                        return `${name} (${Number(share.amount).toFixed(2)} ${group?.currency||"EUR"})`;
                                       })
                                       .join(", ")}
                                   </div>
@@ -808,7 +808,7 @@ export const GroupPage = () => {
         </section>
       )}
 
-      <RandomSplitWheel
+      <RandomSplitWheel currency={group?.currency||"EUR"}
         open={randomSplitTarget !== null}
         title={
           randomSplitTarget?.itemId

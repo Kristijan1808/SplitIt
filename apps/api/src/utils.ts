@@ -129,6 +129,9 @@ export const serializeExpense = (expense: ExpenseWithDetails) => ({
   ...expenseAllocation(expense),
   billDate: expense.billDate,
   category: expense.category,
+  currency: expense.currency,
+  exchangeRate:Number(expense.exchangeRate),
+  originalTotal:expense.originalTotal===null?null:Number(expense.originalTotal),
   deletedAt: expense.deletedAt,
   id: expense.id,
   groupId: expense.groupId,
@@ -209,7 +212,7 @@ export const serializeGroup = (
           .map((payer) => serializePaymentFromPayer({ ...payer, expense })),
       ),
     })),
-    history: group.history,
+    history: group.history.filter(h => h.entity !== "COMMENT"),
     members: group.members.map((member) => ({
       id: member.id,
       groupId: member.groupId,

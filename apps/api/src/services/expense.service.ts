@@ -1,3 +1,4 @@
+import {prepareCurrencyExpense} from "./currency.service.js";
 import { canManageBill } from "./bill-permissions.js";
 import type { NextFunction, Request, Response } from "express";
 import { Prisma } from "@prisma/client";
@@ -120,9 +121,10 @@ export class ExpenseService {
             where: { groupId: group.id },
             select: { id: true },
           });
-          const prepared = prepareExpenseEdit(
+          const prepared = prepareCurrencyExpense(
             req.body,
             people.map((p) => p.id),
+            group.currency||"EUR",
           );
           if (
             existing.updatedAt.toISOString() !== prepared.body.expectedUpdatedAt
@@ -134,6 +136,7 @@ export class ExpenseService {
             data: {
               billDate:prepared.body.billDate?new Date(prepared.body.billDate):existing.billDate,
               category:prepared.body.category??existing.category,
+              currency:prepared.currency,exchangeRate:prepared.exchangeRate,originalTotal:prepared.originalTotal,
               note: prepared.body.note || null,
               totalAmount: prepared.totalAmount,
               updatedAt: new Date(),
@@ -169,7 +172,7 @@ export class ExpenseService {
               action: "UPDATE",
               entity: "EXPENSE",
               entityId: existing.id,
-              message: `${actor.name} updated "${result.note || "Račun"}" · €${prepared.totalAmount.toFixed(2)}`,
+              message: `${actor.name} updated "${result.note || "Račun"}" · ${prepared.totalAmount.toFixed(2)} ${group.currency||"EUR"}`,
               oldValue: auditValue(actor, existing),
               newValue: auditValue(actor, result),
             },
@@ -251,7 +254,7 @@ export class ExpenseService {
               action: "DELETE",
               entity: "EXPENSE",
               entityId: expense.id,
-              message: `${actor.name} deleted "${current.note || "Račun"}" · €${Number(current.totalAmount).toFixed(2)}`,
+              message: `${actor.name} deleted "${current.note || "Račun"}" · ${Number(current.totalAmount).toFixed(2)} ${group.currency||"EUR"}`,
               oldValue: auditValue(actor, current),
             },
           });

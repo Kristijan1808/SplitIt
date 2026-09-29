@@ -27,6 +27,7 @@ model User {
 }
 
 model Group {
+  currency String @default("EUR")
   id           String          @id @default(uuid())
   name         String
   slug         String          @unique
@@ -97,6 +98,9 @@ model Person {
 //
 
 model Expense {
+  currency String @default("EUR")
+  exchangeRate Decimal @default(1) @db.Decimal(18, 8)
+  originalTotal Decimal? @db.Decimal(12, 2)
   requestId String? @unique
   sourceDraftId String? @unique
   deletedAt DateTime?

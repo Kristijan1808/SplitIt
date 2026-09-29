@@ -6,12 +6,14 @@ import { Button, Chip, Txt, useUI, s } from "./ui";
 import { randomSelection, splitCents } from "./domain.mjs";
 import type { Person } from "./types";
 export function Wheel({
+  currency="EUR",
   people,
   amount,
   initial,
   onConfirm,
   onClose,
 }: {
+  currency?:string;
   people: Person[];
   amount: number;
   initial: string[];
@@ -83,7 +85,7 @@ export function Wheel({
             ))}
           </View>
           <Txt bold size={30} style={{ textAlign: "center" }}>
-            {amount.toFixed(2)} €
+            {amount.toFixed(2)} {currency}
           </Txt>
           <Animated.View
             style={{
@@ -126,7 +128,7 @@ export function Wheel({
               {result.map((id, i) => (
                 <View key={id} style={s.between}>
                   <Txt bold>{people.find((p) => p.id === id)?.name}</Txt>
-                  <Txt>{(shares[i] / 100).toFixed(2)} €</Txt>
+                  <Txt>{(shares[i] / 100).toFixed(2)} {currency}</Txt>
                 </View>
               ))}
               <Button

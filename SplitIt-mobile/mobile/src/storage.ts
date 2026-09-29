@@ -8,6 +8,7 @@ export type SavedGroup = Pick<Group, "slug" | "name" | "code"> & {
   pinned?: boolean;
   archived?: boolean;
   balance?: number;
+  currency?:string;
   draftCount?: number;
   avatar?: string;
   memberCount?: number;

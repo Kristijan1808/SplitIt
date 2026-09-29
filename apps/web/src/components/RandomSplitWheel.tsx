@@ -13,6 +13,7 @@ type SplitOption = {
 };
 
 type RandomSplitWheelProps = {
+  currency?:string;
   open: boolean;
   title?: string;
   amount: number;
@@ -49,7 +50,7 @@ const combinations = <T,>(items: T[], size: number): T[][] => {
   return result;
 };
 
-const formatAmount = (amount: number) => `${Math.max(0, amount).toFixed(2)} €`;
+
 
 const splitAmount = (amount: number, count: number) => {
   if (count <= 0) return [];
@@ -60,6 +61,7 @@ const splitAmount = (amount: number, count: number) => {
 };
 
 export function RandomSplitWheel({
+  currency="EUR",
   open,
   title,
   amount,
@@ -69,6 +71,7 @@ export function RandomSplitWheel({
   onClose
 }: RandomSplitWheelProps) {
   const { t } = useLanguage();
+  const formatAmount=(amount:number)=>`${Math.max(0,amount).toFixed(2)} ${currency}`;
   const [spinning, setSpinning] = useState(false);
   const [result, setResult] = useState<SplitOption | null>(null);
   const [rotation, setRotation] = useState(0);

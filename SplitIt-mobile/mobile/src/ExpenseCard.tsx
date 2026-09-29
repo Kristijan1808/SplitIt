@@ -1,3 +1,4 @@
+import {categoryIcon} from "./catalog";
 import React from "react";
 import { Pressable, View } from "react-native";
 import { Icon, Txt, useUI, s } from "./ui";
@@ -6,6 +7,7 @@ import type { Expense, Person } from "./types";
 export function ExpenseCard({
   expense: e,
   people,
+  currency="EUR",
   personId,
   expanded,
   onPress,
@@ -13,6 +15,7 @@ export function ExpenseCard({
 }: React.PropsWithChildren<{
   expense: Expense;
   people: Person[];
+  currency?:string;
   personId?: string;
   expanded: boolean;
   onPress: () => void;
@@ -42,11 +45,11 @@ export function ExpenseCard({
   const color = net && net.net < 0 ? c.debt : c.accent;
   const date = new Date(e.billDate||e.createdAt);
   return (
-    <View style={{ borderBottomWidth: 1, borderColor: pending?c.info:c.line,backgroundColor:pending?c.infoTint:undefined,borderRadius:pending?12:0,paddingHorizontal:pending?6:0 }}>
+    <View style={{ borderBottomWidth: 1, borderColor: c.line,backgroundColor:pending?c.dangerTint:undefined,borderRadius:0,paddingHorizontal:0 }}>
       <Pressable
         accessibilityRole="button"
         accessibilityState={{ expanded, disabled: busy }}
-        accessibilityLabel={`${e.note || t("Račun", "Bill")}, ${Number(e.totalAmount).toFixed(2)} €`}
+        accessibilityLabel={`${e.note || t("Račun", "Bill")}, ${Number(e.totalAmount).toFixed(2)} ${currency}`}
         disabled={busy}
         onPress={onPress}
         style={{
@@ -75,17 +78,18 @@ export function ExpenseCard({
             justifyContent: "center",
           }}
         >
-          <Icon name="receipt" color={c.accent} />
+          <Icon name={categoryIcon(e.category)} color={c.accent} />
         </View>
         <View style={{ flex: 1, gap: 4 }}>
           <Txt bold size={15}>
             {e.note || t("Zajednički račun", "Shared bill")}
           </Txt>
-          {pending&&<Txt bold size={11} style={{color:c.info}}>{t("Čeka podjelu", "Awaiting split")} · {e.unassignedCount}/{e.items.length}</Txt>}
+          {e.currency&&e.currency!==currency&&<Txt muted size={11}>{Number(e.originalTotal).toFixed(2)} {e.currency} · 1 {e.currency} = {e.exchangeRate} {currency}</Txt>}
+          {pending&&<Txt bold size={11} style={{color:c.danger}}>{t("Čeka podjelu", "Awaiting split")} · {e.unassignedCount}/{e.items.length}</Txt>}
           {e.paymentIncomplete&&<Txt bold size={11} style={{color:c.danger}}>{t("Provjeri platitelje", "Check payers")}</Txt>}
           <Txt muted size={11}>
             {names} · {t("plaćeno", "paid")} {Number(e.totalAmount).toFixed(2)}{" "}
-            €
+            {currency}
           </Txt>
         </View>
         <View style={{ width: 86, alignItems: "flex-end", gap: 4 }}>
@@ -94,7 +98,7 @@ export function ExpenseCard({
           </Txt>
           {net && net.net !== 0 && (
             <Txt bold size={15} style={{ color }}>
-              {(Math.abs(net.net) / 100).toFixed(2)} €
+              {(Math.abs(net.net) / 100).toFixed(2)} {currency}
             </Txt>
           )}
           <Txt muted size={10}>

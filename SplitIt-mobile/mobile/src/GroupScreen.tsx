@@ -1,4 +1,5 @@
-import {Comments,IdentityPanel,TransferPanel,GroupUtilities,ask} from "./WorkflowPanels";
+import {categories} from "./catalog";
+import {IdentityPanel,TransferPanel,GroupUtilities,ask} from "./WorkflowPanels";
 import {AppState} from "react-native";
 import { ItemCheck } from "./ItemCheck";
 import React, { useState, useEffect } from "react";
@@ -46,7 +47,6 @@ export function GroupScreen({
   choose,
   onAdd,
   onEdit,
-  onDuplicate,
 }: {
   data: Snapshot;
   tab: string;
@@ -57,7 +57,6 @@ export function GroupScreen({
   choose: (id: string) => Promise<void>;
   onAdd: (camera?: boolean) => void;
   onEdit: (expense: Expense) => void;
-  onDuplicate: (expense: Expense) => void;
 }) {
   const { c, t, busy } = useUI();
   const { group: rawGroup, drafts, settlements, history, workflow } = data;
@@ -89,7 +88,7 @@ export function GroupScreen({
   const balance = settlements.balances.find((p) => p.id === participantId);
   const total = g.expenses.reduce((a, e) => a + Number(e.totalAmount), 0);
   const person = (id: string) => g.people.find((p) => p.id === id)?.name ?? id;
-  const money = (n: number | string) => `${Number(n).toFixed(2)} €`;
+  const money = (n: number | string) => `${Number(n).toFixed(2)} ${g.currency||"EUR"}`;
   const date = (value: string) =>
     new Date(value).toLocaleString(t("hr-HR", "en-GB"));
   const act = (f: () => Promise<unknown>) =>
@@ -98,7 +97,7 @@ export function GroupScreen({
       await refresh();
     });
   function confirmDelete(title: string, fn: () => Promise<unknown>) {
-    ask(title, t("Račun se može vratiti iz Mojih obrisanih računa.", "Bills can be restored from My deleted bills."), () => void act(fn));
+    ask(title, t("Račun će biti uklonjen iz grupe i izračuna dugovanja.", "The bill will be removed from the group and balance calculations."), () => void act(fn));
 
   }
   async function share() {
@@ -205,7 +204,7 @@ export function GroupScreen({
                 <Txt muted size={13}>
                   {t("Ukupni troškovi grupe", "Total group expenses")}
                 </Txt>
-                <Txt size={22} bold>
+                <Txt size={26} bold>
                   {money(total)}
                 </Txt>
               </View>
@@ -218,7 +217,7 @@ export function GroupScreen({
                 {me && (
                   <Txt
                     bold
-                    size={28}
+                    size={20}
                     style={{
                       color: (balance?.balance ?? 0) < 0 ? c.debt : c.accent,
                     }}
@@ -282,10 +281,10 @@ export function GroupScreen({
             <View accessibilityRole="tablist" style={s.row}>{[["all",`${t("Računi","Bills")} (${g.expenses.length})`],["pending",`${t("Čekaju podjelu","Awaiting split")} (${pending.length})`]].map(([id,label])=><Pressable key={id} accessibilityRole="tab" accessibilityState={{selected:receiptFilter===id}} onPress={()=>setReceiptFilter(id)} style={{flex:1,minHeight:46,padding:8,borderBottomWidth:2,borderColor:receiptFilter===id?c.info:c.line}}><Txt bold style={{color:receiptFilter===id?c.info:c.muted}}>{label}</Txt></Pressable>)}</View>
             {!!pending.length&&<Txt muted size={12}>{t("Saldo je privremen: nedodijeljene stavke ostaju na platiteljima dok ih članovi ne označe.","Balances are provisional: unclaimed items remain with payers until members select them.")}</Txt>}
             <Button secondary label={t("Pretraži i filtriraj račune", "Search and filter bills")} onPress={()=>setShowFilters(!showFilters)}/>
-            {showFilters&&<Card><Field label={t("Pretraži račune ili platitelje", "Search bills or payers")} value={search} onChange={value=>{setSearch(value);setLimit(30)}}/><View style={s.wrap}><Chip label={t("Svi računi", "All bills")} selected={filter==="all"} onPress={()=>setFilter("all")}/><Chip label={t("Moji računi", "My bills")} selected={filter==="mine"} onPress={()=>setFilter("mine")}/></View><Field label={t("Mjesec (GGGG-MM)", "Month (YYYY-MM)")} value={month} onChange={setMonth} maxLength={7}/><View style={s.wrap}>{[["all",t("Sve", "All")],["food",t("Hrana", "Food")],["travel",t("Putovanje", "Travel")],["home",t("Dom", "Home")],["fun",t("Zabava", "Fun")],["other",t("Ostalo", "Other")]].map(([id,label])=><Chip key={id} selected={category===id} label={label} onPress={()=>setCategory(id)}/>)}</View><Button secondary label={t("Poništi filtre", "Clear filters")} onPress={()=>{setSearch("");setMonth("");setCategory("all");setFilter("all")}}/></Card>}
+            {showFilters&&<Card><Field label={t("Pretraži račune ili platitelje", "Search bills or payers")} value={search} onChange={value=>{setSearch(value);setLimit(30)}}/><View style={s.wrap}><Chip label={t("Svi računi", "All bills")} selected={filter==="all"} onPress={()=>setFilter("all")}/><Chip label={t("Moji računi", "My bills")} selected={filter==="mine"} onPress={()=>setFilter("mine")}/></View><Field label={t("Mjesec (GGGG-MM)", "Month (YYYY-MM)")} value={month} onChange={setMonth} maxLength={7}/><View style={s.wrap}>{[["all",t("Sve","All")],...categories.map(x=>[x.id,t(x.hr,x.en)])].map(([id,label])=><Chip key={id} selected={category===id} label={label} onPress={()=>setCategory(id)}/>)}</View><Button secondary label={t("Poništi filtre", "Clear filters")} onPress={()=>{setSearch("");setMonth("");setCategory("all");setFilter("all")}}/></Card>}
             {!visibleExpenses.length&&!!g.expenses.length&&<Txt muted>{t("Nema računa za odabrane filtre.", "No bills match these filters.")}</Txt>}
             {visibleExpenses.slice(0,limit).map((e) => (
-              <ExpenseCard
+              <ExpenseCard currency={g.currency||"EUR"}
                 key={e.id}
                 expense={e}
                 people={g.people}
@@ -325,8 +324,8 @@ export function GroupScreen({
                   .sort((a, b) => a.ordinalNumber - b.ordinalNumber)
                   .map((item) => (
                     <View key={item.id} style={{ gap: 4 }}>
-                      <ItemCheck
-                        name={`${item.name} · ${item.quantity||1} × ${(Number(item.price)/(item.quantity||1)).toFixed(2)} €`}
+                      <ItemCheck currency={g.currency||"EUR"}
+                        name={`${item.name} · ${item.quantity||1} × ${(Number(item.price)/(item.quantity||1)).toFixed(2)} ${g.currency||"EUR"}`}
                         price={Number(item.price)}
                         checked={
                           !!me && item.shares.some((x) => x.personId === me.id)
@@ -385,8 +384,6 @@ export function GroupScreen({
                     </View>
                   </View>
                 )}
-                <Comments slug={g.slug} expenseId={e.id} disabled={g.locked||!participantId} run={run}/>
-                <Button secondary label={t("Dupliciraj račun", "Duplicate bill")} disabled={g.locked} onPress={()=>onDuplicate(e)} />
               </ExpenseCard>
             ))}
             {visibleExpenses.length>limit&&<Button secondary label={t("Prikaži više računa", "Show more bills")} onPress={()=>setLimit(n=>n+30)}/>}
@@ -400,10 +397,10 @@ export function GroupScreen({
             </View>
             {!me ? <Button secondary label={t("Odaberi tko si", "Choose who you are")} onPress={() => setTab("people")} /> : <>
               {!outgoing.length && !incoming.length && <Txt muted>{t("Sve je podmireno. Nemaš dugovanja ni potraživanja.", "All settled. You neither owe nor are owed anything.")}</Txt>}
-              {outgoing.map((x, i) => <View key={`out${i}`} style={[s.between, { padding: 10, borderRadius: 12, backgroundColor: c.debtTint }]}>
+              {outgoing.map((x, i) => <View key={`out${i}`} style={[s.between, { paddingVertical: 10, borderTopWidth:1, borderColor:c.line }]}>
                 <View style={{ flex: 1 }}><Txt muted size={12}>{t("Duguješ", "You owe")}</Txt><Txt bold>{x.toName}</Txt></View><Txt bold style={{ color: c.debt }}>{money(x.amount)}</Txt>
               </View>)}
-              {incoming.map((x, i) => <View key={`in${i}`} style={[s.between, { padding: 10, borderRadius: 12, backgroundColor: c.tint }]}>
+              {incoming.map((x, i) => <View key={`in${i}`} style={[s.between, { paddingVertical: 10, borderTopWidth:1, borderColor:c.line }]}>
                 <View style={{ flex: 1 }}><Txt muted size={12}>{t("Duguje ti", "Owes you")}</Txt><Txt bold>{x.fromName}</Txt></View><Txt bold style={{ color: c.accent }}>{money(x.amount)}</Txt>
               </View>)}
               <TransferPanel group={g} workflow={workflow} personId={participantId} run={run} refresh={refresh} settlements={settlements}/>
@@ -682,19 +679,22 @@ export function GroupScreen({
             position: "absolute",
             right: 12,
             bottom: 12,
-            width: 214,
+            width: 188,
+            maxWidth: "70%",
             alignItems: "stretch",
             gap: 8,
           }}
         >
           <Button
             secondary
+            compact
             icon="camera"
             label={t("Fotografiraj račun", "Photograph receipt")}
             disabled={g.locked || !g.people.length}
             onPress={() => onAdd(true)}
           />
           <Button
+            compact
             icon="plus"
             label={t("Dodaj trošak", "Add expense")}
             disabled={g.locked || !g.people.length}

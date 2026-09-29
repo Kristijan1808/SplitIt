@@ -1,3 +1,4 @@
+import {currencySchema} from "./currency.service.js";
 import type {Request, RequestHandler} from "express";
 import {Router} from "express";
 import {Prisma} from "@prisma/client";
@@ -67,8 +68,15 @@ workflowRouter.patch("/people/:id",adminGate,wrap(async(req,res)=>{
  res.json({ok:true});
 }));
 workflowRouter.patch("/settings",adminGate,wrap(async(req,res)=>{
- const body=z.object({archived:z.boolean().optional(),avatar:z.enum(["👥","🏠","🍽️","✈️","🎉","🏖️","🚗","💼"]).optional()}).strict().parse(req.body);
- await prisma.group.update({where:{id:res.locals.group.id},data:body});
+ const body=z.object({currency:currencySchema.optional(),archived:z.boolean().optional(),avatar:z.enum(["👥","🏠","🍽️","✈️","🎉","🏖️","🚗","💼"]).optional()}).strict().parse(req.body);
+ await prisma.$transaction(async tx=>{
+ const live=await tx.group.findUniqueOrThrow({where:{id:res.locals.group.id}});
+ if(body.currency&&body.currency!==live.currency){
+ const count=await tx.expense.count({where:{groupId:live.id}});const transfers=await tx.settlementTransfer.count({where:{groupId:live.id}});
+ if(count||transfers)throw failure("Glavna valuta može se promijeniti prije prvog računa ili uplate. Postojeći iznosi ne smiju samo promijeniti oznaku.");
+ }
+ await tx.group.update({where:{id:live.id},data:body});
+ },{isolationLevel:"Serializable"});
  await prisma.history.create({data:{groupId:res.locals.group.id,action:"UPDATE",entity:"GROUP",message:"Promijenjene su postavke grupe.",newValue:JSON.stringify(body)}});res.json({ok:true});
 }));
 workflowRouter.post("/rotate-invite",adminGate,wrap(async(req,res)=>{
@@ -112,26 +120,6 @@ workflowRouter.delete("/transfers/:id",wrap(async(req,res)=>{
  if(!row)throw failure("Uplata nije pronađena.",404);if(!canManageBill(row,req))throw failure("Samo autor može poništiti ovaj zapis.",403);
  if(row.voidedAt)return res.json({ok:true});
  await prisma.$transaction(async tx=>{await tx.settlementTransfer.update({where:{id:row.id},data:{voidedAt:new Date()}});await tx.history.create({data:{groupId:row.groupId,entity:"TRANSFER",entityId:row.id,action:"VOID",message:"Poništen je zapis uplate.",oldValue:JSON.stringify({amount:Number(row.amount)})}})});res.json({ok:true});
-}));
-workflowRouter.post("/expenses/:id/restore",wrap(async(req,res)=>{
- await editable(req,res.locals.group);const e=await prisma.expense.findFirst({where:{id:req.params.id as string,groupId:res.locals.group.id}});
- if(!e||!e.deletedAt)throw failure("Obrisani račun nije pronađen.",404);if(!canManageBill(e,req))throw failure("Samo autor može vratiti račun.",403);
- await prisma.$transaction(async tx=>{await tx.expense.update({where:{id:e.id},data:{deletedAt:null}});await tx.history.create({data:{groupId:e.groupId,entity:"EXPENSE",entityId:e.id,action:"RESTORE",message:`Vraćen račun: ${e.note||'Račun'}`}})});res.json({ok:true});
-}));
-workflowRouter.get("/trash",wrap(async(req,res)=>res.json(await prisma.expense.findMany({where:{groupId:res.locals.group.id,deletedAt:{not:null},creatorKey:{in:billKeys(req)}},orderBy:{deletedAt:'desc'},select:{id:true,note:true,totalAmount:true,deletedAt:true}}))));
-
-workflowRouter.get("/comments/:expenseId",wrap(async(req,res)=>{
- const expense=await prisma.expense.findFirst({where:{id:req.params.expenseId as string,groupId:res.locals.group.id,deletedAt:null}});
- if(!expense)throw failure("Račun nije pronađen.",404);
- const rows=await prisma.history.findMany({where:{groupId:expense.groupId,entity:"COMMENT",entityId:expense.id},orderBy:{createdAt:"asc"},take:200});
- res.json(rows.map(x=>({id:x.id,message:x.message,createdAt:x.createdAt})));
-}));
-workflowRouter.post("/comments/:expenseId",wrap(async(req,res)=>{
- await editable(req,res.locals.group);const me=await actorPerson(req,res.locals.group.id);
- const b=z.object({message:z.string().trim().min(1).max(500)}).strict().parse(req.body);
- const expense=await prisma.expense.findFirst({where:{id:req.params.expenseId as string,groupId:res.locals.group.id,deletedAt:null}});
- if(!expense)throw failure("Račun nije pronađen.",404);
- await prisma.history.create({data:{groupId:expense.groupId,entity:"COMMENT",entityId:expense.id,action:"CREATE",message:`${me.name}: ${b.message}`}});res.status(201).json({ok:true});
 }));
 workflowRouter.post("/people/:id/release",adminGate,wrap(async(req,res)=>{
  const p=await prisma.person.findFirst({where:{id:req.params.id as string,groupId:res.locals.group.id}});

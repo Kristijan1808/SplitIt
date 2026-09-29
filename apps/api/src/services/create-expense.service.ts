@@ -1,3 +1,4 @@
+import {prepareCurrencyExpense} from "./currency.service.js";
 import type {RequestHandler} from "express";
 import {Prisma} from "@prisma/client";
 import {z} from "zod";
@@ -21,11 +22,11 @@ export const createExpense:RequestHandler=async(req,res,next)=>{
    const live=await tx.group.findUniqueOrThrow({where:{id:group.id}});
    if(live.locked||live.archived)throw Object.assign(new Error("Grupa je zaključana ili arhivirana."),{status:423});
    const people=await tx.person.findMany({where:{groupId:group.id,inactive:false},select:{id:true}});
-   const prepared=prepareExpenseEdit({...req.body,expectedUpdatedAt:new Date().toISOString()},people.map(p=>p.id));
-   const e=await tx.expense.create({data:{groupId:group.id,creatorKey:owner,requestId,note:prepared.body.note||null,totalAmount:prepared.totalAmount,
+   const prepared=prepareCurrencyExpense({...req.body,expectedUpdatedAt:new Date().toISOString()},people.map(p=>p.id),live.currency||"EUR");
+   const e=await tx.expense.create({data:{groupId:group.id,currency:prepared.currency,exchangeRate:prepared.exchangeRate,originalTotal:prepared.originalTotal,creatorKey:owner,requestId,note:prepared.body.note||null,totalAmount:prepared.totalAmount,
     billDate:prepared.body.billDate?new Date(prepared.body.billDate):new Date(),category:prepared.body.category||"other",
     payers:{create:prepared.body.payers},items:{create:prepared.items.map(i=>({...i,shares:{create:i.shares}}))},shares:{create:prepared.shares}},include:expenseDetailsInclude});
-   await tx.history.create({data:{groupId:group.id,entity:"EXPENSE",entityId:e.id,action:"CREATE",message:`${actor.name}: ${e.note||"Račun"} · ${prepared.totalAmount.toFixed(2)} €`,newValue:auditValue(actor,e)}});return e;
+   await tx.history.create({data:{groupId:group.id,entity:"EXPENSE",entityId:e.id,action:"CREATE",message:`${actor.name}: ${e.note||"Račun"} · ${prepared.totalAmount.toFixed(2)} ${live.currency||"EUR"}`,newValue:auditValue(actor,e)}});return e;
   },{isolationLevel:Prisma.TransactionIsolationLevel.Serializable});
   res.status(201).json(serializeExpense(expense));
  }catch(error){

@@ -145,11 +145,6 @@ export function draftReadiness(draft) {
 export const requestKey = () => "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, c => {
  const n = Math.floor(Math.random() * 16); return (c === 'x' ? n : (n & 3) | 8).toString(16);
 });
-export function exportCSV(group) {
- const cell=value=>'"'+String(value??'').replace(/"/g,'""').replace(/^[=+@-]/,"'")+'"';
- return '\uFEFF'+[['Datum','Račun','Ukupno EUR','Platitelji'],...group.expenses.map(e=>[(e.billDate||e.createdAt).slice(0,10),e.note||'Račun',Number(e.totalAmount).toFixed(2),e.payers.map(p=>(group.people.find(x=>x.id===p.personId)?.name||'?')+': '+Number(p.amount).toFixed(2)).join('; ')])].map(row=>row.map(cell).join(',')).join('\r\n');
-}
-
 export function allocateWeighted(total,weights) {
  if(!Number.isSafeInteger(total)||total<0||!weights.length||weights.some(w=>!Number.isFinite(w)||w<0)||weights.reduce((a,b)=>a+b,0)<=0)throw new Error('Provjeri omjere podjele.');
  const sum=weights.reduce((a,b)=>a+b,0),raw=weights.map(w=>total*w/sum),out=raw.map(Math.floor);

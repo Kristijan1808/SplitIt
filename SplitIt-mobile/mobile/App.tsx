@@ -63,7 +63,6 @@ function Main() {
   const [screen, setScreen] = useState<Screen>("home");
   const [groupSearch,setGroupSearch]=useState("");
   const [showArchived,setShowArchived]=useState(false);
-  const [duplicate,setDuplicate]=useState<Expense|undefined>();
   const [groups, setGroups] = useState<SavedGroup[]>([]);
   const [auth, setAuth] = useState<AuthResponse | null>(null);
   const [data, setData] = useState<Snapshot | null>(null);
@@ -127,7 +126,7 @@ function Main() {
     const snapshot={group,drafts,settlements,history,workflow};
     await storage.write(`snapshot.${auth?.user.id||"guest"}.${slug}`,snapshot);
     const mine=workflow.people.find(p=>p.mine&&!p.inactive);
-    await persistGroups(groupsRef.current.map(x=>x.slug===slug?{...x,participantId:mine?.id,participantName:mine?.name,balance:settlements.balances.find(p=>p.id===mine?.id)?.balance,draftCount:group.expenses.filter(e=>e.allocationComplete===false||e.paymentIncomplete).length}:x));
+    await persistGroups(groupsRef.current.map(x=>x.slug===slug?{...x,participantId:mine?.id,participantName:mine?.name,currency:group.currency||"EUR",balance:settlements.balances.find(p=>p.id===mine?.id)?.balance,draftCount:group.expenses.filter(e=>e.allocationComplete===false||e.paymentIncomplete).length}:x));
     setParticipant(mine?.id);
     setData(snapshot);
     } catch(error) {
@@ -150,7 +149,7 @@ function Main() {
   function back() {
     if (gate.current) return;
     if (screen === "expense") {
-      ask(t("Napustiti unos?", "Leave editor?"),t("Novi unos čuva se na uređaju. Izmjene postojećeg računa nisu spremljene.","New entries are kept locally. Existing bill edits are not saved."),()=>{nav("group");void run(refresh)});
+      ask(t("Napustiti unos?", "Leave editor?"),t("Nespremljeni unos bit će izgubljen.","Unsaved changes will be lost."),()=>{nav("group");void run(refresh)});
     } else nav("groups");
   }
   useEffect(() => {
@@ -234,6 +233,7 @@ function Main() {
   const groupList = (limit?: number) =>
     (limit ? groups.filter(g=>!g.archived).slice(0,limit) : groups.filter(g=>!!g.archived===showArchived && g.name.toLowerCase().includes(groupSearch.toLowerCase())).sort((a,b)=>Number(!!b.pinned)-Number(!!a.pinned))).map((g, i) => (
       <Card key={g.slug}>
+        <Pressable accessibilityRole="button" accessibilityLabel={`${t("Otvori grupu","Open group")} ${g.name}`} disabled={busy} onPress={()=>void run(async()=>{await load(g.slug);setTab("overview");nav("group")})} style={{gap:10,minHeight:72}}>
         <View style={s.row}>
           <View
             style={{
@@ -257,19 +257,9 @@ function Main() {
             </Txt>
           </View>
         </View>
-        <View style={s.between}><Txt muted size={12}>{g.memberCount??"—"} {t("članova", "members")} · {g.draftCount??0} {t("čeka podjelu", "awaiting split")}</Txt><Txt bold style={{color:(g.balance??0)<0?c.debt:c.accent}}>{g.balance===undefined?"—":`${g.balance>0?"+":""}${g.balance.toFixed(2)} €`}</Txt></View>
+        <View style={s.between}><Txt muted size={12}>{g.memberCount??"—"} {t("članova", "members")} · {g.draftCount??0} {t("čeka podjelu", "awaiting split")}</Txt><Txt bold style={{color:(g.balance??0)<0?c.debt:c.accent}}>{g.balance===undefined?"—":`${g.balance>0?"+":""}${g.balance.toFixed(2)} ${g.currency||"EUR"}`}</Txt></View>
+        </Pressable>
         {!limit&&<Button secondary label={g.pinned?t("Makni iz omiljenih", "Unpin"):t("Prikvači grupu", "Pin group")} onPress={()=>void run(()=>persistGroups(groupsRef.current.map(x=>x.slug===g.slug?{...x,pinned:!x.pinned}:x)))}/>}
-        <Button
-          secondary
-          label={t("Otvori grupu", "Open group")}
-          onPress={() =>
-            void run(async () => {
-              await load(g.slug);
-              setTab("overview");
-              nav("group");
-            })
-          }
-        />
         {!limit && (
           <Pressable
             accessibilityRole="button"
@@ -641,16 +631,13 @@ function Main() {
                     );
                     await refresh();
                   }}
-                  onDuplicate={expense=>{setDuplicate(expense);setEditingExpense(undefined);setStartCamera(false);setEditorKey(k=>k+1);nav("expense")}}
                   onAdd={(camera = false) => {
-                    setDuplicate(undefined);
                     setEditingExpense(undefined);
                     setStartCamera(camera);
                     setEditorKey((k) => k + 1);
                     nav("expense");
                   }}
                   onEdit={(expense) => {
-                    setDuplicate(undefined);
                     setEditingExpense(expense);
                     setStartCamera(false);
                     setEditorKey((k) => k + 1);
@@ -662,7 +649,6 @@ function Main() {
                 <ExpenseEditor
                   key={editorKey}
                   expense={editingExpense}
-                  template={duplicate}
                   participantId={current?.participantId}
                   startCamera={startCamera}
                   group={{...data.group,people:editingExpense?data.group.people:data.group.people.filter(p=>!p.inactive),locked:data.group.locked||!!data.group.archived||!!data.offline}}

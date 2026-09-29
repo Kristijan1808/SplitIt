@@ -103,6 +103,9 @@ export type ExpenseShare = {
 };
 
 export type Expense = {
+  currency?:string;
+  exchangeRate?:number;
+  originalTotal?:number|null;
   allocationComplete?:boolean;
   unassignedCount?:number;
   unassignedAmount?:number;
@@ -181,6 +184,7 @@ export type HistoryItem = {
 };
 
 export type Group = {
+  currency?: string;
   id: string;
   name: string;
   slug: string;

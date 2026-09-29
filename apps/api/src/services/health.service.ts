@@ -9,8 +9,8 @@ export class HealthService {
     res.json({
       ok: true,
       app: "SplitIt API",
-      version: "1.2.0",
-      features: ["direct-expenses", "item-quantity", "bound-identities", "repayments", "restore-expense"]
+      version: "1.3.0",
+      features: ["expense-currency", "direct-expenses", "item-quantity", "bound-identities", "repayments"]
     });
   };
 

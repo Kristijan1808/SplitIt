@@ -1,11 +1,11 @@
-import {storage} from "./storage";
+import {currencies,categories,categoryIcon,currencySymbol} from "./catalog";
 import {requestKey,customAllocation} from "./domain.mjs";
 import React, { useState, useEffect, useRef } from "react";
-import { Alert, View, Pressable } from "react-native";
+import { Alert, View, Pressable, TextInput, Modal, ScrollView } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import * as ImageManipulator from "expo-image-manipulator";
 import { api } from "./api";
-import { Button, Card, Chip, Field, Heading, Page, Txt, useUI, s } from "./ui";
+import { Button, Card, Chip, Icon, Field, Heading, Page, Txt, useUI, s } from "./ui";
 import { Wheel } from "./Wheel";
 import { cents, validateBill, prepareBillItems, splitCents } from "./domain.mjs";
 import type { Group, Expense } from "./types";
@@ -24,24 +24,25 @@ export function ExpenseEditor({
   run,
   done,
   expense,
-  template,
   participantId,
   startCamera = false,
 }: {
   group: Group;
   expense?: Expense;
-  template?: Expense;
   participantId?: string;
   startCamera?: boolean;
   run: (f: () => Promise<void>) => Promise<boolean>;
   done: (draft?: boolean) => Promise<void>;
 }) {
-  const source=expense??template;
+  const source=expense;
   const { t, c, busy: useBusy } = useUI();
   const [mode, setMode] = useState<"equal" | "items">(source || startCamera ? "items" : "equal");
   const [splitMode,setSplitMode]=useState("equal");
   const [splitValues,setSplitValues]=useState<Record<string,string>>({});
-  const [showDetails,setShowDetails]=useState(false);
+  const [picker,setPicker]=useState<"category"|"currency"|null>(null);
+  const baseCurrency=group.currency||"EUR";
+  const [currency,setCurrency]=useState(baseCurrency);
+  const [exchangeRate,setExchangeRate]=useState("");
   const [equalAmount, setEqualAmount] = useState("");
   const [equalIds, setEqualIds] = useState(group.people.map(p => p.id));
   const [assignNow, setAssignNow] = useState(!!source);
@@ -85,15 +86,8 @@ export function ExpenseEditor({
   const [billDate,setBillDate]=useState((expense?.billDate||new Date().toISOString()).slice(0,10));
   const [category,setCategory]=useState(source?.category||"other");
   const [requestId,setRequestId]=useState(requestKey);
-  const submitted=useRef(false);
-  const [recovery,setRecovery]=useState<any>(null);
-  const [recoveryChecked,setRecoveryChecked]=useState(false);
-  const storageKey=`entry.${group.id}`;
-  useEffect(()=>{if(expense||template||startCamera){setRecoveryChecked(true);return;}storage.read<any>(storageKey,null).then(value=>{setRecovery(value);setRecoveryChecked(true)}).catch(()=>setRecoveryChecked(true));},[]);
-  const snapshot={splitMode,splitValues,note,items,payers,multiplePayers,singlePayer,mode,equalAmount,equalIds,assignNow,billDate,category,requestId};
-  const saveLocal=useRef(Promise.resolve());
-  useEffect(()=>{if(expense||!recoveryChecked||recovery||submitted.current)return;const timer=setTimeout(()=>{if(!submitted.current)saveLocal.current=storage.write(storageKey,snapshot).catch(()=>{})},400);return()=>clearTimeout(timer)},[splitMode,splitValues,note,items,payers,multiplePayers,singlePayer,mode,equalAmount,equalIds,assignNow,billDate,category,requestId,recovery,recoveryChecked]);
-  const restoreLocal=()=>{const x=recovery;setSplitMode(x.splitMode||"equal");setSplitValues(x.splitValues||{});setNote(x.note||"");setItems(x.items||items);setPayers(x.payers||[]);setMultiplePayers(!!x.multiplePayers);setSinglePayer(x.singlePayer||"");setMode(x.mode||"equal");setEqualAmount(x.equalAmount||"");setEqualIds((x.equalIds||[]).filter((id:string)=>group.people.some(p=>p.id===id)));setAssignNow(!!x.assignNow);setBillDate(x.billDate||billDate);setCategory(x.category||"other");setRequestId(x.requestId||requestKey());setRecovery(null)};
+  const [showSplit,setShowSplit]=useState(false);
+  const [showPayers,setShowPayers]=useState(false);
   const [advanced, setAdvanced] = useState(false);
   const autoScan = useRef(false);
   useEffect(() => {
@@ -203,17 +197,18 @@ export function ExpenseEditor({
       const checked=validateBill(effectiveItems,actualPayers,false);
       if(checked.total<=0||checked.total!==checked.paid)throw new Error(t("Zbroj uplata mora odgovarati računu.","Payments must match the total."));
       if(mode==="equal"&&!equalIds.length)throw new Error(t("Odaberi barem jednu osobu.","Select at least one person."));
+      if(currency!==baseCurrency&&(!Number.isFinite(Number(exchangeRate.replace(",",".")))||Number(exchangeRate.replace(",","."))<=0))throw new Error(t("Upiši valjan tečaj.","Enter a valid exchange rate."));
       const parsedDate=new Date(`${billDate}T12:00:00Z`);
       if(!/^\d{4}-\d{2}-\d{2}$/.test(billDate)||!Number.isFinite(parsedDate.getTime())||parsedDate.toISOString().slice(0,10)!==billDate)throw new Error(t("Provjeri datum računa.","Check the bill date."));
       const custom=mode==="equal"&&splitMode!=="equal"?customAllocation(checked.total,equalIds,splitValues,splitMode):null;
-      const body={requestId,note:note.trim()||undefined,billDate:parsedDate.toISOString(),category,
+      const body={requestId,currency,exchangeRate:currency===baseCurrency?1:Number(exchangeRate.replace(",",".")),note:note.trim()||undefined,billDate:parsedDate.toISOString(),category,
         payers:actualPayers.map(p=>({personId:p.personId,amount:cents(p.amount)/100})),
         items:effectiveItems.map((x,i)=>({ordinalNumber:i+1,name:x.name.trim(),quantity:Number(x.quantity||1),price:cents(x.price)/100,
           shares:custom?x.ids.map((personId,j)=>({personId,amount:custom[j]/100})):x.originalShares??x.ids.map(personId=>({personId}))}))};
       if(expense){await api.updateExpense(group.slug,expense.id,{...body,expectedUpdatedAt:expense.updatedAt});setConfirmed(true);await done();return;}
       const saved=await api.createExpense(group.slug,body);
-      submitted.current=true;setCreatedId(saved.id);setConfirmed(true);
-      await saveLocal.current;await storage.write(storageKey,null);await done();
+      setCreatedId(saved.id);setConfirmed(true);
+      await done();
     });
   }
   return (
@@ -228,20 +223,17 @@ export function ExpenseEditor({
       />
       {createdId || confirmed ? (<Card><Txt>{t("Račun je spremljen.","Bill saved.")}</Txt><Button label={t("Otvori grupu","Open group")} onPress={()=>void run(()=>done())}/></Card>) : (
         <>
-          {recovery&&<Card style={{backgroundColor:c.infoTint}}><Txt bold>{t("Imaš spremljen unos na ovom uređaju", "An unfinished entry is saved on this device")}</Txt><Button label={t("Nastavi spremljeni unos", "Resume saved entry")} onPress={restoreLocal}/><Button secondary label={t("Započni novi unos", "Start a new entry")} onPress={()=>{setRecovery(null);setRequestId(requestKey())}}/></Card>}
-          {!expense&&<Txt muted size={12}>{t("Unos se automatski čuva na ovom uređaju.", "Your entry is saved on this device automatically.")}</Txt>}
           {!expense && <View style={s.row}>
             {(["equal", "items"] as const).map(value => <Pressable key={value}
               accessibilityRole="radio" aria-checked={mode === value} accessibilityState={{ checked: mode === value }}
               disabled={useBusy} onPress={() => setMode(value)}
-              style={{ flex: 1, padding: 12, minHeight: 72, borderRadius: 16, borderWidth: 1,
+              style={{ flex: 1, padding: 12, minHeight: 60, borderRadius: 16, borderWidth: 1,
                 borderColor: mode === value ? c.accent : c.line, backgroundColor: mode === value ? c.tint : c.card, gap: 4 }}>
-              <Txt bold>{value === "equal" ? t("Jednako", "Equally") : t("Po stavkama", "By item")}</Txt>
+              <Txt bold>{value === "equal" ? t("Bez stavki", "Without items") : t("Po stavkama", "By item")}</Txt>
               <Txt muted size={12}>{value === "equal" ? t("Jedan iznos za sve", "One total to share") : t("Svatko bira svoje", "Everyone picks their items")}</Txt>
             </Pressable>)}
           </View>}
-          <Card style={{ backgroundColor: c.tint, borderColor: c.line }}>
-            <View style={s.between}><Txt bold size={13}>{t("UKUPNO", "TOTAL")}</Txt><Txt size={26} bold>{total.toFixed(2)} €</Txt></View>
+          <Card>
             {mode === "items" && <View style={s.row}>
               <View style={{ flex: 1 }}>
                 <Button
@@ -254,33 +246,38 @@ export function ExpenseEditor({
               <View style={{ flex: 1 }}>
                 <Button
                   secondary
+                  icon="gallery"
                   label={t("Galerija", "Gallery")}
                   onPress={() => chooseScan(false)}
                 />
               </View>
             </View>}
-            <Field
-              label={t("Naslov računa", "Bill title")}
-              value={note}
-              onChange={setNote}
-              maxLength={200}
-            />
-            <Button secondary label={t("Datum i kategorija", "Date and category")} onPress={()=>setShowDetails(!showDetails)}/>
-            {showDetails&&<><Field label={t("Datum (GGGG-MM-DD)", "Date (YYYY-MM-DD)")} value={billDate} onChange={setBillDate} maxLength={10}/>
-            <View style={s.wrap}>{[["other",t("Ostalo", "Other")],["food",t("Hrana", "Food")],["travel",t("Putovanje", "Travel")],["home",t("Dom", "Home")],["fun",t("Zabava", "Fun")]].map(([id,label])=><Chip key={id} label={label} selected={category===id} onPress={()=>setCategory(id)}/>)}</View></>}
+            <View style={s.row}>
+              <Pressable accessibilityRole="button" accessibilityLabel={t("Odaberi kategoriju","Choose category")} disabled={useBusy} onPress={()=>setPicker("category")} style={{width:48,height:48,borderRadius:10,backgroundColor:c.tint,alignItems:"center",justifyContent:"center"}}><Icon name={categoryIcon(category)} color={c.accent} size={26}/></Pressable>
+              <TextInput accessibilityLabel={t("Naslov računa","Bill title")} placeholder={t("Za što je račun?","What is it for?")} placeholderTextColor={c.muted} value={note} onChangeText={setNote} maxLength={200} editable={!useBusy} style={{flex:1,minWidth:0,minHeight:52,borderBottomWidth:1,borderColor:c.line,color:c.ink,fontSize:20,paddingVertical:10}}/>
+            </View>
+            <View style={s.row}>
+              <Pressable accessibilityRole="button" accessibilityLabel={`${t("Odaberi valutu","Choose currency")}: ${currency}`} disabled={useBusy} onPress={()=>setPicker("currency")} style={{minWidth:48,minHeight:48,paddingHorizontal:5,borderRadius:10,borderWidth:1,borderColor:c.line,alignItems:"center",justifyContent:"center"}}><Txt bold size={20}>{currencySymbol(currency)}</Txt><Txt muted size={10}>{currency}</Txt></Pressable>
+              {mode==="equal"?<TextInput accessibilityLabel={`${t("Iznos","Amount")} (${currency})`} placeholder="0,00" placeholderTextColor={c.muted} keyboardType="decimal-pad" value={equalAmount} onChangeText={setEqualAmount} editable={!useBusy} style={{flex:1,minWidth:0,minHeight:60,borderBottomWidth:2,borderColor:c.accent,color:c.ink,fontSize:32,fontWeight:"600",paddingVertical:8}}/>:<Txt muted>{t("Valuta cijena stavki","Currency for item prices")}</Txt>}
+            </View>
+            {currency!==baseCurrency&&<><Field decimal label={`1 ${currency} = ? ${baseCurrency}`} value={exchangeRate} onChange={setExchangeRate}/><Txt muted size={12}>{t("Unesi tečaj s računa ili bankovne transakcije. Dugovanja se vode u glavnoj valuti grupe.","Enter the rate from the receipt or bank transaction. Balances use the group currency.")}</Txt>{Number(exchangeRate.replace(",","."))>0&&<Txt bold>≈ {(total*Number(exchangeRate.replace(",","."))).toFixed(2)} {baseCurrency}</Txt>}</>}
+            {expense?.currency&&expense.currency!==baseCurrency&&<Txt muted size={12}>{t("Uređuješ preračunate iznose u glavnoj valuti grupe. Spremanje zamjenjuje prethodni zapis tečaja.","You are editing converted amounts in the group currency. Saving replaces the previous exchange-rate record.")}</Txt>}
+
           </Card>
           {mode === "equal" ? <Card>
-            <Field label={t("Konačan iznos (€)", "Final total (€)")} decimal value={equalAmount} onChange={setEqualAmount} />
+            <Button secondary label={`${t("Podjela", "Split")}: ${splitMode==="equal"?t("jednako", "equally"):splitMode==="amount"?t("po iznosima","by amount"):splitMode==="percent"?t("po postocima","by percentage"):t("po omjerima","by weight")} · ${equalIds.length} ${t("osoba", "people")}`} onPress={()=>setShowSplit(!showSplit)}/>
+            {showSplit&&<>
             <Txt bold>{t("Tko dijeli račun?", "Who shares the bill?")}</Txt>
             <Txt muted size={12}>{t("Svi su uključeni. Isključi osobe koje ne sudjeluju.", "Everyone is included. Uncheck anyone not participating.")}</Txt>
             <View style={s.wrap}>{group.people.map(p => <Chip key={p.id} label={p.name} selected={equalIds.includes(p.id)}
               onPress={() => setEqualIds(ids => ids.includes(p.id) ? ids.filter(id => id !== p.id) : [...ids, p.id])} />)}</View>
             <View style={s.wrap}>{[["equal",t("Jednako", "Equally")],["amount",t("Iznosi", "Amounts")],["percent",t("Postoci", "Percent")],["weight",t("Omjeri", "Weights")]].map(([id,label])=><Chip key={id} label={label} selected={splitMode===id} onPress={()=>setSplitMode(id)}/>)}</View>
-            {splitMode!=="equal"&&<><Txt muted size={12}>{splitMode==="amount"?t("Upiši koliko svatko duguje. Zbroj mora biti jednak računu.","Enter each person's share. The sum must equal the bill."):splitMode==="percent"?t("Zbroj postotaka mora biti 100 %.","Percentages must total 100%."):t("Primjer: omjer 2 : 1 znači dvostruki udio za prvu osobu.","For example, 2 : 1 assigns twice as much to the first person.")}</Txt>{group.people.filter(p=>equalIds.includes(p.id)).map(p=><Field key={p.id} decimal label={`${p.name} (${splitMode==="amount"?"€":splitMode==="percent"?"%":"udio"})`} value={splitValues[p.id]||""} onChange={value=>setSplitValues(x=>({...x,[p.id]:value}))}/>)}</>}
+            {splitMode!=="equal"&&<><Txt muted size={12}>{splitMode==="amount"?t("Upiši koliko svatko duguje. Zbroj mora biti jednak računu.","Enter each person's share. The sum must equal the bill."):splitMode==="percent"?t("Zbroj postotaka mora biti 100 %.","Percentages must total 100%."):t("Primjer: omjer 2 : 1 znači dvostruki udio za prvu osobu.","For example, 2 : 1 assigns twice as much to the first person.")}</Txt>{group.people.filter(p=>equalIds.includes(p.id)).map(p=><Field key={p.id} decimal label={`${p.name} (${splitMode==="amount"?currency:splitMode==="percent"?"%":"udio"})`} value={splitValues[p.id]||""} onChange={value=>setSplitValues(x=>({...x,[p.id]:value}))}/>)}</>}
+            </>}
             {splitMode==="equal"&&<Txt bold style={{ color: c.accent }}>{equalIds.length ? (() => {
               const shares = splitCents(Math.round(total * 100), equalIds.length);
               const low = Math.min(...shares) / 100, high = Math.max(...shares) / 100;
-              return `${low.toFixed(2)}${low !== high ? ` – ${high.toFixed(2)}` : ""} € ${t("po osobi", "per person")}`;
+              return `${low.toFixed(2)}${low !== high ? ` – ${high.toFixed(2)}` : ""} ${currency} ${t("po osobi", "per person")}`;
             })() : t("Odaberi barem jednu osobu.", "Select at least one person.")}</Txt>}
           </Card> : <>
           {!expense && <Card style={{ backgroundColor: c.infoTint, borderColor: c.info }}>
@@ -337,25 +334,11 @@ export function ExpenseEditor({
                   </Pressable>
                 )}
               </View>
-              <View style={[s.row, { alignItems: "flex-start" }]}>
-                <View style={{ flex: 1 }}>
-                  <Field
-                    label={t("Naziv", "Name")}
-                    value={item.name}
-                    onChange={(name) => patch(item.key, { name })}
-                  />
-                </View>
-                <View style={{ width: 108 }}>
-                  <Field
-                    label={t("Jedinična cijena (€)", "Unit price (€)")}
-                    value={item.price}
-                    decimal
-                    onChange={(price) => patch(item.key, { price })}
-                  />
-                </View>
+              <Field label={t("Naziv stavke", "Item name")} value={item.name} onChange={name=>patch(item.key,{name})}/>
+              <View style={[s.row,{alignItems:"flex-start"}]}>
+                <View style={{flex:1,minWidth:0}}><Field label={`${t("Cijena / kom","Unit price")} (${currency})`} value={item.price} decimal onChange={price=>patch(item.key,{price})}/></View>
+                <View style={{flex:1,minWidth:0}}><Field label={t("Količina", "Quantity")} decimal value={String(item.quantity??1)} onChange={quantity=>patch(item.key,{quantity})} maxLength={3}/></View>
               </View>
-              <Field label={t("Količina (1–999)", "Quantity (1–999)")} decimal value={String(item.quantity??1)} onChange={quantity=>patch(item.key,{quantity})} maxLength={3}/>
-              <Button secondary label={t("Dupliciraj stavku", "Duplicate item")} onPress={()=>setItems(xs=>[...xs,{...item,key:key(),originalShares:item.originalShares?.map(x=>({...x})),ids:[...item.ids]}])}/>
               {assignNow && <><Pressable
                 accessibilityRole="button"
                 onPress={() => patch(item.key, { ids: [] })}
@@ -432,13 +415,8 @@ export function ExpenseEditor({
             }
           />
           </>}
-          <Heading
-            title={t("Tko je platio?", "Who paid?")}
-            subtitle={t(
-              "Dodaj jednog ili više platitelja.",
-              "Add one or more payers.",
-            )}
-          />
+          <Button secondary label={`${t("Platio/la", "Paid by")}: ${multiplePayers?t("više osoba", "multiple people"):group.people.find(p=>p.id===singlePayer)?.name||t("odaberi osobu", "choose person")}`} onPress={()=>setShowPayers(!showPayers)}/>
+          {(showPayers||mode==="items")&&<>
           <Card>
             <View style={s.wrap}>
               <Chip
@@ -472,7 +450,7 @@ export function ExpenseEditor({
                 </View>
                 {singlePayer && (
                   <Txt bold>
-                    {t("Plaćeno", "Paid")}: {total.toFixed(2)} €
+                    {t("Plaćeno", "Paid")}: {total.toFixed(2)} {currency}
                   </Txt>
                 )}
               </>
@@ -491,34 +469,36 @@ export function ExpenseEditor({
                   <Txt bold style={{ flex: 1 }}>
                     {person.name}
                   </Txt>
-                  <View style={{ width: 130 }}>
+                  <View style={{ width: 82 }}>
                     <Field
                       decimal
                       hideLabel
-                      label={`${person.name} (€)`}
+                      label={`${person.name} (${currency})`}
                       value={
                         payers.find((p) => p.personId === person.id)?.amount ??
                         "0"
                       }
                       onChange={(amount) => setPayers(xs=>[...xs.filter(p=>p.personId!==person.id),{personId:person.id,amount}])}
                     />
-                    <Button secondary disabled={total<=paid} label={t("Dodijeli ostatak", "Assign remainder")} onPress={()=>setPayers(xs=>{const old=Number(xs.find(p=>p.personId===person.id)?.amount.replace(",",".")||0);return [...xs.filter(p=>p.personId!==person.id),{personId:person.id,amount:(old+total-paid).toFixed(2)}]})}/>
+                  </View>
+                  <View style={{width:82}}><Button compact secondary disabled={total<=paid} label={t("Ostatak", "Rest")} onPress={()=>setPayers(xs=>{const old=Number(xs.find(p=>p.personId===person.id)?.amount.replace(",",".")||0);return [...xs.filter(p=>p.personId!==person.id),{personId:person.id,amount:(old+total-paid).toFixed(2)}]})}/>
                   </View>
                 </View>
               ))}
             </Card>
           )}
+          </>}
           <Card>
             <Txt bold size={18}>
               {t("Pregled i spremanje", "Review and save")}
             </Txt>
             <View style={s.between}>
               <Txt>{t("Uplaćeno", "Paid")}</Txt>
-              <Txt bold>{paid.toFixed(2)} €</Txt>
+              <Txt bold>{paid.toFixed(2)} {currency}</Txt>
             </View>
             <View style={s.between}>
               <Txt>{t("Preostalo za uplatu", "Remaining to pay")}</Txt>
-              <Txt bold>{(total - paid).toFixed(2)} €</Txt>
+              <Txt bold>{(total - paid).toFixed(2)} {currency}</Txt>
             </View>
             {!singlePayer && !multiplePayers && (
               <Txt style={{ color: c.danger }} size={13}>
@@ -533,8 +513,19 @@ export function ExpenseEditor({
           </Card>
         </>
       )}
+      <Modal visible={picker!==null} transparent animationType="slide" onRequestClose={()=>setPicker(null)}>
+        <View style={{flex:1,backgroundColor:"#00000066",justifyContent:"center",padding:16}}>
+          <View style={{backgroundColor:c.card,borderRadius:20,padding:16,maxHeight:"80%",width:"100%",maxWidth:500,alignSelf:"center",gap:12}} accessibilityViewIsModal>
+            <Txt bold size={20}>{picker==="category"?t("Kategorija računa","Bill category"):t("Valuta računa","Bill currency")}</Txt>
+            <ScrollView keyboardShouldPersistTaps="handled">
+              {picker==="category"?categories.map(x=><Pressable key={x.id} accessibilityRole="button" onPress={()=>{setCategory(x.id);setPicker(null)}} style={[s.row,{minHeight:52,padding:8,backgroundColor:category===x.id?c.tint:undefined,borderRadius:10}]}><Icon name={x.icon} color={c.accent}/><Txt>{t(x.hr,x.en)}{category===x.id?" ✓":""}</Txt></Pressable>):currencies.map(x=><Pressable key={x} accessibilityRole="button" onPress={()=>{setCurrency(x);setExchangeRate("");setPicker(null)}} style={{minHeight:48,padding:10,backgroundColor:currency===x?c.tint:undefined,borderRadius:10}}><Txt>{currencySymbol(x)} · {x}{currency===x?" ✓":""}</Txt></Pressable>)}
+            </ScrollView>
+            <Button secondary label={t("Zatvori","Close")} onPress={()=>setPicker(null)}/>
+          </View>
+        </View>
+      </Modal>
       {wheel && (
-        <Wheel
+        <Wheel currency={currency}
           people={group.people}
           initial={
             wheel === "all"

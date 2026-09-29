@@ -156,9 +156,6 @@ test('custom amounts, percentages and weights conserve cents',async()=>{
  assert.deepEqual(customAllocation(1001,['a','b'],{a:'5',b:'5,01'},'amount'),[500,501]);
  for(let n=1;n<100;n++)for(let count=1;count<8;count++){const values=allocateWeighted(n*137,Array.from({length:count},(_,i)=>i+1));assert.equal(values.reduce((a,b)=>a+b,0),n*137);}
 });
-test('CSV export escapes quotes and spreadsheet formulas',async()=>{
- const {exportCSV}=await import('../src/domain.mjs');const csv=exportCSV({people:[],expenses:[{note:'=HYPERLINK("x")',billDate:'2026-09-25',totalAmount:10,payers:[]}]});assert.ok(csv.includes("'HYPERLINK"));assert.ok(csv.includes('""x""'));
-});
 test('quantity scales one line and never limits people sharing it',async()=>{
  const {prepareBillItems}=await import('../src/domain.mjs');const rows=prepareBillItems('items','',[],[{key:'plata',name:'Mesna plata',price:'20',quantity:'1',ids:['a','b','c']}],true);
  assert.equal(rows.length,1);assert.equal(cents(rows[0].price),2000);assert.deepEqual(rows[0].ids,['a','b','c']);

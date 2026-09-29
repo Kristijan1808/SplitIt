@@ -484,7 +484,7 @@ export const GroupAddExpensePage = () => {
         <div className="sectionHeaderWithButton">
           <div>
             <p className="eyebrow">Novi račun</p>
-            <h2>{t("addItems")}</h2>
+            <h2>{t("addItems")} · {group?.currency||"EUR"}</h2>
           </div>
           <div className="randomSplitHeaderAction">
             <strong>{itemTotal.toFixed(2)}</strong>
@@ -596,7 +596,7 @@ export const GroupAddExpensePage = () => {
                     </label>
 
                     <label>
-                      <span>Jedinična cijena (€)</span>
+                      <span>Jedinična cijena ({group?.currency||"EUR"})</span>
                       <input
                         type="text"
                         inputMode="decimal"
@@ -820,7 +820,7 @@ export const GroupAddExpensePage = () => {
       </section>
 
 
-      <RandomSplitWheel
+      <RandomSplitWheel currency={group?.currency||"EUR"}
         open={randomSplitTarget !== null}
         title={
           randomSplitTarget === "global"

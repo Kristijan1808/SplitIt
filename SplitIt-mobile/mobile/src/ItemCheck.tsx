@@ -2,12 +2,14 @@ import React from "react";
 import { Pressable, View } from "react-native";
 import { Txt, useUI } from "./ui";
 export function ItemCheck({
+  currency="EUR",
   name,
   price,
   checked,
   disabled,
   onPress,
 }: {
+  currency?:string;
   name: string;
   price: number;
   checked: boolean;
@@ -52,7 +54,7 @@ export function ItemCheck({
       <Txt bold style={{ flex: 1 }}>
         {name}
       </Txt>
-      <Txt bold>{price.toFixed(2)} €</Txt>
+      <Txt bold>{price.toFixed(2)} {currency}</Txt>
     </Pressable>
   );
 }

@@ -11,7 +11,7 @@ const money = z
   );
 export const editExpenseSchema = z.object({
   billDate:z.string().datetime().optional(),
-  category:z.enum(["other","food","travel","home","fun"]).optional(),
+  category:z.enum(["other","food","travel","home","fun","taxi","shopping","health"]).optional(),
   expectedUpdatedAt: z.string().datetime(),
   note: z.string().trim().max(200).optional(),
   payers: z
