@@ -18,7 +18,7 @@ const SUPPORTED_IMAGE_TYPES = new Set([
   "image/jpg",
   "image/png",
   "image/webp",
-  "image/heic"
+  "image/gif"
 ]);
 
 const MAX_IMAGE_SIZE_BYTES = 10 * 1024 * 1024;

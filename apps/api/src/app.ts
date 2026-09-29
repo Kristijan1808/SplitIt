@@ -32,6 +32,9 @@ app.use(
   }),
 );
 
+// Base64 adds approximately one third to the binary image size. Only this route
+// accepts a larger JSON body; all other routes retain the default limit.
+app.use("/ai/parse-bill", express.json({ limit: "14mb" }));
 app.use(express.json());
 app.post("/guest-session", guestSession);
 app.use(billPermissions);

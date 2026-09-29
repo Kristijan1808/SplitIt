@@ -164,7 +164,7 @@ function Main() {
       setToken(a?.token);
       groupsRef.current = gs;
       setGroups(gs);
-      if(gs.length)setScreen("groups");
+      // Keep the initial Home screen; invitation links are handled separately.
       setLocale(prefs.locale === "en" ? "en" : "hr");
       setDark(!!prefs.dark);
     }).then(() => setReady(true));

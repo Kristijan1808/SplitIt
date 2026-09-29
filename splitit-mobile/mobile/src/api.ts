@@ -75,7 +75,7 @@ export async function request<T>(
     );
   const guest = await guestToken();
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), form ? 90000 : 25000);
+  const timer = setTimeout(() => controller.abort(), form || path === "/ai/parse-bill" ? 90000 : 25000);
   try {
     const response = await fetch(`${API_URL}${path}`, {
       method,
@@ -220,18 +220,11 @@ export const api = {
   ) => currencyRequest<Expense>(`${base(slug)}/expenses/${id}`, "PATCH", body),
   deleteExpense: (slug: string, id: string) =>
     request(`${base(slug)}/expenses/${id}`, "DELETE"),
-  parse: (uri: string) => {
-    const form = new FormData();
-    form.append("file", {
-      uri,
-      name: "receipt.jpg",
-      type: "image/jpeg",
-    } as unknown as Blob);
+  parse: (imageBase64: string) => {
+    if (!imageBase64 || imageBase64.length > 4 * Math.ceil(10 * 1024 * 1024 / 3))
+      throw new Error("Slika je prazna ili prevelika. Najveća veličina je 10 MB.");
     return request<{ items: { name: string; price: number }[] }>(
-      "/ai/parse-bill",
-      "POST",
-      undefined,
-      form,
+      "/ai/parse-bill", "POST", { imageBase64 },
     );
   },
 };

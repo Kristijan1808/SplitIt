@@ -1,3 +1,4 @@
+import { Platform } from "react-native";
 import {CurrencyPicker} from "./CurrencyPicker";
 import {inferCategory,stepQuantity} from "./domain.mjs";
 import {categories,categoryIcon,currencySymbol} from "./catalog";
@@ -165,10 +166,12 @@ export function ExpenseEditor({
       const asset = result.assets[0];
       const converted = await ImageManipulator.manipulateAsync(
         asset.uri,
-        asset.width > 1800 ? [{ resize: { width: 1800 } }] : [],
-        { compress: 0.85, format: ImageManipulator.SaveFormat.JPEG },
+        Math.max(asset.width, asset.height) > 1800
+          ? [{ resize: asset.width >= asset.height ? { width: 1800 } : { height: 1800 } }] : [],
+        { compress: 0.85, format: ImageManipulator.SaveFormat.JPEG, base64: true },
       );
-      const bill = await api.parse(converted.uri);
+      if (!converted.base64) throw new Error(t("Slika se nije mogla pripremiti. Ponovno je odaberi.", "Could not prepare image. Please select it again."));
+      const bill = await api.parse(converted.base64);
       if (!bill.items.length)
         throw new Error(
           t("Nisu pronađene stavke računa.", "No receipt items found."),
@@ -185,6 +188,10 @@ export function ExpenseEditor({
     });
   }
   function chooseScan(camera: boolean) {
+    if (Platform.OS === "web" && items.some((i) => i.name || i.price)) {
+      if (window.confirm(t("Skenirani račun zamijenit će unesene stavke. Nastaviti?", "Replace entered items with scanned receipt?"))) void scan(camera);
+      return;
+    }
     if (items.some((i) => i.name || i.price))
       Alert.alert(
         t("Zamijeniti stavke?", "Replace items?"),

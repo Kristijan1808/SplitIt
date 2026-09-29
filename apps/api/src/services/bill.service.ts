@@ -1,4 +1,5 @@
 import type { Request, Response, NextFunction } from "express";
+import { billImage } from "./bill-image.js";
 import { chatGptService } from "../chatgpt.service.js";
 
 export class BillService {
@@ -8,16 +9,11 @@ export class BillService {
     next: NextFunction
   ) => {
     try {
-      if (!req.file) {
-        res.status(400).json({
-          error: "Bill image is required"
-        });
-        return;
-      }
+      const image = billImage(req.file, req.body?.imageBase64);
 
       const items = await chatGptService.extractBillItems(
-        req.file.buffer,
-        req.file.mimetype,
+        image.buffer,
+        image.mimeType,
         Number(req.body?.attempt) === 2 ? 2 : 1
       );
 
