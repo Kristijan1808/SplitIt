@@ -130,6 +130,7 @@ export const serializeExpense = (expense: ExpenseWithDetails) => ({
   billDate: expense.billDate,
   category: expense.category,
   currency: expense.currency,
+  rateDate:expense.rateDate,rateSource:expense.rateSource,
   exchangeRate:Number(expense.exchangeRate),
   originalTotal:expense.originalTotal===null?null:Number(expense.originalTotal),
   deletedAt: expense.deletedAt,

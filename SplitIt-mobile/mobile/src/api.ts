@@ -130,14 +130,19 @@ export type DraftBody = {
 };
 async function currencyRequest<T>(path:string,method:string,body:object):Promise<T>{
  const health=await request<{features?:string[]}>("/health");
- if(!health.features?.includes("expense-currency"))throw new Error("Prvo objavi API s podrškom za valute. / Deploy the currency API first.");
+ if(!health.features?.includes("automatic-fx"))throw new Error("Prvo objavi API s automatskim tečajem. / Deploy the automatic FX API first.");
  return request<T>(path,method,body);
 }
+export type FxQuote={id:string|null;base:string;quote:string;rate:number;rateDate:string|null;source:string|null;expiresAt:string|null};
+export type CurrencyOption={code:string;name:string};
 export const api = {
+  currencies:()=>request<CurrencyOption[]>("/currencies"),
+  fxQuote:(slug:string,currency:string)=>request<FxQuote>(`${base(slug)}/fx-quote`,"POST",{currency}),
   createExpense:(slug:string,body:object)=>currencyRequest<Expense>(`${base(slug)}/expenses`,"POST",body),
   release:(slug:string,id:string)=>request(`/groups/${slug}/workflow/people/${id}/release`,"POST"),
   role:(slug:string,id:string,role:string)=>request(`/groups/${slug}/workflow/people/${id}/role`,"PATCH",{role}),
   workflow: (slug:string) => request<Workflow>(`${base(slug)}/workflow`),
+  createIdentity:(slug:string,name:string)=>request<{ok:boolean;personId:string}>(`${base(slug)}/workflow/identity`,"POST",{name}),
   claim: (slug:string,personId:string) => request(`${base(slug)}/workflow/identity`,"POST",{personId}),
   response: (slug:string,id:string,status:string) => request(`${base(slug)}/workflow/drafts/${id}/response`,"POST",{status}),
   removeDraft: (slug:string,id:string) => request(`${base(slug)}/workflow/drafts/${id}`,"DELETE"),

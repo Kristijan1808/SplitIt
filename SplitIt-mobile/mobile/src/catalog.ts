@@ -1,4 +1,3 @@
-export const currencies=["EUR","USD","GBP","CHF","CAD","AUD","BAM","RSD","PLN","CZK","SEK","NOK","DKK","HUF"];
 export const categories=[
  {id:'other',icon:'receipt',hr:'Ostalo',en:'Other'},
  {id:'taxi',icon:'taxi',hr:'Taksi',en:'Taxi'},

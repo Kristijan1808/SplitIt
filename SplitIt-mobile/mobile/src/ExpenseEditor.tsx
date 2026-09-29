@@ -1,10 +1,12 @@
-import {currencies,categories,categoryIcon,currencySymbol} from "./catalog";
+import {CurrencyPicker} from "./CurrencyPicker";
+import {inferCategory,stepQuantity} from "./domain.mjs";
+import {categories,categoryIcon,currencySymbol} from "./catalog";
 import {requestKey,customAllocation} from "./domain.mjs";
 import React, { useState, useEffect, useRef } from "react";
 import { Alert, View, Pressable, TextInput, Modal, ScrollView } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import * as ImageManipulator from "expo-image-manipulator";
-import { api } from "./api";
+import { api, type FxQuote } from "./api";
 import { Button, Card, Chip, Icon, Field, Heading, Page, Txt, useUI, s } from "./ui";
 import { Wheel } from "./Wheel";
 import { cents, validateBill, prepareBillItems, splitCents } from "./domain.mjs";
@@ -42,7 +44,15 @@ export function ExpenseEditor({
   const [picker,setPicker]=useState<"category"|"currency"|null>(null);
   const baseCurrency=group.currency||"EUR";
   const [currency,setCurrency]=useState(baseCurrency);
-  const [exchangeRate,setExchangeRate]=useState("");
+  const [quote,setQuote]=useState<FxQuote|null>(null);
+  const [rateError,setRateError]=useState("");
+  const [rateLoading,setRateLoading]=useState(false);
+  const [rateRefresh,setRateRefresh]=useState(0);
+  const [manualCategory,setManualCategory]=useState(!!expense);
+  useEffect(()=>{if(currency===baseCurrency){setQuote(null);setRateError("");setRateLoading(false);return;}let active=true;setQuote(null);setRateError("");setRateLoading(true);
+    api.fxQuote(group.slug,currency).then(value=>{if(active)setQuote(value)}).catch(e=>{if(active)setRateError(e.message)}).finally(()=>{if(active)setRateLoading(false)});
+    const timer=setInterval(()=>setRateRefresh(n=>n+1),5*60000);return()=>{active=false;clearInterval(timer)};
+  },[currency,baseCurrency,group.slug,rateRefresh]);
   const [equalAmount, setEqualAmount] = useState("");
   const [equalIds, setEqualIds] = useState(group.people.map(p => p.id));
   const [assignNow, setAssignNow] = useState(!!source);
@@ -197,11 +207,11 @@ export function ExpenseEditor({
       const checked=validateBill(effectiveItems,actualPayers,false);
       if(checked.total<=0||checked.total!==checked.paid)throw new Error(t("Zbroj uplata mora odgovarati računu.","Payments must match the total."));
       if(mode==="equal"&&!equalIds.length)throw new Error(t("Odaberi barem jednu osobu.","Select at least one person."));
-      if(currency!==baseCurrency&&(!Number.isFinite(Number(exchangeRate.replace(",",".")))||Number(exchangeRate.replace(",","."))<=0))throw new Error(t("Upiši valjan tečaj.","Enter a valid exchange rate."));
+      if(currency!==baseCurrency&&(!quote||quote.base!==currency||quote.quote!==baseCurrency||!quote.expiresAt||Date.parse(quote.expiresAt)<=Date.now()))throw new Error(t("Osvježi automatski tečaj prije spremanja.","Refresh the automatic rate before saving."));
       const parsedDate=new Date(`${billDate}T12:00:00Z`);
       if(!/^\d{4}-\d{2}-\d{2}$/.test(billDate)||!Number.isFinite(parsedDate.getTime())||parsedDate.toISOString().slice(0,10)!==billDate)throw new Error(t("Provjeri datum računa.","Check the bill date."));
       const custom=mode==="equal"&&splitMode!=="equal"?customAllocation(checked.total,equalIds,splitValues,splitMode):null;
-      const body={requestId,currency,exchangeRate:currency===baseCurrency?1:Number(exchangeRate.replace(",",".")),note:note.trim()||undefined,billDate:parsedDate.toISOString(),category,
+      const body={requestId,currency,quoteId:quote?.id,note:note.trim()||undefined,billDate:parsedDate.toISOString(),category,
         payers:actualPayers.map(p=>({personId:p.personId,amount:cents(p.amount)/100})),
         items:effectiveItems.map((x,i)=>({ordinalNumber:i+1,name:x.name.trim(),quantity:Number(x.quantity||1),price:cents(x.price)/100,
           shares:custom?x.ids.map((personId,j)=>({personId,amount:custom[j]/100})):x.originalShares??x.ids.map(personId=>({personId}))}))};
@@ -253,14 +263,18 @@ export function ExpenseEditor({
               </View>
             </View>}
             <View style={s.row}>
-              <Pressable accessibilityRole="button" accessibilityLabel={t("Odaberi kategoriju","Choose category")} disabled={useBusy} onPress={()=>setPicker("category")} style={{width:48,height:48,borderRadius:10,backgroundColor:c.tint,alignItems:"center",justifyContent:"center"}}><Icon name={categoryIcon(category)} color={c.accent} size={26}/></Pressable>
-              <TextInput accessibilityLabel={t("Naslov računa","Bill title")} placeholder={t("Za što je račun?","What is it for?")} placeholderTextColor={c.muted} value={note} onChangeText={setNote} maxLength={200} editable={!useBusy} style={{flex:1,minWidth:0,minHeight:52,borderBottomWidth:1,borderColor:c.line,color:c.ink,fontSize:20,paddingVertical:10}}/>
+              <Pressable accessibilityRole="button" accessibilityLabel={t("Odaberi kategoriju","Choose category")} disabled={useBusy} onPress={()=>setPicker("category")} style={{width:48,height:48,borderRadius:24,backgroundColor:c.tint,alignItems:"center",justifyContent:"center"}}><Icon name={categoryIcon(category)} color={c.accent} size={26}/></Pressable>
+              <TextInput accessibilityLabel={t("Naslov računa","Bill title")} placeholder={t("Za što je račun?","What is it for?")} placeholderTextColor={c.muted} value={note} onChangeText={value=>{setNote(value);if(!manualCategory)setCategory(inferCategory(value))}} maxLength={200} editable={!useBusy} style={{flex:1,minWidth:0,minHeight:52,borderWidth:0,backgroundColor:c.bg,borderRadius:14,color:c.ink,fontSize:20,padding:12}}/>
             </View>
             <View style={s.row}>
               <Pressable accessibilityRole="button" accessibilityLabel={`${t("Odaberi valutu","Choose currency")}: ${currency}`} disabled={useBusy} onPress={()=>setPicker("currency")} style={{minWidth:48,minHeight:48,paddingHorizontal:5,borderRadius:10,borderWidth:1,borderColor:c.line,alignItems:"center",justifyContent:"center"}}><Txt bold size={20}>{currencySymbol(currency)}</Txt><Txt muted size={10}>{currency}</Txt></Pressable>
-              {mode==="equal"?<TextInput accessibilityLabel={`${t("Iznos","Amount")} (${currency})`} placeholder="0,00" placeholderTextColor={c.muted} keyboardType="decimal-pad" value={equalAmount} onChangeText={setEqualAmount} editable={!useBusy} style={{flex:1,minWidth:0,minHeight:60,borderBottomWidth:2,borderColor:c.accent,color:c.ink,fontSize:32,fontWeight:"600",paddingVertical:8}}/>:<Txt muted>{t("Valuta cijena stavki","Currency for item prices")}</Txt>}
+              {mode==="equal"?<TextInput accessibilityLabel={`${t("Iznos","Amount")} (${currency})`} placeholder="0,00" placeholderTextColor={c.muted} keyboardType="decimal-pad" value={equalAmount} onChangeText={setEqualAmount} editable={!useBusy} style={{flex:1,minWidth:0,minHeight:60,borderWidth:0,backgroundColor:c.tint,borderRadius:16,color:c.ink,fontSize:32,fontWeight:"600",padding:12}}/>:<Txt muted>{t("Valuta cijena stavki","Currency for item prices")}</Txt>}
             </View>
-            {currency!==baseCurrency&&<><Field decimal label={`1 ${currency} = ? ${baseCurrency}`} value={exchangeRate} onChange={setExchangeRate}/><Txt muted size={12}>{t("Unesi tečaj s računa ili bankovne transakcije. Dugovanja se vode u glavnoj valuti grupe.","Enter the rate from the receipt or bank transaction. Balances use the group currency.")}</Txt>{Number(exchangeRate.replace(",","."))>0&&<Txt bold>≈ {(total*Number(exchangeRate.replace(",","."))).toFixed(2)} {baseCurrency}</Txt>}</>}
+            {currency!==baseCurrency&&<View style={{gap:6,padding:10,borderRadius:12,backgroundColor:c.bg}}>
+              {rateLoading?<Txt muted>{t("Dohvaćam tečaj…","Fetching exchange rate…")}</Txt>:rateError?<Txt style={{color:c.danger}}>{rateError}</Txt>:quote&&<><Txt bold>≈ {(total*quote.rate).toFixed(2)} {baseCurrency}</Txt><Txt muted size={12}>1 {currency} = {quote.rate} {baseCurrency} · {quote.rateDate}</Txt><Txt muted size={11}>{quote.source}</Txt></>}
+              <Button compact secondary disabled={rateLoading} label={t("Osvježi tečaj","Refresh rate")} onPress={()=>setRateRefresh(n=>n+1)}/>
+            </View>}
+
             {expense?.currency&&expense.currency!==baseCurrency&&<Txt muted size={12}>{t("Uređuješ preračunate iznose u glavnoj valuti grupe. Spremanje zamjenjuje prethodni zapis tečaja.","You are editing converted amounts in the group currency. Saving replaces the previous exchange-rate record.")}</Txt>}
 
           </Card>
@@ -335,9 +349,13 @@ export function ExpenseEditor({
                 )}
               </View>
               <Field label={t("Naziv stavke", "Item name")} value={item.name} onChange={name=>patch(item.key,{name})}/>
-              <View style={[s.row,{alignItems:"flex-start"}]}>
+              <View style={[s.row,{alignItems:"flex-start",flexWrap:"wrap"}]}>
                 <View style={{flex:1,minWidth:0}}><Field label={`${t("Cijena / kom","Unit price")} (${currency})`} value={item.price} decimal onChange={price=>patch(item.key,{price})}/></View>
-                <View style={{flex:1,minWidth:0}}><Field label={t("Količina", "Quantity")} decimal value={String(item.quantity??1)} onChange={quantity=>patch(item.key,{quantity})} maxLength={3}/></View>
+                <View style={{flex:1,minWidth:150,gap:6}}><Txt bold size={13}>{t("Količina","Quantity")}</Txt><View style={{flexDirection:"row",alignItems:"center",borderWidth:1,borderColor:c.line,borderRadius:12,overflow:"hidden"}}>
+                  <Pressable accessibilityRole="button" accessibilityLabel={t("Smanji količinu","Decrease quantity")} disabled={useBusy||Number(item.quantity??1)<=1} onPress={()=>patch(item.key,{quantity:stepQuantity(item.quantity??1,-1)})} style={{width:44,minHeight:48,alignItems:"center",justifyContent:"center",backgroundColor:c.tint,opacity:Number(item.quantity??1)<=1?.4:1}}><Txt bold size={24}>−</Txt></Pressable>
+                  <TextInput accessibilityLabel={t("Količina","Quantity")} keyboardType="number-pad" value={String(item.quantity??1)} editable={!useBusy} maxLength={3} onChangeText={quantity=>patch(item.key,{quantity:quantity.replace(/[^0-9]/g,"")})} onBlur={()=>patch(item.key,{quantity:stepQuantity(item.quantity??1,0)})} style={{flex:1,minWidth:38,textAlign:"center",fontSize:18,color:c.ink,minHeight:48}}/>
+                  <Pressable accessibilityRole="button" accessibilityLabel={t("Povećaj količinu","Increase quantity")} disabled={useBusy||Number(item.quantity??1)>=999} onPress={()=>patch(item.key,{quantity:stepQuantity(item.quantity??1,1)})} style={{width:44,minHeight:48,alignItems:"center",justifyContent:"center",backgroundColor:c.tint,opacity:Number(item.quantity??1)>=999?.4:1}}><Txt bold size={24}>+</Txt></Pressable>
+                </View></View>
               </View>
               {assignNow && <><Pressable
                 accessibilityRole="button"
@@ -509,21 +527,24 @@ export function ExpenseEditor({
               </Txt>
             )}
             <Button label={expense?t("Spremi izmjene","Save changes"):t("Kreiraj račun","Create bill")}
-              disabled={group.locked||Math.round(total*100)!==Math.round(paid*100)||total<=0||effectiveItems.some(i=>!i.name.trim())||(mode==="equal"&&!equalIds.length)} onPress={()=>void save()}/>
+              disabled={group.locked||(currency!==baseCurrency&&(rateLoading||!quote||!!rateError))||Math.round(total*100)!==Math.round(paid*100)||total<=0||effectiveItems.some(i=>!i.name.trim())||(mode==="equal"&&!equalIds.length)} onPress={()=>void save()}/>
           </Card>
         </>
       )}
-      <Modal visible={picker!==null} transparent animationType="slide" onRequestClose={()=>setPicker(null)}>
+      <Modal visible={picker==="category"} transparent animationType="slide" onRequestClose={()=>setPicker(null)}>
         <View style={{flex:1,backgroundColor:"#00000066",justifyContent:"center",padding:16}}>
           <View style={{backgroundColor:c.card,borderRadius:20,padding:16,maxHeight:"80%",width:"100%",maxWidth:500,alignSelf:"center",gap:12}} accessibilityViewIsModal>
             <Txt bold size={20}>{picker==="category"?t("Kategorija računa","Bill category"):t("Valuta računa","Bill currency")}</Txt>
             <ScrollView keyboardShouldPersistTaps="handled">
-              {picker==="category"?categories.map(x=><Pressable key={x.id} accessibilityRole="button" onPress={()=>{setCategory(x.id);setPicker(null)}} style={[s.row,{minHeight:52,padding:8,backgroundColor:category===x.id?c.tint:undefined,borderRadius:10}]}><Icon name={x.icon} color={c.accent}/><Txt>{t(x.hr,x.en)}{category===x.id?" ✓":""}</Txt></Pressable>):currencies.map(x=><Pressable key={x} accessibilityRole="button" onPress={()=>{setCurrency(x);setExchangeRate("");setPicker(null)}} style={{minHeight:48,padding:10,backgroundColor:currency===x?c.tint:undefined,borderRadius:10}}><Txt>{currencySymbol(x)} · {x}{currency===x?" ✓":""}</Txt></Pressable>)}
+              {categories.map(x=><Pressable key={x.id} accessibilityRole="button" onPress={()=>{setCategory(x.id);setManualCategory(true);setPicker(null)}} style={[s.row,{minHeight:52,padding:8,backgroundColor:category===x.id?c.tint:undefined,borderRadius:10}]}><Icon name={x.icon} color={c.accent}/><Txt>{t(x.hr,x.en)}{category===x.id?" ✓":""}</Txt></Pressable>)}
+              <Button secondary label={t("Prepoznaj iz naslova","Detect from title")} onPress={()=>{setManualCategory(false);setCategory(inferCategory(note));setPicker(null)}}/>
+
             </ScrollView>
             <Button secondary label={t("Zatvori","Close")} onPress={()=>setPicker(null)}/>
           </View>
         </View>
       </Modal>
+      <CurrencyPicker visible={picker==="currency"} selected={currency} onSelect={code=>{if(code!==currency){setCurrency(code);setQuote(null);}setPicker(null)}} onClose={()=>setPicker(null)}/>
       {wheel && (
         <Wheel currency={currency}
           people={group.people}

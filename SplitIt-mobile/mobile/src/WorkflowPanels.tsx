@@ -1,4 +1,4 @@
-import {currencies} from "./catalog";
+import {CurrencyPicker} from "./CurrencyPicker";
 import React,{useState} from 'react';
 import {View,Platform,Alert} from 'react-native';
 import {Button,Card,Chip,Field,Txt,s,useUI} from './ui';
@@ -9,15 +9,6 @@ import type {Run} from './GroupScreen';
 export function ask(title:string,message:string,action:()=>void){
  if(Platform.OS==='web'){if(globalThis.confirm(`${title}\n${message}`))action();}
  else Alert.alert(title,message,[{text:'Odustani',style:'cancel'},{text:'Potvrdi',onPress:action}]);
-}
-export function IdentityPanel({group,workflow,choose}:{group:Group;workflow:Workflow;choose:(id:string)=>Promise<void>}){
- const {t,c}=useUI();
- return <Card style={{borderColor:c.info,backgroundColor:c.infoTint}}>
- <Txt bold size={20}>{t('Tko si ti?','Who are you?')}</Txt>
- <Txt size={13}>{t('Odaberi svoje ime. Profil se povezuje s tvojim računom ili ovim uređajem.','Select your name. It will be linked to your account or this device.')}</Txt>
- <View style={s.wrap}>{workflow.people.filter(p=>!p.inactive).map(p=><Chip key={p.id} label={`${p.name}${p.claimed&&!p.mine?' · povezano':''}`} selected={p.mine} disabled={p.claimed&&!p.mine} onPress={()=>void choose(p.id)}/>)}</View>
- <Txt muted size={12}>{t('Nema te na popisu? Dodaj svoje ime u Sudionicima pa ga odaberi.','Missing from the list? Add your name in People, then select it.')}</Txt>
- </Card>;
 }
 export function DraftResponses({draft,workflow,personId,run,refresh,slug}:{draft:DraftExpense;workflow:Workflow;personId?:string;run:Run;refresh:()=>Promise<void>;slug:string}){
  const {c,t}=useUI();const people=workflow.people.filter(p=>!p.inactive),responses=workflow.selections.filter(x=>x.draftId===draft.id);
@@ -44,10 +35,11 @@ export function TransferPanel({group,workflow,personId,run,refresh,settlements}:
  </View>;
 }
 export function GroupUtilities({group,workflow,run,refresh}:{group:Group;workflow:Workflow;run:Run;refresh:()=>Promise<void>}){
- const {t}=useUI();const [password,setPassword]=useState('');
+ const {t}=useUI();const [password,setPassword]=useState('');const [currencyOpen,setCurrencyOpen]=useState(false);
  if(!workflow.canAdmin)return null;
  return <Card><Txt size={18} bold>{t('Upravljanje grupom','Group settings')}</Txt>
- {workflow.canAdmin&&<><Txt bold>{t('Glavna valuta grupe','Main group currency')}</Txt><Txt muted size={12}>{t('Postavlja se prije prvog računa. Računi u drugim valutama preračunavaju se unesenim tečajem.','Set before the first bill. Foreign bills use an entered exchange rate.')}</Txt><View style={s.wrap}>{currencies.map(currency=><Chip key={currency} label={currency} selected={(group.currency||'EUR')===currency} onPress={()=>void run(async()=>{await api.groupSettings(group.slug,{currency});await refresh()})}/>)}</View><Txt bold>{t('Pristup sudionika' ,'Participant access')}</Txt>{workflow.people.filter(p=>p.claimed).map(p=><View key={p.id} style={{gap:6}}><Txt>{p.name} · {p.role||'MEMBER'}</Txt><Button secondary label={t('Oslobodi profil za drugi uređaj','Release profile for another device')} onPress={()=>ask('Osloboditi profil?',`Profil ${p.name} moći će ponovno odabrati član s pristupom grupi. Vlasništvo računa ostaje nepromijenjeno.`,()=>void run(async()=>{await api.release(group.slug,p.id);await refresh()}))}/>{workflow.canOwn&&p.role!=='OWNER'&&<Button secondary label={p.role==='ADMIN'?'Ukloni administratorsku ulogu':'Postavi administratora'} onPress={()=>ask('Promijeniti ulogu?',p.name,()=>void run(async()=>{await api.role(group.slug,p.id,p.role==='ADMIN'?'MEMBER':'ADMIN');await refresh()}))}/>}</View>)}<Txt bold>{t('Oznaka grupe','Group avatar')}</Txt><View style={s.wrap}>{['👥','🏠','🍽️','✈️','🎉','🏖️','🚗','💼'].map(avatar=><Chip key={avatar} label={avatar} selected={workflow.avatar===avatar} onPress={()=>void run(async()=>{await api.groupSettings(group.slug,{avatar});await refresh()})}/>)}</View>
+ {workflow.canAdmin&&<><Txt bold>{t('Glavna valuta grupe','Main group currency')}</Txt><Txt muted size={12}>{t('Postavlja se prije prvog računa. Računi u drugim valutama preračunavaju se automatskim tečajem.','Set before the first bill. Foreign bills use automatic exchange rates.')}</Txt><Button secondary label={group.currency||'EUR'} onPress={()=>setCurrencyOpen(true)}/><CurrencyPicker visible={currencyOpen} selected={group.currency||'EUR'} onClose={()=>setCurrencyOpen(false)} onSelect={currency=>void run(async()=>{await api.groupSettings(group.slug,{currency});setCurrencyOpen(false);await refresh()})}/>
+<Txt bold>{t('Pristup sudionika' ,'Participant access')}</Txt>{workflow.people.filter(p=>p.claimed).map(p=><View key={p.id} style={{gap:6}}><Txt>{p.name} · {p.role||'MEMBER'}</Txt><Button secondary label={t('Oslobodi profil za drugi uređaj','Release profile for another device')} onPress={()=>ask('Osloboditi profil?',`Profil ${p.name} moći će ponovno odabrati član s pristupom grupi. Vlasništvo računa ostaje nepromijenjeno.`,()=>void run(async()=>{await api.release(group.slug,p.id);await refresh()}))}/>{workflow.canOwn&&p.role!=='OWNER'&&<Button secondary label={p.role==='ADMIN'?'Ukloni administratorsku ulogu':'Postavi administratora'} onPress={()=>ask('Promijeniti ulogu?',p.name,()=>void run(async()=>{await api.role(group.slug,p.id,p.role==='ADMIN'?'MEMBER':'ADMIN');await refresh()}))}/>}</View>)}<Txt bold>{t('Oznaka grupe','Group avatar')}</Txt><View style={s.wrap}>{['👥','🏠','🍽️','✈️','🎉','🏖️','🚗','💼'].map(avatar=><Chip key={avatar} label={avatar} selected={workflow.avatar===avatar} onPress={()=>void run(async()=>{await api.groupSettings(group.slug,{avatar});await refresh()})}/>)}</View>
  <Button secondary label={workflow.archived?t('Aktiviraj grupu','Unarchive group'):t('Arhiviraj grupu','Archive group')} onPress={()=>ask('Promjena statusa grupe','Arhivirana grupa ostaje čitljiva, ali se ne može mijenjati.',()=>void run(async()=>{await api.groupSettings(group.slug,{archived:!workflow.archived});await refresh()}))}/>
  <Field secure label={t('Nova lozinka pozivnice (najmanje 8 znakova)','New invitation password (at least 8 characters)')} value={password} onChange={setPassword}/><Button secondary disabled={password.length<8} label={t('Obnovi kod i lozinku pozivnice','Rotate invitation code and password')} onPress={()=>ask('Obnovi pozivnicu','Stare pozivnice više neće raditi. Postojeći članovi ostaju.',()=>void run(async()=>{await api.rotateInvite(group.slug,password);setPassword('');await refresh()}))}/></>}
  </Card>;

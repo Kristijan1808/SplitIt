@@ -1,3 +1,4 @@
+import {createQuote} from "../services/fx.service.js";
 import {createExpense} from "../services/create-expense.service.js";
 import { joinLimit } from "../services/rate-limit.js";
 import {groupGate,adminGate,workflowRouter} from "../services/workflow.service.js";
@@ -47,6 +48,7 @@ groupRouter.post(
 );
 
 groupRouter.use("/:slug",groupGate);
+groupRouter.post("/:slug/fx-quote",joinLimit,createQuote);
 groupRouter.post("/:slug/expenses",createExpense);
 groupRouter.use("/:slug/draft-expenses",(req,res)=>{if(req.method==="GET")res.json([]);else res.status(410).json({error:"Računi se sada kreiraju izravno. Nadogradi aplikaciju i osvježi web."})});
 groupRouter.use("/:slug/workflow",workflowRouter);

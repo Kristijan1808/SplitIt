@@ -158,3 +158,10 @@ export function customAllocation(total,ids,values,mode){
  if(mode==='percent'&&numbers.reduce((a,b)=>a+b,0)!==10000)throw new Error('Zbroj postotaka mora biti 100 %.');
  return allocateWeighted(total,numbers);
 }
+
+export function inferCategory(title){
+ const words=String(title).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
+ const rules=[['taxi',['taksi','taxi','uber','bolt']],['food',['rucak','vecera','dorucak','pizza','pivo','kava','restoran','hrana','lunch','dinner','coffee']],['travel',['hotel','let','avion','vlak','bus','putovanje','flight','train']],['home',['stanarina','najam','struja','rezije','rent']],['fun',['kino','koncert','cinema','concert']],['shopping',['kupovina','shopping','namirnice']],['health',['ljekarna','lijek','doktor','pharmacy']]];
+ return String(rules.find(([,matches])=>words.some(w=>matches.includes(w)))?.[0]||'other');
+}
+export function stepQuantity(value,delta){const n=Number(value);return String(Math.min(999,Math.max(1,(Number.isInteger(n)?n:1)+delta)));}

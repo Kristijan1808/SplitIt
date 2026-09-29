@@ -17,7 +17,7 @@ test('same currency ignores exchange rate and legacy requests inherit main curre
 });
 test('unsupported currency, invalid rates and mismatched original totals are rejected',()=>{
  for(const rate of [0,-1,NaN,Infinity,1000001])assert.throws(()=>prepareCurrencyExpense({...body(),exchangeRate:rate},['a','b'],'EUR'));
- assert.throws(()=>prepareCurrencyExpense({...body(),currency:'BAD'},['a','b'],'EUR'));
+ assert.throws(()=>prepareCurrencyExpense({...body(),currency:'BAD!'},['a','b'],'EUR'));
  assert.throws(()=>prepareCurrencyExpense({...body(),exchangeRate:undefined},['a','b'],'EUR'));
  assert.throws(()=>prepareCurrencyExpense({...body(),payers:[{personId:'a',amount:11}]},['a','b'],'EUR'));
 });

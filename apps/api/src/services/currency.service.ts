@@ -1,6 +1,6 @@
 import {z} from 'zod';
 import {prepareExpenseEdit,ExpenseInputError} from './expense-edit.validation.js';
-export const currencySchema=z.enum(["EUR","USD","GBP","CHF","CAD","AUD","BAM","RSD","PLN","CZK","SEK","NOK","DKK","HUF"] as const);
+export const currencySchema=z.string().regex(/^[A-Z]{3}$/);
 // Largest remainders preserve the converted total across items, payers and shares.
 export function apportion(total:number,weights:number[]){
  const sum=weights.reduce((a,b)=>a+b,0);if(!sum)return weights.map(()=>0);

@@ -98,6 +98,8 @@ model Person {
 //
 
 model Expense {
+  rateDate String?
+  rateSource String?
   currency String @default("EUR")
   exchangeRate Decimal @default(1) @db.Decimal(18, 8)
   originalTotal Decimal? @db.Decimal(12, 2)
@@ -423,4 +425,18 @@ model SettlementTransfer {
  createdAt DateTime @default(now())
  group Group @relation(fields:[groupId],references:[id],onDelete:Cascade)
  @@map("settlement_transfers")
+}
+
+model FxQuote {
+ id String @id @default(uuid())
+ groupId String
+ base String
+ quote String
+ rate Decimal @db.Decimal(18,8)
+ rateDate String
+ source String
+ fetchedAt DateTime @default(now())
+ expiresAt DateTime
+ @@index([expiresAt])
+ @@map("fx_quotes")
 }

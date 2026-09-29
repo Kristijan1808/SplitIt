@@ -1,5 +1,5 @@
 import {categories} from "./catalog";
-import {IdentityPanel,TransferPanel,GroupUtilities,ask} from "./WorkflowPanels";
+import {TransferPanel,GroupUtilities,ask} from "./WorkflowPanels";
 import {AppState} from "react-native";
 import { ItemCheck } from "./ItemCheck";
 import React, { useState, useEffect } from "react";
@@ -109,7 +109,6 @@ export function GroupScreen({
     <View style={{ flex: 1 }}>
       <Page refresh={() => void run(refresh)}>
         {data.offline&&<Card><Txt bold>{t("Prikaz spremljenih podataka · bez veze", "Cached data · offline")}</Txt><Txt muted>{t("Izmjene su onemogućene dok se ponovno ne povežeš.", "Changes are disabled until you reconnect.")}</Txt><Button secondary label={t("Pokušaj ponovno", "Retry")} onPress={()=>void run(refresh)}/></Card>}
-        {!workflow.people.some(p=>p.mine&&!p.inactive)&&!data.offline&&<IdentityPanel group={g} workflow={workflow} choose={async id=>{await run(()=>choose(id))}}/>}
         
 
         <View

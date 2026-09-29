@@ -1,3 +1,4 @@
+import {resolveQuote} from "./fx.service.js";
 import {prepareCurrencyExpense} from "./currency.service.js";
 import { canManageBill } from "./bill-permissions.js";
 import type { NextFunction, Request, Response } from "express";
@@ -121,8 +122,9 @@ export class ExpenseService {
             where: { groupId: group.id },
             select: { id: true },
           });
+          const trusted=await resolveQuote(tx,req.body,liveGroup);
           const prepared = prepareCurrencyExpense(
-            req.body,
+            trusted,
             people.map((p) => p.id),
             group.currency||"EUR",
           );
@@ -136,7 +138,7 @@ export class ExpenseService {
             data: {
               billDate:prepared.body.billDate?new Date(prepared.body.billDate):existing.billDate,
               category:prepared.body.category??existing.category,
-              currency:prepared.currency,exchangeRate:prepared.exchangeRate,originalTotal:prepared.originalTotal,
+              currency:prepared.currency,exchangeRate:prepared.exchangeRate,originalTotal:prepared.originalTotal,rateDate:trusted.rateDate,rateSource:trusted.rateSource,
               note: prepared.body.note || null,
               totalAmount: prepared.totalAmount,
               updatedAt: new Date(),

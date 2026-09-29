@@ -1,3 +1,4 @@
+import {IdentityScreen} from "./src/IdentityScreen";
 import {ask} from "./src/WorkflowPanels";
 import { invitationCode } from "./src/domain.mjs";
 import React, { useCallback, useEffect, useRef, useState } from "react";
@@ -212,24 +213,17 @@ function Main() {
       setDark(darkMode);
     });
   const remove = (g: SavedGroup) =>
-    Alert.alert(
+    ask(
       t("Ukloniti iz mojih grupa?", "Remove from my groups?"),
       t(
-        "Uklanja se samo prečac na ovom mobitelu. Grupa ostaje na serveru.",
-        "Only this device shortcut is removed. The group stays on the server.",
+        "Uklanja se samo prečac na ovom uređaju. Grupa i računi ostaju sačuvani.",
+        "Only this device shortcut is removed. The group and bills are kept.",
       ),
-      [
-        { text: t("Odustani", "Cancel"), style: "cancel" },
-        {
-          text: t("Ukloni", "Remove"),
-          style: "destructive",
-          onPress: () =>
-            void run(() =>
-              persistGroups(groupsRef.current.filter((x) => x.slug !== g.slug)),
-            ),
-        },
-      ],
+      () => void run(() =>
+        persistGroups(groupsRef.current.filter((x) => x.slug !== g.slug)),
+      ),
     );
+  const needsIdentity=screen==="group"&&!!data&&!data.offline&&!data.workflow.people.some(p=>p.mine&&!p.inactive);
   const groupList = (limit?: number) =>
     (limit ? groups.filter(g=>!g.archived).slice(0,limit) : groups.filter(g=>!!g.archived===showArchived && g.name.toLowerCase().includes(groupSearch.toLowerCase())).sort((a,b)=>Number(!!b.pinned)-Number(!!a.pinned))).map((g, i) => (
       <Card key={g.slug}>
@@ -605,7 +599,8 @@ function Main() {
                   signedIn={!!auth}
                 />
               )}
-              {screen === "group" && data && (
+              {needsIdentity&&data&&<IdentityScreen key={data.group.slug} group={data.group} workflow={data.workflow} run={run} leave={()=>nav("groups")} done={async id=>{setParticipant(id);await refresh();setTab("overview")}}/>}
+              {screen === "group" && data && !needsIdentity && (
                 <GroupScreen
                   key={data.group.slug}
                   data={data}
@@ -663,7 +658,7 @@ function Main() {
             </>
           )}
         </KeyboardAvoidingView>
-        {screen !== "expense" && (
+        {screen !== "expense" && !needsIdentity && (
           <View
             style={{
               flexDirection: "row",
@@ -703,7 +698,7 @@ function Main() {
             ))}
           </View>
         )}
-        {screen === "expense" && <View style={{ height: insets.bottom }} />}
+        {(screen === "expense" || needsIdentity) && <View style={{ height: insets.bottom }} />}
       </View>
     </UI.Provider>
   );

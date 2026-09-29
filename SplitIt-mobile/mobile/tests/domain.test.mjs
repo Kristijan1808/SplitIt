@@ -163,3 +163,12 @@ test('quantity scales one line and never limits people sharing it',async()=>{
  assert.equal(two.length,1);assert.equal(cents(two[0].price),500);assert.equal(two[0].quantity,2);assert.deepEqual(two[0].ids,[]);
  assert.equal(prepareBillItems('items','',[],[{name:'Pizza',price:'8',quantity:'0'}],false)[0].name,'');
 });
+
+test('title suggestions match Croatian and English without partial-word guesses',async()=>{
+ const {inferCategory}=await import('../src/domain.mjs');
+ for(const title of ['Taksi','TAKSI do aerodroma','Uber kući','Taxi ride'])assert.equal(inferCategory(title),'taxi');
+ assert.equal(inferCategory('Ručak'),'food');assert.equal(inferCategory('Hotel'),'travel');assert.equal(inferCategory('Taxidermy'),'other');assert.equal(inferCategory(''),'other');
+});
+test('quantity stepper preserves integer bounds',async()=>{
+ const {stepQuantity}=await import('../src/domain.mjs');assert.equal(stepQuantity('1',-1),'1');assert.equal(stepQuantity('999',1),'999');assert.equal(stepQuantity('2',1),'3');assert.equal(stepQuantity('',0),'1');assert.equal(stepQuantity('2.5',0),'1');
+});

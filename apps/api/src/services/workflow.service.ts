@@ -1,3 +1,5 @@
+import {identityTarget} from "./identity-target.js";
+import {listCurrencies} from "./fx-provider.js";
 import {currencySchema} from "./currency.service.js";
 import type {Request, RequestHandler} from "express";
 import {Router} from "express";
@@ -41,8 +43,11 @@ workflowRouter.get("/",wrap(async(req,res)=>{
 }));
 workflowRouter.post("/identity",wrap(async(req,res)=>{
  const g=res.locals.group;await editable(req,g);
- const {personId}=z.object({personId:z.string().min(1)}).strict().parse(req.body);const keys=billKeys(req),key=creatorKey(req);
+ let personId:string|undefined;const keys=billKeys(req),key=creatorKey(req);
  await prisma.$transaction(async tx=>{
+ const live=await tx.group.findUniqueOrThrow({where:{id:g.id}});
+ if(live.locked||live.archived)throw failure("Grupa je zaključana ili arhivirana.",423);
+ personId=await identityTarget(tx,g.id,req.body,keys);
  const p=await tx.person.findFirst({where:{id:personId,groupId:g.id,inactive:false}});
  if(!p)throw failure("Sudionik nije pronađen.",404);
  if(p.identityKey&&!keys.includes(p.identityKey))throw failure("Ovaj profil je već povezan s drugim računom ili uređajem.",409);
@@ -69,6 +74,7 @@ workflowRouter.patch("/people/:id",adminGate,wrap(async(req,res)=>{
 }));
 workflowRouter.patch("/settings",adminGate,wrap(async(req,res)=>{
  const body=z.object({currency:currencySchema.optional(),archived:z.boolean().optional(),avatar:z.enum(["👥","🏠","🍽️","✈️","🎉","🏖️","🚗","💼"]).optional()}).strict().parse(req.body);
+ if(body.currency&&body.currency!==res.locals.group.currency&&!(await listCurrencies()).some(x=>x.code===body.currency))throw failure("Valuta nije dostupna.");
  await prisma.$transaction(async tx=>{
  const live=await tx.group.findUniqueOrThrow({where:{id:res.locals.group.id}});
  if(body.currency&&body.currency!==live.currency){

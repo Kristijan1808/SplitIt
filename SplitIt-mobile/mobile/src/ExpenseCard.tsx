@@ -84,7 +84,7 @@ export function ExpenseCard({
           <Txt bold size={15}>
             {e.note || t("Zajednički račun", "Shared bill")}
           </Txt>
-          {e.currency&&e.currency!==currency&&<Txt muted size={11}>{Number(e.originalTotal).toFixed(2)} {e.currency} · 1 {e.currency} = {e.exchangeRate} {currency}</Txt>}
+          {e.currency&&e.currency!==currency&&<Txt muted size={11}>{Number(e.originalTotal).toFixed(2)} {e.currency} · 1 {e.currency} = {e.exchangeRate} {currency}{e.rateDate?` · ${e.rateDate}`:""}</Txt>}
           {pending&&<Txt bold size={11} style={{color:c.danger}}>{t("Čeka podjelu", "Awaiting split")} · {e.unassignedCount}/{e.items.length}</Txt>}
           {e.paymentIncomplete&&<Txt bold size={11} style={{color:c.danger}}>{t("Provjeri platitelje", "Check payers")}</Txt>}
           <Txt muted size={11}>

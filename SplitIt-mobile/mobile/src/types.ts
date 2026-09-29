@@ -106,6 +106,7 @@ export type ExpenseShare = {
 export type Expense = {
   currency?:string;
   exchangeRate?:number;
+  rateDate?:string|null;rateSource?:string|null;
   originalTotal?:number|null;
   allocationComplete?:boolean;
   unassignedCount?:number;
