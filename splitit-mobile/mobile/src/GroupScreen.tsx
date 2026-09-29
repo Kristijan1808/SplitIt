@@ -332,7 +332,11 @@ export function GroupScreen({
                           <Button secondary label="+" disabled={busy||g.locked||!me||item.shares.reduce((n,x)=>n+(x.units||0),0)>=(item.quantity||1)} onPress={()=>void act(()=>api.ownItem(g.slug,e.id,item.id,(item.shares.find(x=>x.personId===me?.id)?.units||0)+1,true))}/>
                         </View></View>
                         <Txt muted size={12}>{t("Preostalo","Remaining")}: {Math.max(0,(item.quantity||1)-item.shares.reduce((n,x)=>n+(x.units||0),0))} / {item.quantity||1}</Txt>
-                      </> : <Button secondary label={item.shares.some(x=>x.personId===me?.id)?t("Sudjelujem · ukloni me","Sharing · remove me"):t("Dijelim ovu stavku","Share this item")} disabled={busy||g.locked||!me} onPress={()=>void act(()=>api.ownItem(g.slug,e.id,item.id,!item.shares.some(x=>x.personId===me?.id),true))}/>}
+                      </> : <View style={s.between}><Txt>{t("Moj odabir","My selection")}</Txt><View style={s.row}>
+                        <Button secondary label="−" disabled={busy||g.locked||!me||!item.shares.some(x=>x.personId===me.id)} onPress={()=>void act(()=>api.ownItem(g.slug,e.id,item.id,false,true))}/>
+                        <Txt bold>{item.shares.some(x=>x.personId===me?.id)?1:0}</Txt>
+                        <Button secondary label="+" disabled={busy||g.locked||!me||item.shares.some(x=>x.personId===me.id)} onPress={()=>void act(()=>api.ownItem(g.slug,e.id,item.id,true,true))}/>
+                      </View></View>}
                       <Txt muted size={12}>{!item.shares.length?t("Još nitko nije odabrao stavku.","No claims yet."):item.shares.map(x=>`${person(x.personId)}${item.splitMode==="units"?` · ${x.units} kom.`:""} · ${money(x.amount)}`).join("\n")}</Txt>
                     </View>
                   ))}

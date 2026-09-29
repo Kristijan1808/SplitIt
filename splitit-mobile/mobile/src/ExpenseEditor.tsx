@@ -1,6 +1,6 @@
-import { Platform } from "react-native";
+import { Platform, useWindowDimensions } from "react-native";
 import {CurrencyPicker} from "./CurrencyPicker";
-import {inferCategory,stepQuantity} from "./domain.mjs";
+import {inferCategory,stepQuantity,normalizedQuantity,itemSplitMode} from "./domain.mjs";
 import {categories,categoryIcon,currencySymbol} from "./catalog";
 import {requestKey,customAllocation} from "./domain.mjs";
 import React, { useState, useEffect, useRef } from "react";
@@ -43,6 +43,7 @@ export function ExpenseEditor({
   const source=expense;
   const { t, c, busy: useBusy } = useUI();
   const [mode, setMode] = useState<"equal" | "items">(source || startCamera ? "items" : "equal");
+  const narrow=useWindowDimensions().width<370;
   const [splitMode,setSplitMode]=useState("equal");
   const [splitValues,setSplitValues]=useState<Record<string,string>>({});
   const [picker,setPicker]=useState<"category"|"currency"|null>(null);
@@ -53,9 +54,9 @@ export function ExpenseEditor({
   const [rateLoading,setRateLoading]=useState(false);
   const [rateRefresh,setRateRefresh]=useState(0);
   const [manualCategory,setManualCategory]=useState(!!expense);
-  useEffect(()=>{if(currency===baseCurrency){setQuote(null);setRateError("");setRateLoading(false);return;}let active=true;setQuote(null);setRateError("");setRateLoading(true);
-    api.fxQuote(group.slug,currency).then(value=>{if(active)setQuote(value)}).catch(e=>{if(active)setRateError(e.message)}).finally(()=>{if(active)setRateLoading(false)});
-    const timer=setInterval(()=>setRateRefresh(n=>n+1),5*60000);return()=>{active=false;clearInterval(timer)};
+  useEffect(()=>{if(currency===baseCurrency){setQuote(null);setRateError("");setRateLoading(false);return;}let active=true;let retry:ReturnType<typeof setTimeout>|undefined;setQuote(null);setRateError("");setRateLoading(true);
+    api.fxQuote(group.slug,currency).then(value=>{if(active)setQuote(value)}).catch(e=>{if(active){setRateError(e.message);retry=setTimeout(()=>setRateRefresh(n=>n+1),30000)}}).finally(()=>{if(active)setRateLoading(false)});
+    const timer=setInterval(()=>setRateRefresh(n=>n+1),5*60000);return()=>{active=false;clearInterval(timer);if(retry)clearTimeout(retry)};
   },[currency,baseCurrency,group.slug,rateRefresh]);
   const [equalAmount, setEqualAmount] = useState("");
   const [equalIds, setEqualIds] = useState(group.people.map(p => p.id));
@@ -141,6 +142,7 @@ export function ExpenseEditor({
           ? {
               ...x,
               ...values,
+              splitMode:values.quantity!==undefined?itemSplitMode(values.quantity):x.splitMode,
               originalLineTotal:values.price!==undefined||values.quantity!==undefined?undefined:x.originalLineTotal,
               originalShares:
                 values.ids !== undefined || values.price !== undefined || values.quantity !== undefined || values.claims !== undefined || values.splitMode !== undefined
@@ -222,14 +224,15 @@ export function ExpenseEditor({
       const checked=validateBill(effectiveItems,actualPayers,false);
       if(checked.total<=0||checked.total!==checked.paid)throw new Error(t("Zbroj uplata mora odgovarati računu.","Payments must match the total."));
       if(mode==="equal"&&!equalIds.length)throw new Error(t("Odaberi barem jednu osobu.","Select at least one person."));
-      if(currency!==baseCurrency&&(!quote||quote.base!==currency||quote.quote!==baseCurrency||!quote.expiresAt||Date.parse(quote.expiresAt)<=Date.now()))throw new Error(t("Osvježi automatski tečaj prije spremanja.","Refresh the automatic rate before saving."));
+      let currentQuote=quote;
+      if(currency!==baseCurrency&&(!currentQuote||currentQuote.base!==currency||currentQuote.quote!==baseCurrency||!currentQuote.expiresAt||Date.parse(currentQuote.expiresAt)<=Date.now())) {currentQuote=await api.fxQuote(group.slug,currency);setQuote(currentQuote);setRateError("");}
       const parsedDate=new Date(`${billDate}T12:00:00Z`);
       if(!/^\d{4}-\d{2}-\d{2}$/.test(billDate)||!Number.isFinite(parsedDate.getTime())||parsedDate.toISOString().slice(0,10)!==billDate)throw new Error(t("Provjeri datum računa.","Check the bill date."));
       const custom=mode==="equal"&&splitMode!=="equal"?customAllocation(checked.total,equalIds,splitValues,splitMode):null;
-      const body={requestId,currency,quoteId:quote?.id,note:note.trim()||undefined,billDate:parsedDate.toISOString(),category,
+      const body={requestId,currency,quoteId:currentQuote?.id,note:note.trim()||undefined,billDate:parsedDate.toISOString(),category,
         payers:actualPayers.map(p=>({personId:p.personId,amount:cents(p.amount)/100})),
-        items:effectiveItems.map((x:Item,i:number)=>({splitMode: mode==="equal"?"shared":x.splitMode??(Number(x.quantity||1)>1?"units":"shared"),ordinalNumber:i+1,name:x.name.trim(),quantity:Number(x.quantity||1),price:cents(x.price)/100,
-          shares:mode!=="equal"&&(x.splitMode??(Number(x.quantity||1)>1?"units":"shared"))==="units" ? (assignNow?Object.entries(x.claims??{}).filter(([,n])=>n>0).map(([personId,units])=>({personId,units})):[]) : custom?x.ids.map((personId,j)=>({personId,amount:custom[j]/100})):x.originalShares??x.ids.map(personId=>({personId}))}))};
+        items:effectiveItems.map((x:Item,i:number)=>({splitMode: mode==="equal"?"shared":x.splitMode??itemSplitMode(x.quantity),ordinalNumber:i+1,name:x.name.trim(),quantity:normalizedQuantity(x.quantity),price:cents(x.price)/100,
+          shares:mode!=="equal"&&(x.splitMode??itemSplitMode(x.quantity))==="units" ? (assignNow?Object.entries(x.claims??{}).filter(([,n])=>n>0).map(([personId,units])=>({personId,units})):[]) : custom?x.ids.map((personId,j)=>({personId,amount:custom[j]/100})):x.originalShares??x.ids.map(personId=>({personId}))}))};
       if(expense){await api.updateExpense(group.slug,expense.id,{...body,expectedUpdatedAt:expense.updatedAt});setConfirmed(true);await done();return;}
       const saved=await api.createExpense(group.slug,body);
       setCreatedId(saved.id);setConfirmed(true);
@@ -285,10 +288,7 @@ export function ExpenseEditor({
               <Pressable accessibilityRole="button" accessibilityLabel={`${t("Odaberi valutu","Choose currency")}: ${currency}`} disabled={useBusy} onPress={()=>setPicker("currency")} style={{minWidth:48,minHeight:48,paddingHorizontal:5,borderRadius:10,borderWidth:1,borderColor:c.line,alignItems:"center",justifyContent:"center"}}><Txt bold size={20}>{currencySymbol(currency)}</Txt><Txt muted size={10}>{currency}</Txt></Pressable>
               {mode==="equal"?<TextInput accessibilityLabel={`${t("Iznos","Amount")} (${currency})`} placeholder="0,00" placeholderTextColor={c.muted} keyboardType="decimal-pad" value={equalAmount} onChangeText={setEqualAmount} editable={!useBusy} style={{flex:1,minWidth:0,minHeight:60,borderWidth:0,backgroundColor:c.tint,borderRadius:16,color:c.ink,fontSize:32,fontWeight:"600",padding:12}}/>:<Txt muted>{t("Valuta cijena stavki","Currency for item prices")}</Txt>}
             </View>
-            {currency!==baseCurrency&&<View style={{gap:6,padding:10,borderRadius:12,backgroundColor:c.bg}}>
-              {rateLoading?<Txt muted>{t("Dohvaćam tečaj…","Fetching exchange rate…")}</Txt>:rateError?<Txt style={{color:c.danger}}>{rateError}</Txt>:quote&&<><Txt bold>≈ {(total*quote.rate).toFixed(2)} {baseCurrency}</Txt><Txt muted size={12}>1 {currency} = {quote.rate} {baseCurrency} · {quote.rateDate}</Txt><Txt muted size={11}>{quote.source}</Txt></>}
-              <Button compact secondary disabled={rateLoading} label={t("Osvježi tečaj","Refresh rate")} onPress={()=>setRateRefresh(n=>n+1)}/>
-            </View>}
+
 
             {expense?.currency&&expense.currency!==baseCurrency&&<Txt muted size={12}>{t("Uređuješ preračunate iznose u glavnoj valuti grupe. Spremanje zamjenjuje prethodni zapis tečaja.","You are editing converted amounts in the group currency. Saving replaces the previous exchange-rate record.")}</Txt>}
 
@@ -316,7 +316,7 @@ export function ExpenseEditor({
 
           </Card>}
           <View style={s.between}><Txt bold size={20}>{t("Stavke računa", "Bill items")}</Txt><Txt muted size={13}>{items.length}</Txt></View>
-          <Txt muted size={12}>{t("Naziv, cijena po komadu i količina. Odaberi podjelu po komadima ili zajednički.", "Name, unit price and quantity. Choose individual units or shared splitting.")}</Txt>
+          <Txt muted size={12}>{t("Količina 0, 1 ili prazno: zajednička stavka. Više komada: svatko bira svoju količinu.", "Quantity 0, 1 or empty: shared item. More units: each person chooses their quantity.")}</Txt>
           {assignNow && <Pressable
             accessibilityRole="button"
             accessibilityState={{ expanded: advanced }}
@@ -363,23 +363,24 @@ export function ExpenseEditor({
                   </Pressable>
                 )}
               </View>
-              <View style={{flexDirection:"row",gap:6,alignItems:"flex-start"}}>
-                <View style={{flex:1,minWidth:0}}><Field label={t("Naziv","Name")} value={item.name} onChange={name=>patch(item.key,{name})}/></View>
-                <View style={{width:76}}><Field label={currency} value={item.price} decimal onChange={price=>patch(item.key,{price})}/></View>
-                <View style={{width:58}}><Field label={t("Kom.","Qty")} value={String(item.quantity??1)} decimal onChange={quantity=>patch(item.key,{quantity:quantity.replace(/[^0-9]/g,"")})}/></View>
+              <View style={{flexDirection:"row",gap:6,alignItems:"flex-start",flexWrap:narrow?"wrap":"nowrap"}}>
+                <View style={{flex:narrow?undefined:1,width:narrow?"100%":undefined,minWidth:0}}><Field label={t("Naziv","Name")} value={item.name} onChange={name=>patch(item.key,{name})}/></View>
+                <View style={{width:narrow?undefined:76,flex:narrow?1:undefined}}><Field label={currency} value={item.price} decimal onChange={price=>patch(item.key,{price})}/></View>
+                <View style={{width:120,gap:6}}><Txt bold size={13}>{t("Kom.","Qty")}</Txt>
+                  <View style={{flexDirection:"row",alignItems:"center",borderWidth:1,borderColor:c.line,borderRadius:12,overflow:"hidden",minHeight:48}}>
+                    <Pressable accessibilityRole="button" accessibilityLabel={t("Smanji količinu","Decrease quantity")} disabled={useBusy||Number(item.quantity??1)<=0} onPress={()=>patch(item.key,{quantity:Math.max(0,Number(item.quantity??1)-1)})} style={{width:44,minHeight:48,alignItems:"center",justifyContent:"center",backgroundColor:c.tint}}><Txt bold size={22}>−</Txt></Pressable>
+                    <TextInput accessibilityLabel={t("Količina","Quantity")} keyboardType="number-pad" maxLength={3} value={String(item.quantity??1)} editable={!useBusy} onChangeText={quantity=>patch(item.key,{quantity:quantity.replace(/[^0-9]/g,"")})} style={{flex:1,minWidth:0,textAlign:"center",padding:0,color:c.ink,fontSize:15,minHeight:48}}/>
+                    <Pressable accessibilityRole="button" accessibilityLabel={t("Povećaj količinu","Increase quantity")} disabled={useBusy||Number(item.quantity??1)>=999} onPress={()=>patch(item.key,{quantity:Math.min(999,Number(item.quantity??1)+1)})} style={{width:44,minHeight:48,alignItems:"center",justifyContent:"center",backgroundColor:c.tint}}><Txt bold size={22}>+</Txt></Pressable>
+                  </View></View>
               </View>
-              <View style={s.wrap}>
-                <Chip label={t("Po komadima","By units")} selected={(item.splitMode??(Number(item.quantity||1)>1?"units":"shared"))==="units"} onPress={()=>patch(item.key,{splitMode:"units",claims:{},ids:[]})}/>
-                <Chip label={t("Zajednički","Shared")} selected={(item.splitMode??(Number(item.quantity||1)>1?"units":"shared"))==="shared"} onPress={()=>patch(item.key,{splitMode:"shared",claims:{},ids:[]})}/>
-              </View>
-              {assignNow && (item.splitMode??(Number(item.quantity||1)>1?"units":"shared"))==="units" && group.people.filter(p=>!p.inactive).map(p=>{
+              {assignNow && (item.splitMode??itemSplitMode(item.quantity))==="units" && group.people.filter(p=>!p.inactive).map(p=>{
                 const mine=item.claims?.[p.id]??0, used=Object.values(item.claims??{}).reduce((a,b)=>a+b,0);
                 return <View key={p.id} style={s.between}><Txt>{p.name}</Txt><View style={s.row}>
                   <Button secondary label="−" disabled={useBusy||mine===0} onPress={()=>patch(item.key,{claims:{...item.claims,[p.id]:mine-1}})}/>
                   <Txt bold>{mine}</Txt><Button secondary label="+" disabled={useBusy||used>=Number(item.quantity||1)} onPress={()=>patch(item.key,{claims:{...item.claims,[p.id]:mine+1}})}/>
                 </View></View>;
               })}
-              {assignNow && (item.splitMode??(Number(item.quantity||1)>1?"units":"shared"))==="shared" && <><Pressable
+              {assignNow && (item.splitMode??itemSplitMode(item.quantity))==="shared" && <><Pressable
                 accessibilityRole="button"
                 onPress={() => patch(item.key, { ids: [] })}
                 style={{
@@ -532,6 +533,10 @@ export function ExpenseEditor({
             <Txt bold size={18}>
               {t("Pregled i spremanje", "Review and save")}
             </Txt>
+            <View style={s.between}><Txt bold>{t("Ukupno", "Total")}</Txt><Txt bold size={20}>{total.toFixed(2)} {currency}</Txt></View>
+            {currency!==baseCurrency&&<View style={{gap:6,padding:10,borderRadius:12,backgroundColor:c.bg}}>
+              {rateLoading?<Txt muted>{t("Dohvaćam tečaj…","Fetching exchange rate…")}</Txt>:rateError?<Txt style={{color:c.danger}}>{rateError}</Txt>:quote&&<><Txt bold>≈ {(total*quote.rate).toFixed(2)} {baseCurrency}</Txt><Txt muted size={12}>1 {currency} = {quote.rate} {baseCurrency} · {quote.rateDate}</Txt><Txt muted size={11}>{quote.source}</Txt></>}
+            </View>}
             <View style={s.between}>
               <Txt>{t("Uplaćeno", "Paid")}</Txt>
               <Txt bold>{paid.toFixed(2)} {currency}</Txt>

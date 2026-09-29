@@ -162,7 +162,7 @@ test('quantity scales one line and never limits people sharing it',async()=>{
  assert.equal(rows.length,1);assert.equal(cents(rows[0].price),2000);assert.deepEqual(rows[0].ids,['a','b','c']);
  const two=prepareBillItems('items','',[],[{key:'kava',name:'Kava',price:'2,50',quantity:'2',ids:['a','b','c','d']}],false);
  assert.equal(two.length,1);assert.equal(cents(two[0].price),500);assert.equal(two[0].quantity,2);assert.deepEqual(two[0].ids,[]);
- assert.equal(prepareBillItems('items','',[],[{name:'Pizza',price:'8',quantity:'0'}],false)[0].name,'');
+ assert.equal(prepareBillItems('items','',[],[{name:'Pizza',price:'8',quantity:'0'}],false)[0].price,'8.00');
 });
 
 test('title suggestions match Croatian and English without partial-word guesses',async()=>{

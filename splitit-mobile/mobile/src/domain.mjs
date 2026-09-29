@@ -128,7 +128,7 @@ export function historyDetails(entry) {
 export function prepareBillItems(mode, amount, ids, items, assignNow) {
   if (mode === "equal") return [{ key: "equal", name: "Jednaka podjela", price: amount, ids: [...ids] }];
   return items.flatMap(item => {
-    const quantity=item.quantity===undefined?1:Number(item.quantity);
+    const quantity=normalizedQuantity(item.quantity);
     if(!Number.isInteger(quantity)||quantity<1||quantity>999)return [{...item,name:"",ids:[]}];
     let price;try{price=item.originalLineTotal??(cents(item.price)*quantity/100).toFixed(2)}catch{return [{...item,name:"",ids:[]}]}
     const row={...item,quantity,price};return [assignNow?row:{...row,ids:[],originalShares:undefined}];
@@ -165,3 +165,6 @@ export function inferCategory(title){
  return String(rules.find(([,matches])=>words.some(w=>matches.includes(w)))?.[0]||'other');
 }
 export function stepQuantity(value,delta){const n=Number(value);return String(Math.min(999,Math.max(1,(Number.isInteger(n)?n:1)+delta)));}
+
+export function normalizedQuantity(value) { const n=Number(value??1); return n===0?1:n; }
+export function itemSplitMode(value) { return normalizedQuantity(value)>1?"units":"shared"; }
