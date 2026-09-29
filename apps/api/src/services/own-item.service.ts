@@ -1,3 +1,4 @@
+import {unitShares} from "./unit-allocation.js";
 import {actorPerson} from "./workflow.service.js";
 import type { RequestHandler } from "express";
 import { Prisma } from "@prisma/client";
@@ -40,9 +41,10 @@ export const ownItem =
   (finalized: boolean): RequestHandler =>
   async (req, res, next) => {
     try {
-      const { selected } = z
-        .object({ selected: z.boolean() })
+      const { selected, units } = z
+        .object({ selected: z.boolean().optional(), units: z.number().int().min(0).max(999).optional() })
         .strict()
+        .refine(v=>v.selected!==undefined||v.units!==undefined)
         .parse(req.body);
       const group = await prisma.group.findUnique({
         where: { slug: req.params.slug as string },
@@ -85,20 +87,17 @@ export const ownItem =
               include: { shares: true },
             });
             if (!item) throw fail("Item not found", 404);
-            if (item.shares.some((s) => s.personId === personId) === selected)
+            if (item.splitMode !== "units" && item.shares.some((s) => s.personId === personId) === (selected ?? !!units))
               return serializeExpense(
                 await tx.expense.findUniqueOrThrow({
                   where: { id },
                   include: expenseDetailsInclude,
                 }),
               );
-            const shares = ownShares(
-              Number(item.price),
-              item.shares,
-              personId,
-              selected,
-              false,
-            );
+            const requested=units ?? (selected ? 1 : 0);
+            const shares = item.splitMode === "units"
+              ? unitShares(Number(item.price),item.quantity,[...item.shares.filter(s=>s.personId!==personId).map(s=>({personId:s.personId,units:s.units??1})),...(requested?[{personId,units:requested}]:[])])
+              : ownShares(Number(item.price),item.shares,personId,selected ?? !!units,false);
             await tx.expenseItemShare.deleteMany({
               where: { itemId: item.id },
             });
@@ -128,7 +127,7 @@ export const ownItem =
                 action: "UPDATE",
                 message: `${actor.name}: ${item.name}`,
                 newValue: auditValue(actor, updated, {
-                  selection: { personId, itemId: item.id, selected },
+                  selection: { personId, itemId: item.id, selected, units },
                 }),
               },
             });
@@ -165,7 +164,7 @@ export const ownItem =
             Number(item.price),
             item.shares,
             personId,
-            selected,
+            selected ?? !!units,
             false,
           );
           await tx.expenseDraftItemShare.deleteMany({

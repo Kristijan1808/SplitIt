@@ -698,6 +698,14 @@ export const GroupPage = () => {
                                         className="expenseDetailItem"
                                         key={item.id}
                                       >
+                                        {item.splitMode === "units" ? <label>Moji komadi
+                                          <select aria-label={`Moja količina: ${item.name}`} disabled={group.locked||saving||!currentParticipantId}
+                                            value={item.shares.find(s=>s.personId===currentParticipantId)?.units||0}
+                                            onChange={async event=>{const units=Number(event.target.value);setSaving(true);setActionError("");try{await api.ownItem(slug,expense.id,item.id,units,true);setGroup(await api.getGroup(slug));setSettlementData(await api.getSettlements(slug));}catch(e){setActionError(e instanceof Error?e.message:"Error");}finally{setSaving(false);}}}>
+                                            {Array.from({length:Math.max(0,(item.quantity||1)-item.shares.filter(s=>s.personId!==currentParticipantId).reduce((n,s)=>n+(s.units||0),0))+1},(_,n)=><option key={n} value={n}>{n}</option>)}
+                                          </select>
+                                          <span> Preostalo: {Math.max(0,(item.quantity||1)-item.shares.reduce((n,s)=>n+(s.units||0),0))}</span>
+                                        </label> : <>
                                         <label>
                                           <input
                                             type="checkbox"
@@ -747,6 +755,7 @@ export const GroupPage = () => {
                                             ? "Moja stavka"
                                             : "My item"}
                                         </label>
+                                        </>}
                                         <div className="expenseDetailItemTop">
                                           <strong>
                                             {item.ordinalNumber}. {item.name} · {item.quantity||1} × {(Number(item.price)/(item.quantity||1)).toFixed(2)} {group?.currency||"EUR"}
@@ -769,7 +778,7 @@ export const GroupPage = () => {
                                                           share.personId,
                                                       )?.name ??
                                                       share.personId;
-                                                    return `${name} (${Number(share.amount).toFixed(2)} ${group?.currency||"EUR"})`;
+                                                    return `${name}${item.splitMode==="units"?` · ${share.units} kom.`:""} (${Number(share.amount).toFixed(2)} ${group?.currency||"EUR"})`;
                                                   },
                                                 )
                                                 .join(", ")}

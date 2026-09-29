@@ -152,6 +152,7 @@ model ExpensePayer {
 //
 
 model ExpenseItem {
+  splitMode String @default("shared")
   quantity Int @default(1)
   id            String   @id @default(uuid())
   expenseId     String
@@ -188,6 +189,7 @@ model ExpenseItem {
 //
 
 model ExpenseItemShare {
+  units Int?
   id        String   @id @default(uuid())
   itemId    String
   personId  String

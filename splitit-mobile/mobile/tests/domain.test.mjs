@@ -1,3 +1,4 @@
+import {prepareBillItems} from "../src/domain.mjs";
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
@@ -172,3 +173,6 @@ test('title suggestions match Croatian and English without partial-word guesses'
 test('quantity stepper preserves integer bounds',async()=>{
  const {stepQuantity}=await import('../src/domain.mjs');assert.equal(stepQuantity('1',-1),'1');assert.equal(stepQuantity('999',1),'999');assert.equal(stepQuantity('2',1),'3');assert.equal(stepQuantity('',0),'1');assert.equal(stepQuantity('2.5',0),'1');
 });
+
+// FX can produce a line total that cannot be divided evenly into unit cents.
+test("editing a rounded unit line preserves its original total",()=>{const rows=prepareBillItems("items","",[],[{name:"Cola",price:"3.33",quantity:3,originalLineTotal:"10.00",ids:[]}],true);assert.equal(rows[0].price,"10.00");});

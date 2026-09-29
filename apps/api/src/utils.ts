@@ -153,12 +153,14 @@ export const serializeExpense = (expense: ExpenseWithDetails) => ({
     id: item.id,
     expenseId: item.expenseId,
     quantity:item.quantity,
+    splitMode:item.splitMode,
     ordinalNumber: item.ordinalNumber,
     name: item.name,
     price: Number(item.price),
     shares: item.shares.map((share) => ({
       id: share.id,
       itemId: share.itemId,
+      units:share.units,
       personId: share.personId,
       amount: Number(share.amount),
       person: share.person

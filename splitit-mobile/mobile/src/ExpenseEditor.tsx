@@ -13,12 +13,15 @@ import { Wheel } from "./Wheel";
 import { cents, validateBill, prepareBillItems, splitCents } from "./domain.mjs";
 import type { Group, Expense } from "./types";
 type Item = {
+  originalLineTotal?:string;
+  splitMode?:"shared"|"units";
+  claims?:Record<string,number>;
   key: string;
   quantity?: string | number;
   name: string;
   price: string;
   ids: string[];
-  originalShares?: { personId: string; amount: number }[];
+  originalShares?: { personId: string; amount: number; units?:number|null }[];
 };
 let serial = 0;
 const key = () => String(++serial);
@@ -64,11 +67,15 @@ export function ExpenseEditor({
           key: key(),
           name: i.name,
           price: (Number(i.price)/(i.quantity||1)).toFixed(2),
+          originalLineTotal:Number(i.price).toFixed(2),
           quantity:String(i.quantity||1),
+          splitMode:(i as any).splitMode||"shared",
+          claims:Object.fromEntries(i.shares.map(s=>[s.personId,(s as any).units||1])),
           ids: i.shares.map((s) => s.personId),
           originalShares: i.shares.map((s) => ({
             personId: s.personId,
             amount: Number(s.amount),
+            units:(s as any).units,
           })),
         }))
       : [
@@ -134,8 +141,9 @@ export function ExpenseEditor({
           ? {
               ...x,
               ...values,
+              originalLineTotal:values.price!==undefined||values.quantity!==undefined?undefined:x.originalLineTotal,
               originalShares:
-                values.ids !== undefined || values.price !== undefined || values.quantity !== undefined
+                values.ids !== undefined || values.price !== undefined || values.quantity !== undefined || values.claims !== undefined || values.splitMode !== undefined
                   ? undefined
                   : x.originalShares,
             }
@@ -220,8 +228,8 @@ export function ExpenseEditor({
       const custom=mode==="equal"&&splitMode!=="equal"?customAllocation(checked.total,equalIds,splitValues,splitMode):null;
       const body={requestId,currency,quoteId:quote?.id,note:note.trim()||undefined,billDate:parsedDate.toISOString(),category,
         payers:actualPayers.map(p=>({personId:p.personId,amount:cents(p.amount)/100})),
-        items:effectiveItems.map((x,i)=>({ordinalNumber:i+1,name:x.name.trim(),quantity:Number(x.quantity||1),price:cents(x.price)/100,
-          shares:custom?x.ids.map((personId,j)=>({personId,amount:custom[j]/100})):x.originalShares??x.ids.map(personId=>({personId}))}))};
+        items:effectiveItems.map((x:Item,i:number)=>({splitMode: mode==="equal"?"shared":x.splitMode??(Number(x.quantity||1)>1?"units":"shared"),ordinalNumber:i+1,name:x.name.trim(),quantity:Number(x.quantity||1),price:cents(x.price)/100,
+          shares:mode!=="equal"&&(x.splitMode??(Number(x.quantity||1)>1?"units":"shared"))==="units" ? (assignNow?Object.entries(x.claims??{}).filter(([,n])=>n>0).map(([personId,units])=>({personId,units})):[]) : custom?x.ids.map((personId,j)=>({personId,amount:custom[j]/100})):x.originalShares??x.ids.map(personId=>({personId}))}))};
       if(expense){await api.updateExpense(group.slug,expense.id,{...body,expectedUpdatedAt:expense.updatedAt});setConfirmed(true);await done();return;}
       const saved=await api.createExpense(group.slug,body);
       setCreatedId(saved.id);setConfirmed(true);
@@ -308,7 +316,7 @@ export function ExpenseEditor({
 
           </Card>}
           <View style={s.between}><Txt bold size={20}>{t("Stavke računa", "Bill items")}</Txt><Txt muted size={13}>{items.length}</Txt></View>
-          <Txt muted size={12}>{t("Unesi jediničnu cijenu i količinu. Količina ne ograničava broj osoba koje dijele stavku.", "Enter unit price and quantity. Quantity does not limit the number of people sharing the item.")}</Txt>
+          <Txt muted size={12}>{t("Naziv, cijena po komadu i količina. Odaberi podjelu po komadima ili zajednički.", "Name, unit price and quantity. Choose individual units or shared splitting.")}</Txt>
           {assignNow && <Pressable
             accessibilityRole="button"
             accessibilityState={{ expanded: advanced }}
@@ -355,16 +363,23 @@ export function ExpenseEditor({
                   </Pressable>
                 )}
               </View>
-              <Field label={t("Naziv stavke", "Item name")} value={item.name} onChange={name=>patch(item.key,{name})}/>
-              <View style={[s.row,{alignItems:"flex-start",flexWrap:"wrap"}]}>
-                <View style={{flex:1,minWidth:0}}><Field label={`${t("Cijena / kom","Unit price")} (${currency})`} value={item.price} decimal onChange={price=>patch(item.key,{price})}/></View>
-                <View style={{flex:1,minWidth:150,gap:6}}><Txt bold size={13}>{t("Količina","Quantity")}</Txt><View style={{flexDirection:"row",alignItems:"center",borderWidth:1,borderColor:c.line,borderRadius:12,overflow:"hidden"}}>
-                  <Pressable accessibilityRole="button" accessibilityLabel={t("Smanji količinu","Decrease quantity")} disabled={useBusy||Number(item.quantity??1)<=1} onPress={()=>patch(item.key,{quantity:stepQuantity(item.quantity??1,-1)})} style={{width:44,minHeight:48,alignItems:"center",justifyContent:"center",backgroundColor:c.tint,opacity:Number(item.quantity??1)<=1?.4:1}}><Txt bold size={24}>−</Txt></Pressable>
-                  <TextInput accessibilityLabel={t("Količina","Quantity")} keyboardType="number-pad" value={String(item.quantity??1)} editable={!useBusy} maxLength={3} onChangeText={quantity=>patch(item.key,{quantity:quantity.replace(/[^0-9]/g,"")})} onBlur={()=>patch(item.key,{quantity:stepQuantity(item.quantity??1,0)})} style={{flex:1,minWidth:38,textAlign:"center",fontSize:18,color:c.ink,minHeight:48}}/>
-                  <Pressable accessibilityRole="button" accessibilityLabel={t("Povećaj količinu","Increase quantity")} disabled={useBusy||Number(item.quantity??1)>=999} onPress={()=>patch(item.key,{quantity:stepQuantity(item.quantity??1,1)})} style={{width:44,minHeight:48,alignItems:"center",justifyContent:"center",backgroundColor:c.tint,opacity:Number(item.quantity??1)>=999?.4:1}}><Txt bold size={24}>+</Txt></Pressable>
-                </View></View>
+              <View style={{flexDirection:"row",gap:6,alignItems:"flex-start"}}>
+                <View style={{flex:1,minWidth:0}}><Field label={t("Naziv","Name")} value={item.name} onChange={name=>patch(item.key,{name})}/></View>
+                <View style={{width:76}}><Field label={currency} value={item.price} decimal onChange={price=>patch(item.key,{price})}/></View>
+                <View style={{width:58}}><Field label={t("Kom.","Qty")} value={String(item.quantity??1)} decimal onChange={quantity=>patch(item.key,{quantity:quantity.replace(/[^0-9]/g,"")})}/></View>
               </View>
-              {assignNow && <><Pressable
+              <View style={s.wrap}>
+                <Chip label={t("Po komadima","By units")} selected={(item.splitMode??(Number(item.quantity||1)>1?"units":"shared"))==="units"} onPress={()=>patch(item.key,{splitMode:"units",claims:{},ids:[]})}/>
+                <Chip label={t("Zajednički","Shared")} selected={(item.splitMode??(Number(item.quantity||1)>1?"units":"shared"))==="shared"} onPress={()=>patch(item.key,{splitMode:"shared",claims:{},ids:[]})}/>
+              </View>
+              {assignNow && (item.splitMode??(Number(item.quantity||1)>1?"units":"shared"))==="units" && group.people.filter(p=>!p.inactive).map(p=>{
+                const mine=item.claims?.[p.id]??0, used=Object.values(item.claims??{}).reduce((a,b)=>a+b,0);
+                return <View key={p.id} style={s.between}><Txt>{p.name}</Txt><View style={s.row}>
+                  <Button secondary label="−" disabled={useBusy||mine===0} onPress={()=>patch(item.key,{claims:{...item.claims,[p.id]:mine-1}})}/>
+                  <Txt bold>{mine}</Txt><Button secondary label="+" disabled={useBusy||used>=Number(item.quantity||1)} onPress={()=>patch(item.key,{claims:{...item.claims,[p.id]:mine+1}})}/>
+                </View></View>;
+              })}
+              {assignNow && (item.splitMode??(Number(item.quantity||1)>1?"units":"shared"))==="shared" && <><Pressable
                 accessibilityRole="button"
                 onPress={() => patch(item.key, { ids: [] })}
                 style={{
@@ -572,7 +587,7 @@ export function ExpenseEditor({
             setItems(
               items.map((x) =>
                 wheel === "all" || x.key === wheel
-                  ? { ...x, ids, originalShares: undefined }
+                  ? { ...x, ids, claims:Object.fromEntries(ids.map((id,index)=>[id,Math.floor(Number(x.quantity||1)/ids.length)+(index<Number(x.quantity||1)%ids.length?1:0)])), originalShares: undefined }
                   : x,
               ),
             );

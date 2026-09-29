@@ -39,6 +39,7 @@ export type CreateDraftExpenseRequest = {
     name: string;
     price: number;
     quantity?:number;
+    splitMode?:"shared"|"units";
     shares: DraftItemShareRequest[];
   }>;
 };
@@ -150,7 +151,7 @@ export const api = {
     slug: string,
     id: string,
     itemId: string,
-    selected: boolean,
+    selected: boolean | number,
     finalized = false,
   ) =>
     request<DraftExpense>(

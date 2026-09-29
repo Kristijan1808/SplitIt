@@ -155,13 +155,13 @@ export const api = {
     slug: string,
     id: string,
     itemId: string,
-    selected: boolean,
+    selected: boolean | number,
     finalized = false,
   ) =>
     request(
       `${base(slug)}/${finalized ? "expenses" : "draft-expenses"}/${id}/items/${itemId}/mine`,
       "PATCH",
-      { selected },
+      typeof selected === "number" ? { units:selected } : { selected },
     ),
   auth: (register: boolean, body: object) =>
     request<AuthResponse>(

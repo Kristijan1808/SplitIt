@@ -69,6 +69,7 @@ export type Person = {
 };
 
 export type ExpenseItemShare = {
+  units?:number|null;
   id: string;
   itemId: string;
   personId: string;
@@ -77,6 +78,7 @@ export type ExpenseItemShare = {
 };
 
 export type ExpenseItem = {
+  splitMode?:"shared"|"units";
   quantity?:number;
   id: string;
   expenseId: string;

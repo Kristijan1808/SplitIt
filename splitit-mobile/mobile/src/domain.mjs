@@ -130,7 +130,7 @@ export function prepareBillItems(mode, amount, ids, items, assignNow) {
   return items.flatMap(item => {
     const quantity=item.quantity===undefined?1:Number(item.quantity);
     if(!Number.isInteger(quantity)||quantity<1||quantity>999)return [{...item,name:"",ids:[]}];
-    let price;try{price=(cents(item.price)*quantity/100).toFixed(2)}catch{return [{...item,name:"",ids:[]}]}
+    let price;try{price=item.originalLineTotal??(cents(item.price)*quantity/100).toFixed(2)}catch{return [{...item,name:"",ids:[]}]}
     const row={...item,quantity,price};return [assignNow?row:{...row,ids:[],originalShares:undefined}];
   });
 }

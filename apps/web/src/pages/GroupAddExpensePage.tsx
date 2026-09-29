@@ -443,6 +443,7 @@ export const GroupAddExpensePage = () => {
         items: validItems.map((item, index) => ({
           ordinalNumber: index + 1,
           quantity:Number(item.quantity??1),
+          splitMode: !assignNow && Number(item.quantity??1)>1 ? "units" : "shared",
           name: item.name.trim(),
           price: (Math.round(Number(item.price)*100)*Number(item.quantity??1)/100),
           shares: (assignNow?item.assignedPersonIds:[]).map((personId) => ({

@@ -1,3 +1,4 @@
+import {unitShares} from "./unit-allocation.js";
 import { z } from "zod";
 export class ExpenseInputError extends Error {}
 const money = z
@@ -27,11 +28,12 @@ export const editExpenseSchema = z.object({
       z.object({
         name: z.string().trim().min(1).max(120),
         price: money,
+        splitMode: z.enum(["shared","units"]).default("shared"),
         quantity: z.number().int().min(1).max(999).default(1),
         ordinalNumber: z.number().int().positive().optional(),
         shares: z
           .array(
-            z.object({ personId: z.string().min(1), amount: money.optional() }),
+            z.object({ personId: z.string().min(1), amount: money.optional(), units: z.number().int().positive().max(999).nullable().optional() }),
           ),
       }),
     )
@@ -60,6 +62,11 @@ export function prepareExpenseEdit(input: unknown, people: string[]) {
     const ids = item.shares.map((s) => s.personId);
     if (new Set(ids).size !== ids.length || ids.some((id) => !valid.has(id)))
       throw new ExpenseInputError("Invalid or duplicate item participant");
+    if(item.splitMode === "units") {
+      const shares=unitShares(item.price,item.quantity,item.shares.map(s=>({personId:s.personId,units:s.units??1})));
+      for(const share of shares) totals.set(share.personId,(totals.get(share.personId)??0)+Math.round(share.amount*100));
+      return {ordinalNumber:index+1,quantity:item.quantity,splitMode:item.splitMode,name:item.name,price:item.price,shares};
+    }
     const explicit = item.shares.some((s) => s.amount !== undefined);
     if (explicit && item.shares.some((s) => s.amount === undefined))
       throw new ExpenseInputError("Provide all share amounts or none");
@@ -78,7 +85,7 @@ export function prepareExpenseEdit(input: unknown, people: string[]) {
     });
     return {
       ordinalNumber: index + 1,
-      quantity:item.quantity,
+      quantity:item.quantity,splitMode:item.splitMode,
       name: item.name,
       price: item.price,
       shares,

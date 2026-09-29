@@ -300,7 +300,7 @@ export function GroupScreen({
                 {!!e.unassignedAmount&&<Txt bold style={{color:c.info}}>{t("Nedodijeljeno", "Unassigned")}: {money(e.unassignedAmount)}</Txt>}
                 <Txt muted size={12}>
                   {t(
-                    "Označi samo svoje stavke. Promjena se sprema odmah i ponovno dijeli stavku jednako.",
+                    "Označi samo svoje stavke. Promjena se sprema odmah. Za komade odaberi količinu; zajedničke stavke dijele se jednako.",
                     "Select only your items. Changes save immediately and split the item equally again.",
                   )}
                 </Txt>
@@ -322,33 +322,18 @@ export function GroupScreen({
                 {[...e.items]
                   .sort((a, b) => a.ordinalNumber - b.ordinalNumber)
                   .map((item) => (
-                    <View key={item.id} style={{ gap: 4 }}>
-                      <ItemCheck currency={g.currency||"EUR"}
-                        name={`${item.name} · ${item.quantity||1} × ${(Number(item.price)/(item.quantity||1)).toFixed(2)} ${g.currency||"EUR"}`}
-                        price={Number(item.price)}
-                        checked={
-                          !!me && item.shares.some((x) => x.personId === me.id)
-                        }
-                        disabled={g.locked || !me}
-                        onPress={() =>
-                          void act(() =>
-                            api.ownItem(
-                              g.slug,
-                              e.id,
-                              item.id,
-                              !item.shares.some((x) => x.personId === me?.id),
-                              true,
-                            ),
-                          )
-                        }
-                      />
-                      <Txt muted size={12}>
-                        {!item.shares.length?t("Nedodijeljeno — označi ako dijeliš ovu stavku.","Unassigned — select if you shared this item."):item.shares
-                          .map(
-                            (x) => `${person(x.personId)} ${money(x.amount)}`,
-                          )
-                          .join(" · ")}
-                      </Txt>
+                    <View key={item.id} style={{gap:10,marginVertical:6,padding:14,borderWidth:1,borderColor:c.line,borderRadius:16,backgroundColor:c.card}}>
+                      <View style={s.between}><Txt bold>{item.name}</Txt><Txt bold>{money(item.price)}</Txt></View>
+                      <Txt muted size={12}>{item.quantity||1} × {money(Number(item.price)/(item.quantity||1))}</Txt>
+                      {item.splitMode === "units" ? <>
+                        <View style={s.between}><Txt>{t("Moji komadi","My units")}</Txt><View style={s.row}>
+                          <Button secondary label="−" disabled={busy||g.locked||!me||!(item.shares.find(x=>x.personId===me.id)?.units)} onPress={()=>void act(()=>api.ownItem(g.slug,e.id,item.id,(item.shares.find(x=>x.personId===me?.id)?.units||0)-1,true))}/>
+                          <Txt bold>{item.shares.find(x=>x.personId===me?.id)?.units||0}</Txt>
+                          <Button secondary label="+" disabled={busy||g.locked||!me||item.shares.reduce((n,x)=>n+(x.units||0),0)>=(item.quantity||1)} onPress={()=>void act(()=>api.ownItem(g.slug,e.id,item.id,(item.shares.find(x=>x.personId===me?.id)?.units||0)+1,true))}/>
+                        </View></View>
+                        <Txt muted size={12}>{t("Preostalo","Remaining")}: {Math.max(0,(item.quantity||1)-item.shares.reduce((n,x)=>n+(x.units||0),0))} / {item.quantity||1}</Txt>
+                      </> : <Button secondary label={item.shares.some(x=>x.personId===me?.id)?t("Sudjelujem · ukloni me","Sharing · remove me"):t("Dijelim ovu stavku","Share this item")} disabled={busy||g.locked||!me} onPress={()=>void act(()=>api.ownItem(g.slug,e.id,item.id,!item.shares.some(x=>x.personId===me?.id),true))}/>}
+                      <Txt muted size={12}>{!item.shares.length?t("Još nitko nije odabrao stavku.","No claims yet."):item.shares.map(x=>`${person(x.personId)}${item.splitMode==="units"?` · ${x.units} kom.`:""} · ${money(x.amount)}`).join("\n")}</Txt>
                     </View>
                   ))}
                 <Txt bold>{t("Platili", "Paid by")}</Txt>
