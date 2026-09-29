@@ -27,7 +27,8 @@
           "photosPermission": "Odaberi sliku računa za podjelu troška.",
           "microphonePermission": false
         }
-      ]
+      ],
+      "expo-status-bar"
     ],
     "icon": "./assets/icon.png",
     "extra": {
