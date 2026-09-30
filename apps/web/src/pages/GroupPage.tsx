@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 import {
   Link,
   useNavigate,
@@ -72,6 +72,7 @@ export const GroupPage = () => {
     balances: [],
     settlements: [],
   });
+  const skipSettlementRefresh = useRef(false);
   const [expandedDrafts, setExpandedDrafts] = useState<Set<string>>(new Set());
   const [expandedExpenses, setExpandedExpenses] = useState<Set<string>>(
     new Set(),
@@ -132,8 +133,28 @@ export const GroupPage = () => {
         setSettlementData({ balances: [], settlements: [] });
       }
     };
-    if (group) void loadSettlements();
+    if (!group) return;
+    if (skipSettlementRefresh.current) {
+      skipSettlementRefresh.current = false;
+      return;
+    }
+    void loadSettlements();
   }, [group, slug]);
+
+  const refreshSnapshot = async () => {
+    const snapshot = await api.getGroupSnapshot(slug);
+    const nextGroup = {
+      ...snapshot.group,
+      locked: snapshot.group.locked || !!(snapshot.group as any).archived,
+    };
+    skipSettlementRefresh.current = true;
+    setGroup(nextGroup);
+    setWorkflow(snapshot.workflow);
+    setDrafts(snapshot.drafts.map(normalizeDraft));
+    setSettlementData(snapshot.settlements);
+    const mine = snapshot.workflow.people.find((person) => person.mine && !person.inactive);
+    saveWhoAmI(slug, mine?.id ?? "", mine?.name ?? null);
+  };
 
   const balances = settlementData.balances ?? [];
   const settlements = settlementData.settlements ?? [];
@@ -701,7 +722,7 @@ export const GroupPage = () => {
                                         {item.splitMode === "units" ? <label>Moji komadi
                                           <select aria-label={`Moja količina: ${item.name}`} disabled={group.locked||saving||!currentParticipantId}
                                             value={item.shares.find(s=>s.personId===currentParticipantId)?.units||0}
-                                            onChange={async event=>{const units=Number(event.target.value);setSaving(true);setActionError("");try{await api.ownItem(slug,expense.id,item.id,units,true);setGroup(await api.getGroup(slug));setSettlementData(await api.getSettlements(slug));}catch(e){setActionError(e instanceof Error?e.message:"Error");}finally{setSaving(false);}}}>
+                                            onChange={async event=>{const units=Number(event.target.value);setSaving(true);setActionError("");try{await api.ownItem(slug,expense.id,item.id,units,true);await refreshSnapshot();}catch(e){setActionError(e instanceof Error?e.message:"Error");}finally{setSaving(false);}}}>
                                             {Array.from({length:Math.max(0,(item.quantity||1)-item.shares.filter(s=>s.personId!==currentParticipantId).reduce((n,s)=>n+(s.units||0),0))+1},(_,n)=><option key={n} value={n}>{n}</option>)}
                                           </select>
                                           <span> Preostalo: {Math.max(0,(item.quantity||1)-item.shares.reduce((n,s)=>n+(s.units||0),0))}</span>
@@ -732,14 +753,7 @@ export const GroupPage = () => {
                                                   selected,
                                                   true,
                                                 );
-                                                setGroup(
-                                                  await api.getGroup(slug),
-                                                );
-                                                setSettlementData(
-                                                  await api.getSettlements(
-                                                    slug,
-                                                  ),
-                                                );
+                                                await refreshSnapshot();
                                               } catch (error) {
                                                 setActionError(
                                                   error instanceof Error

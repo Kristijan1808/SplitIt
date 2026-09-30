@@ -11,6 +11,7 @@ import type {
   PatchPaymentRequest,
   RegisterRequest,
   SettlementResult,
+  GroupSnapshot,
 } from "./types";
 import { getAuthToken } from "./auth";
 import {
@@ -229,6 +230,12 @@ export const api = {
     const group = await request<Group>(`/groups/${slug}`);
     syncSavedGroupToLocalStorage(group);
     return group;
+  },
+
+  getGroupSnapshot: async (slug: string) => {
+    const snapshot = await request<GroupSnapshot>(`/groups/${slug}/snapshot`);
+    syncSavedGroupToLocalStorage(snapshot.group);
+    return snapshot;
   },
 
   updateGroup: (slug: string, name: string) =>
