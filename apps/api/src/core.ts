@@ -5,7 +5,13 @@ import "dotenv/config";
 
 const JWT_SECRET = process.env.JWT_SECRET ?? "dev-secret-change-me";
 
-export const prisma = new PrismaClient();
+export const prisma = new PrismaClient({
+  log: [{ emit: "event", level: "query" }]
+});
+
+prisma.$on("query", (event) => {
+  console.info(`[db] ${event.duration}ms ${event.query}`);
+});
 
 export type AuthUser = {
   id: string;

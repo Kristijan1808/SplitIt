@@ -22,6 +22,18 @@ import { historyService } from "../services/history.service.js";
 
 export const groupRouter = Router();
 
+groupRouter.use((req, res, next) => {
+  const startedAt = performance.now();
+
+  res.once("finish", () => {
+    console.info(
+      `[api] ${req.method} ${req.originalUrl} ${res.statusCode} ${(performance.now() - startedAt).toFixed(1)}ms`
+    );
+  });
+
+  next();
+});
+
 // Group
 
 groupRouter.post(

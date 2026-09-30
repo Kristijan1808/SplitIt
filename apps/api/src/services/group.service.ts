@@ -13,8 +13,21 @@ import { ensureCanEditGroup, ensureCanViewGroup } from "./access.service.js";
 import { groupMemberService } from "./group-member.service.js";
 import { getUserFromRequest, prisma } from "../core.js";
 
+const measureMethod = <Arguments extends unknown[], Result>(
+  name: string,
+  method: (...args: Arguments) => Promise<Result>
+) => async (...args: Arguments): Promise<Result> => {
+  const startedAt = performance.now();
+
+  try {
+    return await method(...args);
+  } finally {
+    console.info(`[service] ${name} ${(performance.now() - startedAt).toFixed(1)}ms`);
+  }
+};
+
 export class GroupService {
-  create = async (req: Request) => {
+  create = measureMethod("GroupService.create", async (req: Request) => {
     const body = createGroupSchema.parse(req.body);
     const currentUser = getUserFromRequest(req);
 
@@ -63,9 +76,9 @@ export class GroupService {
     });
 
     return serializeGroup(group, currentUser);
-  };
+  });
 
-  join = async (req: Request) => {
+  join = measureMethod("GroupService.join", async (req: Request) => {
     const body = joinGroupSchema.parse(req.body);
     const currentUser = getUserFromRequest(req);
 
@@ -88,9 +101,9 @@ export class GroupService {
 
     const refreshed = await this.getGroupBySlug(group.slug);
     return serializeGroup(refreshed!, currentUser);
-  };
+  });
 
-  get = async (slug: string, req: Request) => {
+  get = measureMethod("GroupService.get", async (slug: string, req: Request) => {
     const group = await this.getGroupBySlug(slug);
 
     if (!group) throw new Error("Group not found");
@@ -106,9 +119,9 @@ export class GroupService {
     if (!updated) throw new Error("Group not found");
 
     return serializeGroup(updated, access.user);
-  };
+  });
 
-  update = async (slug: string, req: Request) => {
+  update = measureMethod("GroupService.update", async (slug: string, req: Request) => {
     const schema = z.object({
       name: z.string().min(1).max(80)
     });
@@ -150,9 +163,9 @@ export class GroupService {
     if (!updated) throw new Error("Group not found");
 
     return serializeGroup(updated, access.user);
-  };
+  });
 
-  setLock = async (slug: string, req: Request) => {
+  setLock = measureMethod("GroupService.setLock", async (slug: string, req: Request) => {
     const body = z.object({ locked: z.boolean() }).parse(req.body);
     const group = await prisma.group.findUnique({ where: { slug } });
 
@@ -186,7 +199,7 @@ export class GroupService {
     if (!updated) throw new Error("Group not found");
 
     return serializeGroup(updated, currentUser);
-  };
+  });
 
   getGroupBySlug = async (slug: string) =>
     prisma.group.findUnique({
