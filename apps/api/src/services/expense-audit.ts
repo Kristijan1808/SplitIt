@@ -3,9 +3,15 @@ import type { Request } from "express";
 import { getUserFromRequest, prisma } from "../core.js";
 
 // Participant identity is self-selected for guests; it is attribution, never authorization.
-export async function expenseActor(req: Request, groupId: string) {
+export async function expenseActor(
+  req: Request,
+  groupId: string,
+  participant?: { id: string; name: string },
+) {
   const user = getUserFromRequest(req);
   if (user) return { name: user.username, userId: user.id, kind: "account" };
+  if (participant)
+    return { name: participant.name, participantId: participant.id, kind: "participant" };
   const id = req.get("X-SplitIt-Participant-Id");
   const person = id
     ? await prisma.person.findFirst({

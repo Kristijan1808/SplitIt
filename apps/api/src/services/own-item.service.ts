@@ -6,10 +6,7 @@ import { z } from "zod";
 import { prisma, aggregateExpenseShares } from "../core.js";
 import {
   serializeDraftExpense,
-  serializeExpense,
-  expenseDetailsInclude,
 } from "../utils.js";
-import { ensureCanEditGroup } from "./access.service.js";
 import { billKeys } from "./bill-permissions.js";
 import { expenseActor, auditValue } from "./expense-audit.js";
 const fail = (message: string, status = 400) =>
@@ -46,24 +43,15 @@ export const ownItem =
         .strict()
         .refine(v=>v.selected!==undefined||v.units!==undefined)
         .parse(req.body);
-      const group = await prisma.group.findUnique({
+      const group = res.locals.group ?? await prisma.group.findUnique({
         where: { slug: req.params.slug as string },
       });
       if (!group) throw fail("Group not found", 404);
-      const access = await ensureCanEditGroup(group, req);
-      if (!access.allowed)
-        return res.status(access.status).json({ error: access.error });
       if (!billKeys(req).length) throw fail("Ponovno otvori aplikaciju.", 401);
       // Guest groups intentionally use a self-selected participant, as in the existing group identity flow.
-      const personId = (await actorPerson(req,group.id)).id;
-      if (
-        !personId ||
-        !(await prisma.person.findFirst({
-          where: { id: personId, groupId: group.id },
-        }))
-      )
-        throw fail("Najprije odaberi sebe u Sudionicima.");
-      const actor = await expenseActor(req, group.id);
+      const participant = await actorPerson(req,group.id);
+      const personId = participant.id;
+      const actor = await expenseActor(req, group.id, participant);
       const result = await prisma.$transaction(
         async (tx) => {
           const currentGroup = await tx.group.findUniqueOrThrow({
@@ -88,12 +76,7 @@ export const ownItem =
             });
             if (!item) throw fail("Item not found", 404);
             if (item.splitMode !== "units" && item.shares.some((s) => s.personId === personId) === (selected ?? !!units))
-              return serializeExpense(
-                await tx.expense.findUniqueOrThrow({
-                  where: { id },
-                  include: expenseDetailsInclude,
-                }),
-              );
+              return { ok: true };
             const requested=units ?? (selected ? 1 : 0);
             const shares = item.splitMode === "units"
               ? unitShares(Number(item.price),item.quantity,[...item.shares.filter(s=>s.personId!==personId).map(s=>({personId:s.personId,units:s.units??1})),...(requested?[{personId,units:requested}]:[])])
@@ -115,10 +98,6 @@ export const ownItem =
                 expenseId: id,
               })),
             });
-            const updated = await tx.expense.findUniqueOrThrow({
-              where: { id },
-              include: expenseDetailsInclude,
-            });
             await tx.history.create({
               data: {
                 groupId: group.id,
@@ -126,12 +105,12 @@ export const ownItem =
                 entityId: id,
                 action: "UPDATE",
                 message: `${actor.name}: ${item.name}`,
-                newValue: auditValue(actor, updated, {
+                newValue: auditValue(actor, bill, {
                   selection: { personId, itemId: item.id, selected, units },
                 }),
               },
             });
-            return serializeExpense(updated);
+            return { ok: true };
           }
           const draft = await tx.expenseDraft.findFirst({
             where: { id, groupId: group.id },
