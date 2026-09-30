@@ -1,3 +1,4 @@
+import {queueExpense} from "./outbox";
 import { Platform, useWindowDimensions } from "react-native";
 import {CurrencyPicker} from "./CurrencyPicker";
 import {inferCategory,stepQuantity,normalizedQuantity,itemSplitMode} from "./domain.mjs";
@@ -7,7 +8,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { Alert, View, Pressable, TextInput, Modal, ScrollView } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import * as ImageManipulator from "expo-image-manipulator";
-import { api, type FxQuote } from "./api";
+import { api, API_URL, type FxQuote } from "./api";
 import { Button, Card, Chip, Icon, Field, Heading, Page, Txt, useUI, s } from "./ui";
 import { Wheel } from "./Wheel";
 import { cents, validateBill, prepareBillItems, splitCents } from "./domain.mjs";
@@ -32,11 +33,13 @@ export function ExpenseEditor({
   expense,
   participantId,
   startCamera = false,
+  offline = false,
 }: {
   group: Group;
   expense?: Expense;
   participantId?: string;
   startCamera?: boolean;
+  offline?: boolean;
   run: (f: () => Promise<void>) => Promise<boolean>;
   done: (draft?: boolean) => Promise<void>;
 }) {
@@ -154,7 +157,15 @@ export function ExpenseEditor({
       ),
     );
   async function scan(camera: boolean) {
+    if(offline){await run(async()=>{throw new Error(t("Nema internetske veze. Nije moguće slikati ili učitati račun. Račun možeš unijeti ručno.","No internet connection. Taking or uploading a receipt is unavailable. Enter the bill manually."));});return;}
     await run(async () => {
+      const noConnection=()=>new Error(t("Nema internetske veze. Nije moguće slikati ili učitati račun. Račun možeš unijeti ručno.","No internet connection. Taking or uploading a receipt is unavailable. Enter the bill manually."));
+      const controller=new AbortController();const timer=setTimeout(()=>controller.abort(),15000);
+      let response:Response;
+      try{response=await fetch(`${API_URL}/health`,{signal:controller.signal,cache:"no-store"});}
+      catch{if(controller.signal.aborted)throw new Error(t("Poslužitelj ne odgovara. Pokušaj ponovno učitati račun.","The server is not responding. Try uploading again."));throw noConnection();}
+      finally{clearTimeout(timer);}
+      if(!response.ok)throw new Error(t("Usluga učitavanja računa trenutačno nije dostupna. Pokušaj ponovno kasnije.","Receipt upload service is unavailable. Try again later."));
       if (camera) {
         const perm = await ImagePicker.requestCameraPermissionsAsync();
         if (!perm.granted)
@@ -182,7 +193,10 @@ export function ExpenseEditor({
         { compress: 0.85, format: ImageManipulator.SaveFormat.JPEG, base64: true },
       );
       if (!converted.base64) throw new Error(t("Slika se nije mogla pripremiti. Ponovno je odaberi.", "Could not prepare image. Please select it again."));
-      const bill = await api.parse(converted.base64);
+      const bill = await api.parse(converted.base64).catch(error=>{
+        if(!error?.status && /network|fetch|timeout|istekao|isteklo|abort|veza/i.test(error?.message||""))throw noConnection();
+        throw error;
+      });
       if (!bill.items.length)
         throw new Error(
           t("Nisu pronađene stavke računa.", "No receipt items found."),
@@ -193,7 +207,10 @@ export function ExpenseEditor({
         bill.items.map((x) => ({
           key: key(),
           name: x.name,
-          price: Number(x.price).toFixed(2),
+          price: Number(x.unitPrice ?? x.price / (x.quantity ?? 1)).toFixed(2),
+          quantity: x.quantity ?? 1,
+          originalLineTotal: Number(x.price).toFixed(2),
+          splitMode: itemSplitMode(x.quantity ?? 1),
           ids: group.people.map((p) => p.id),
         })),
       );
@@ -227,7 +244,7 @@ export function ExpenseEditor({
       if(checked.total<=0||checked.total!==checked.paid)throw new Error(t("Zbroj uplata mora odgovarati računu.","Payments must match the total."));
       if(mode==="equal"&&!equalIds.length)throw new Error(t("Odaberi barem jednu osobu.","Select at least one person."));
       let currentQuote=quote;
-      if(currency!==baseCurrency&&(!currentQuote||currentQuote.base!==currency||currentQuote.quote!==baseCurrency||!currentQuote.expiresAt||Date.parse(currentQuote.expiresAt)<=Date.now())) {currentQuote=await api.fxQuote(group.slug,currency);setQuote(currentQuote);setRateError("");}
+      if(expense&&currency!==baseCurrency&&(!currentQuote||currentQuote.base!==currency||currentQuote.quote!==baseCurrency||!currentQuote.expiresAt||Date.parse(currentQuote.expiresAt)<=Date.now())) {currentQuote=await api.fxQuote(group.slug,currency);setQuote(currentQuote);setRateError("");}
       const parsedDate=new Date(`${billDate}T12:00:00Z`);
       if(!/^\d{4}-\d{2}-\d{2}$/.test(billDate)||!Number.isFinite(parsedDate.getTime())||parsedDate.toISOString().slice(0,10)!==billDate)throw new Error(t("Provjeri datum računa.","Check the bill date."));
       const custom=mode==="equal"&&splitMode!=="equal"?customAllocation(checked.total,equalIds,splitValues,splitMode):null;
@@ -236,9 +253,9 @@ export function ExpenseEditor({
         items:effectiveItems.map((x:Item,i:number)=>({splitMode: mode==="equal"?"shared":x.splitMode??itemSplitMode(x.quantity),ordinalNumber:i+1,name:x.name.trim(),quantity:normalizedQuantity(x.quantity),price:cents(x.price)/100,
           shares:mode!=="equal"&&(x.splitMode??itemSplitMode(x.quantity))==="units" ? (assignNow?Object.entries(x.claims??{}).filter(([,n])=>n>0).map(([personId,units])=>({personId,units})):[]) : custom?x.ids.map((personId,j)=>({personId,amount:custom[j]/100})):x.originalShares??x.ids.map(personId=>({personId}))}))};
       if(expense){await api.updateExpense(group.slug,expense.id,{...body,expectedUpdatedAt:expense.updatedAt});setConfirmed(true);await done();return;}
-      const saved=await api.createExpense(group.slug,body);
-      setCreatedId(saved.id);setConfirmed(true);
-      await done();
+      await queueExpense(group.slug,group.name,participantId,baseCurrency,body);
+      setCreatedId(requestId);setConfirmed(true);
+      await done(true);
     });
   }
   return (
@@ -547,7 +564,7 @@ export function ExpenseEditor({
             </Txt>
             <View style={s.between}><Txt bold>{t("Ukupno", "Total")}</Txt><Txt bold size={20}>{total.toFixed(2)} {currency}</Txt></View>
             {currency!==baseCurrency&&<View style={{gap:6,padding:10,borderRadius:12,backgroundColor:c.bg}}>
-              {rateLoading?<Txt muted>{t("Dohvaćam tečaj…","Fetching exchange rate…")}</Txt>:rateError?<Txt style={{color:c.danger}}>{rateError}</Txt>:quote&&<><Txt bold>≈ {(total*quote.rate).toFixed(2)} {baseCurrency}</Txt><Txt muted size={12}>1 {currency} = {quote.rate} {baseCurrency} · {quote.rateDate}</Txt><Txt muted size={11}>{quote.source}</Txt></>}
+              {rateLoading?<Txt muted>{t("Dohvaćam tečaj…","Fetching exchange rate…")}</Txt>:rateError?<Txt style={{color:c.danger}}>{rateError} {!expense&&t("Tečaj će se dohvatiti pri slanju računa.","The rate will be fetched when the bill uploads.")}</Txt>:quote&&<><Txt bold>≈ {(total*quote.rate).toFixed(2)} {baseCurrency}</Txt><Txt muted size={12}>1 {currency} = {quote.rate} {baseCurrency} · {quote.rateDate}</Txt><Txt muted size={11}>{quote.source}</Txt></>}
             </View>}
             <View style={s.between}>
               <Txt>{t("Uplaćeno", "Paid")}</Txt>
@@ -566,7 +583,7 @@ export function ExpenseEditor({
               </Txt>
             )}
             <Button label={expense?t("Spremi izmjene","Save changes"):t("Kreiraj račun","Create bill")}
-              disabled={group.locked||(currency!==baseCurrency&&(rateLoading||!quote||!!rateError))||Math.round(total*100)!==Math.round(paid*100)||total<=0||effectiveItems.some(i=>!i.name.trim())||(mode==="equal"&&!equalIds.length)} onPress={()=>void save()}/>
+              disabled={group.locked||(!!expense&&currency!==baseCurrency&&(rateLoading||!quote||!!rateError))||Math.round(total*100)!==Math.round(paid*100)||total<=0||effectiveItems.some(i=>!i.name.trim())||(mode==="equal"&&!equalIds.length)} onPress={()=>void save()}/>
           </Card>
         </>
       )}

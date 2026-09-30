@@ -1,9 +1,12 @@
+import {syncOutbox} from "./src/outbox";
 import {IdentityScreen} from "./src/IdentityScreen";
 import {ask} from "./src/WorkflowPanels";
 import { invitationCode } from "./src/domain.mjs";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   Alert,
+  Modal,
+  ActivityIndicator,
   AppState,
   BackHandler,
   KeyboardAvoidingView,
@@ -29,7 +32,6 @@ import {
   Chip,
   Heading,
   Icon,
-  Loading,
   Field,
   Page,
   Txt,
@@ -131,7 +133,7 @@ function Main() {
     setParticipant(mine?.id);
     setData(snapshot);
     } catch(error) {
-      if(error instanceof Error && /network|fetch|timeout|veza|isteklo/i.test(error.message) && !(error as any).status){const cached=await storage.read<Snapshot|null>(`snapshot.${auth?.user.id||"guest"}.${slug}`,null);if(cached){setData({...cached,offline:true});return;}}
+      if(error instanceof Error && /network|fetch|timeout|veza|isteklo/i.test(error.message) && !(error as any).status){const cached=await storage.read<Snapshot|null>(`snapshot.${auth?.user.id||"guest"}.${slug}`,null);if(cached){setParticipant(cached.workflow.people.find(p=>p.mine&&!p.inactive)?.id);setData({...cached,offline:true});return;}}
       throw error;
     }
   }
@@ -150,7 +152,7 @@ function Main() {
   function back() {
     if (gate.current) return;
     if (screen === "expense") {
-      ask(t("Napustiti unos?", "Leave editor?"),t("Nespremljeni unos bit će izgubljen.","Unsaved changes will be lost."),()=>{nav("group");void run(refresh)});
+      nav("group");
     } else nav("groups");
   }
   useEffect(() => {
@@ -223,6 +225,14 @@ function Main() {
         persistGroups(groupsRef.current.filter((x) => x.slug !== g.slug)),
       ),
     );
+  useEffect(()=>{
+    if(!ready)return;
+    let active=true;
+    const tick=async()=>{if(AppState.currentState!=="active")return;try{const sent=await syncOutbox();if(active&&sent&&screen==="group"&&data)await load(data.group.slug);}catch{/* Queue remains stored; panel displays permanent errors. */}};
+    void tick();const timer=setInterval(tick,20000);
+    const subscription=AppState.addEventListener("change",state=>{if(state==="active")void tick();});
+    return()=>{active=false;clearInterval(timer);subscription.remove();};
+  },[ready,auth?.user.id,screen,data?.group.slug]);
   const needsIdentity=screen==="group"&&!!data&&!data.offline&&!data.workflow.people.some(p=>p.mine&&!p.inactive);
   const groupList = (limit?: number) =>
     (limit ? groups.filter(g=>!g.archived).slice(0,limit) : groups.filter(g=>!!g.archived===showArchived && g.name.toLowerCase().includes(groupSearch.toLowerCase())).sort((a,b)=>Number(!!b.pinned)-Number(!!a.pinned))).map((g, i) => (
@@ -325,13 +335,11 @@ function Main() {
               </Txt>
             </Txt>
           </View>
-          {busy ? (
-            <Loading />
-          ) : (
+          {(
             <Pressable
               accessibilityRole="button"
               accessibilityLabel={t("Postavke", "Settings")}
-              disabled={screen === "expense"}
+              disabled={busy || screen === "expense"}
               onPress={() => nav("settings")}
               style={{
                 minWidth: 44,
@@ -370,9 +378,7 @@ function Main() {
           behavior={Platform.OS === "ios" ? "padding" : undefined}
         >
           {!ready ? (
-            <View style={{ flex: 1, justifyContent: "center" }}>
-              <Loading />
-            </View>
+            <View style={{ flex: 1 }} />
           ) : (
             <>
               {screen === "home" && (
@@ -645,11 +651,12 @@ function Main() {
                   key={editorKey}
                   expense={editingExpense}
                   participantId={current?.participantId}
+                  offline={!!data.offline}
                   startCamera={startCamera}
-                  group={{...data.group,people:editingExpense?data.group.people:data.group.people.filter(p=>!p.inactive),locked:data.group.locked||!!data.group.archived||!!data.offline}}
+                  group={{...data.group,people:editingExpense?data.group.people:data.group.people.filter(p=>!p.inactive),locked:data.group.locked||!!data.group.archived||(!!editingExpense&&!!data.offline)}}
                   run={run}
-                  done={async (draft) => {
-                    await refresh();
+                  done={async (queued) => {
+                    if(!queued)await refresh();
                     setTab("overview");
                     nav("group");
                   }}
@@ -699,6 +706,14 @@ function Main() {
           </View>
         )}
         {(screen === "expense" || needsIdentity) && <View style={{ height: insets.bottom }} />}
+        <Modal visible={busy || !ready} transparent animationType="fade" statusBarTranslucent onRequestClose={()=>{}}>
+          <View style={{flex:1,alignItems:"center",justifyContent:"center",backgroundColor:"rgba(0,0,0,0.18)",padding:24}}>
+            <View accessible accessibilityRole="progressbar" accessibilityLabel={t("Učitavanje…","Loading…")} accessibilityState={{busy:true}} accessibilityLiveRegion="polite" style={{alignItems:"center",justifyContent:"center",gap:14,minWidth:180,paddingHorizontal:28,paddingVertical:24,borderRadius:20,backgroundColor:c.card,borderWidth:1,borderColor:c.line}}>
+              <ActivityIndicator size="large" color={c.accent}/>
+              <Txt bold size={16}>{t("Učitavanje…","Loading…")}</Txt>
+            </View>
+          </View>
+        </Modal>
       </View>
     </UI.Provider>
   );

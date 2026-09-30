@@ -1,17 +1,8 @@
 import OpenAI from "openai";
-import { z } from "zod";
 import { zodTextFormat } from "openai/helpers/zod";
 
-const BillResponse = z.object({
-  items: z.array(
-    z.object({
-      name: z.string().min(1),
-      price: z.number().nonnegative()
-    })
-  )
-});
-
-export type ParsedBillItem = z.infer<typeof BillResponse>["items"][number];
+import { BillResponse, validateScannedBill, type ParsedBillItem } from "./services/bill-scan.js";
+export type { ParsedBillItem } from "./services/bill-scan.js";
 
 const SUPPORTED_IMAGE_TYPES = new Set([
   "image/jpeg",
@@ -74,11 +65,16 @@ export class ChatGptService {
               type: "input_text",
               text: [
                 "Read this restaurant/store bill and extract every purchasable line item.",
-                "Return the item name and the final price shown for that item.",
+                "Read the column headings first: Cijena/Price is UNIT price, Kol./Qty is QUANTITY, Ukupno/Amount is LINE TOTAL. Columns may be in a different order.",
+                "Return each item with name, quantity, unitPrice and lineTotal separately. Read printed values independently; do not replace a printed quantity with 1 or a unit price with the line total.",
+                "Example: NESCAFE | Cijena 2,50 | Kol. 2,00 | Ukupno 5,00 means quantity=2, unitPrice=2.50, lineTotal=5.00. Decimal commas are decimal separators.",
+                "If quantity is not printed and the line clearly represents one item, use quantity=1. If a value is unreadable or uncertain, return null for that value rather than guessing.",
+                "Return receiptTotal from the printed grand total (Ukupno), not cash tendered or change. Use null if it is not readable.",
+                "Check every line: quantity * unitPrice should equal lineTotal. Check all line totals against receiptTotal. Re-read the image if they disagree; never change printed values merely to make totals match.",
                 "Do not include subtotal, tax, VAT, service charge, tip, discount totals, grand total, payment, or other summary rows as items.",
                 "If the same product appears on multiple separate lines, keep the separate lines.",
                 "Use the numeric price exactly as shown on the bill when it can be read.",
-                "Do not invent items or prices. If a line cannot be identified reliably, omit it.",
+                "Do not invent or silently omit purchase rows. If any purchase row is unreadable, set hasUnreadableItems=true; otherwise false.",
 
                 "IMPORTANT: Always return item names using Latin script.",
                 "If an item name is written in a non-Latin script such as Japanese, Chinese, Korean, Arabic, Hebrew, Greek, Cyrillic, or another non-Latin writing system, do not return the original script.",
@@ -105,10 +101,7 @@ export class ChatGptService {
       throw new Error("ChatGPT did not return bill items");
     }
 
-    return response.output_parsed.items.map((item) => ({
-      name: item.name.trim(),
-      price: Number(item.price)
-    }));
+    return validateScannedBill(response.output_parsed);
   };
 }
 

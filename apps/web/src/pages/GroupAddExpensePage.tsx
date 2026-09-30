@@ -291,7 +291,8 @@ export const GroupAddExpensePage = () => {
           id: crypto.randomUUID(),
           ordinalNumber: index + 1,
           name: item.name,
-          price: item.price.toFixed(2),
+          price: (item.unitPrice ?? item.price / (item.quantity ?? 1)).toFixed(2),
+          quantity: String(item.quantity ?? 1),
           assignedPersonIds: group?.people.map((person) => person.id) ?? []
         }))
       );

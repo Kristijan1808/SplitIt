@@ -1,3 +1,4 @@
+import {OutboxPanel} from "./OutboxPanel";
 import {categories} from "./catalog";
 import {TransferPanel,GroupUtilities,ask} from "./WorkflowPanels";
 import {AppState} from "react-native";
@@ -108,7 +109,7 @@ export function GroupScreen({
   return (
     <View style={{ flex: 1 }}>
       <Page refresh={() => void run(refresh)}>
-        {data.offline&&<Card><Txt bold>{t("Prikaz spremljenih podataka · bez veze", "Cached data · offline")}</Txt><Txt muted>{t("Izmjene su onemogućene dok se ponovno ne povežeš.", "Changes are disabled until you reconnect.")}</Txt><Button secondary label={t("Pokušaj ponovno", "Retry")} onPress={()=>void run(refresh)}/></Card>}
+        <OutboxPanel slug={g.slug} refresh={refresh} offline={!!data.offline}/>
         
 
         <View
@@ -152,7 +153,7 @@ export function GroupScreen({
                 {g.people.length} {t("sudionika", "people")}
               </Txt>
             </View>
-            {g.locked && (
+            {rawGroup.locked && (
               <View style={pill}>
                 <Txt size={12} style={white}>
                   {t("Zaključano", "Locked")}
@@ -300,8 +301,8 @@ export function GroupScreen({
                 {!!e.unassignedAmount&&<Txt bold size={13} style={{color:c.danger}}>{t("Nedodijeljeno", "Unassigned")}: {money(e.unassignedAmount)}</Txt>}
                 <Txt muted size={12}>
                   {t(
-                    "Odaberi svoju količinu. Zajedničke stavke: 0 ili 1.",
-                    "Choose your quantity. Shared items: 0 or 1.",
+                    "Označi što si konzumirao/la. Iznos uz ime je udio te osobe.",
+                    "Select what you consumed. The amount beside a name is that person’s share.",
                   )}
                 </Txt>
                 {!me && (
@@ -328,20 +329,37 @@ export function GroupScreen({
                     const remaining=Math.max(0,(item.quantity||1)-item.shares.reduce((n,x)=>n+(x.units||0),0));
                     const blocked=busy||g.locked||!me;
                     const change=(delta:number)=>void act(()=>api.ownItem(g.slug,e.id,item.id,byUnits?selected+delta:delta>0,true));
-                    return <View key={item.id} style={{gap:2,paddingHorizontal:10,paddingVertical:7,borderWidth:1,borderColor:c.line,borderRadius:12,backgroundColor:c.card}}>
-                      <View style={[s.between,{gap:8}]}><Txt bold size={14} style={{flex:1}}>{item.name}</Txt><Txt bold size={14}>{money(item.price)}</Txt></View>
-                      <View style={[s.between,{gap:6}]}>
-                        <View style={{flex:1,minWidth:0}}>
-                          <Txt muted size={11}>{item.quantity||1} × {money(Number(item.price)/(item.quantity||1))}</Txt>
-                          {byUnits&&<Txt muted size={11}>{t("Preostalo","Remaining")}: {remaining}</Txt>}
+                    const incomplete=byUnits?remaining>0:item.shares.length===0;
+                    return <View key={item.id} style={{gap:7,padding:10,borderWidth:1,borderColor:incomplete?c.debt:c.line,borderRadius:12,backgroundColor:c.card}}>
+                      <View style={[s.between,{gap:8,alignItems:"flex-start"}]}>
+                        <View style={{flex:1,minWidth:0,gap:3}}>
+                          <Txt bold size={14}>{item.name}</Txt>
+                          <Txt muted size={12}>{item.quantity||1} {t("kom","pcs")} × {money(Number(item.price)/(item.quantity||1))} / {t("kom","pc")}</Txt>
                         </View>
-                        <View style={{flexDirection:"row",alignItems:"center",borderRadius:12,backgroundColor:c.tint}}>
-                          <Pressable accessibilityRole="button" accessibilityLabel={`${t("Smanji moj odabir","Decrease my selection")}: ${item.name}`} accessibilityState={{disabled:blocked||selected===0}} disabled={blocked||selected===0} onPress={()=>change(-1)} style={{width:44,minHeight:44,alignItems:"center",justifyContent:"center",opacity:blocked||selected===0?.35:1}}><Txt size={20} bold style={{color:c.accent}}>−</Txt></Pressable>
-                          <Txt bold size={14} style={{minWidth:22,textAlign:"center"}}>{selected}</Txt>
-                          <Pressable accessibilityRole="button" accessibilityLabel={`${t("Povećaj moj odabir","Increase my selection")}: ${item.name}`} accessibilityState={{disabled:blocked||(byUnits?remaining===0:selected===1)}} disabled={blocked||(byUnits?remaining===0:selected===1)} onPress={()=>change(1)} style={{width:44,minHeight:44,alignItems:"center",justifyContent:"center",opacity:blocked||(byUnits?remaining===0:selected===1)?.35:1}}><Txt size={20} bold style={{color:c.accent}}>+</Txt></Pressable>
-                        </View>
+                        <View style={{alignItems:"flex-end",gap:2}}><Txt muted size={10}>{t("UKUPNO","TOTAL")}</Txt><Txt bold size={15}>{money(item.price)}</Txt></View>
                       </View>
-                      {!!item.shares.length&&<Txt muted size={11}>{item.shares.map(x=>`${person(x.personId)}${byUnits?` ×${x.units}`:""} · ${money(x.amount)}`).join("  /  ")}</Txt>}
+                      <View style={{flexDirection:"row",flexWrap:"wrap",alignItems:"center",justifyContent:"space-between",gap:6}}>
+                        <View style={{borderRadius:7,paddingHorizontal:7,paddingVertical:4,backgroundColor:incomplete?c.debtTint:c.tint,flexShrink:1}}>
+                          <Txt bold size={11} style={{color:incomplete?c.debt:c.accent}}>{byUnits
+                            ?remaining>0?`${t("Još za podijeliti","Still unassigned")}: ${remaining} ${t("kom","pcs")}`:t("✓ Sve podijeljeno","✓ Fully assigned")
+                            :item.shares.length?`${t("Zajedničko · dijeli","Shared by")} ${item.shares.length} ${t("os.","people")}`:t("Zajedničko · nitko nije odabrao","Shared · no selections")}</Txt>
+                        </View>
+                        {byUnits?<View style={{flexDirection:"row",alignItems:"center",gap:5}}>
+                          <Txt muted size={11}>{t("Moji komadi","My quantity")}</Txt>
+                          <View style={{flexDirection:"row",alignItems:"center",borderRadius:10,backgroundColor:c.tint}}>
+                            <Pressable accessibilityRole="button" accessibilityLabel={`${t("Smanji moju količinu","Decrease my quantity")}: ${item.name}`} accessibilityState={{disabled:blocked||selected===0}} disabled={blocked||selected===0} onPress={()=>change(-1)} style={{width:44,minHeight:44,alignItems:"center",justifyContent:"center",opacity:blocked||selected===0?.35:1}}><Txt size={20} bold style={{color:c.accent}}>−</Txt></Pressable>
+                            <Txt bold size={14} style={{minWidth:20,textAlign:"center"}}>{selected}</Txt>
+                            <Pressable accessibilityRole="button" accessibilityLabel={`${t("Povećaj moju količinu","Increase my quantity")}: ${item.name}`} accessibilityState={{disabled:blocked||remaining===0}} disabled={blocked||remaining===0} onPress={()=>change(1)} style={{width:44,minHeight:44,alignItems:"center",justifyContent:"center",opacity:blocked||remaining===0?.35:1}}><Txt size={20} bold style={{color:c.accent}}>+</Txt></Pressable>
+                          </View>
+                        </View>:<Pressable accessibilityRole="checkbox" accessibilityLabel={`${t("Sudjelujem","I shared this")}: ${item.name}`} accessibilityState={{checked:selected===1,disabled:blocked}} disabled={blocked} onPress={()=>change(selected?-1:1)} style={{minHeight:44,paddingHorizontal:10,borderRadius:10,borderWidth:1,borderColor:selected?c.accent:c.line,backgroundColor:selected?c.tint:c.card,justifyContent:"center",opacity:blocked?.5:1}}>
+                          <Txt bold size={12} style={{color:c.accent}}>{selected?"✓ ":"+ "}{t("Sudjelujem","I shared this")}</Txt>
+                        </Pressable>}
+                      </View>
+                      {!!item.shares.length&&<View style={{flexDirection:"row",flexWrap:"wrap",gap:5,borderTopWidth:1,borderTopColor:c.line,paddingTop:7}}>
+                        {item.shares.map(x=><View key={x.personId} style={{maxWidth:"100%",borderRadius:7,backgroundColor:x.personId===me?.id?c.tint:c.bg,paddingHorizontal:7,paddingVertical:5}}>
+                          <Txt size={12}><Txt bold size={12}>{person(x.personId)}{x.personId===me?.id?` (${t("ti","you")})`:""}</Txt>{byUnits?` · ${x.units||0} ${t("kom","pcs")}`:""} · {money(x.amount)}</Txt>
+                        </View>)}
+                      </View>}
                     </View>;
                   })}
                 <Txt bold>{t("Platili", "Paid by")}</Txt>
@@ -687,14 +705,14 @@ export function GroupScreen({
             compact
             icon="camera"
             label={t("Fotografiraj račun", "Photograph receipt")}
-            disabled={g.locked || !g.people.length}
+            disabled={rawGroup.locked || workflow.archived || !g.people.length}
             onPress={() => onAdd(true)}
           />
           <Button
             compact
             icon="plus"
             label={t("Dodaj trošak", "Add expense")}
-            disabled={g.locked || !g.people.length}
+            disabled={rawGroup.locked || workflow.archived || !g.people.length || !participantId}
             onPress={() => onAdd(false)}
           />
         </View>

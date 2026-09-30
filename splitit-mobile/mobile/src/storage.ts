@@ -16,6 +16,7 @@ export type SavedGroup = Pick<Group, "slug" | "name" | "code"> & {
 // Browser preview keeps auth in memory; native tokens always use SecureStore.
 let previewAuth: AuthResponse | null = null;
 export const storage = {
+  async readStrict<T>(key:string,fallback:T):Promise<T> {const raw=await AsyncStorage.getItem(`splitit.${key}`);return raw===null?fallback:JSON.parse(raw);},
   async guestToken(): Promise<string | null> {
     return Platform.OS === "web"
       ? AsyncStorage.getItem("splitit.guest-token")

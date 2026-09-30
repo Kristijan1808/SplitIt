@@ -27,7 +27,9 @@ type DraftItemShareRequest = {
 
 export type ParsedBillItem = {
   name: string;
-  price: number;
+  price: number; // Line total (kept for older clients).
+  quantity?: number;
+  unitPrice?: number;
 };
 
 export type CreateDraftExpenseRequest = {

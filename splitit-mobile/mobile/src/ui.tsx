@@ -16,14 +16,14 @@ export const light = {
   line: "#DCE4EC", accent: "#086C58", tint: "#E1F2EB", danger: "#B33442",
   dangerTint: "#FBECEE",
   hero: "#174B48", info: "#285AB0", infoTint: "#EAF0FD",
-  debt: "#A84A16", debtTint: "#FFF0E4",
+  debt: "#B33442", debtTint: "#FBECEE",
 };
 export const dark = {
   bg: "#101923", card: "#1C2A36", ink: "#EDF3FA", muted: "#ABBCCD",
   line: "#354756", accent: "#79DABA", tint: "#233F3C", danger: "#FFA4AD",
   dangerTint: "#35252E",
   hero: "#234F50", info: "#9DBEFF", infoTint: "#24354F",
-  debt: "#FFBE87", debtTint: "#443225",
+  debt: "#E39AA3", debtTint: "#35252E",
 };
 export const UI = createContext({
   c: light,

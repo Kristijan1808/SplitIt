@@ -26,6 +26,7 @@ export const setParticipant = (value?: string) => {
 export const setToken = (value?: string) => {
   token = value;
 };
+export const requestContext=()=>({token,participantId});
 let guestPromise: Promise<string> | undefined;
 async function guestToken(): Promise<string> {
   if (!guestPromise)
@@ -68,6 +69,7 @@ export async function request<T>(
   method = "GET",
   body?: unknown,
   form?: FormData,
+  context = requestContext(),
 ): Promise<T> {
   if (!API_URL || API_URL.includes("YOUR-"))
     throw new Error(
@@ -82,8 +84,8 @@ export async function request<T>(
       signal: controller.signal,
       headers: {
         "X-SplitIt-Guest-Token": guest,
-        ...(participantId ? { "X-SplitIt-Participant-Id": participantId } : {}),
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(context.participantId ? { "X-SplitIt-Participant-Id": context.participantId } : {}),
+        ...(context.token ? { Authorization: `Bearer ${context.token}` } : {}),
         ...(!form ? { "Content-Type": "application/json" } : {}),
       },
       body: form ?? (body === undefined ? undefined : JSON.stringify(body)),
@@ -223,7 +225,7 @@ export const api = {
   parse: (imageBase64: string) => {
     if (!imageBase64 || imageBase64.length > 4 * Math.ceil(10 * 1024 * 1024 / 3))
       throw new Error("Slika je prazna ili prevelika. Najveća veličina je 10 MB.");
-    return request<{ items: { name: string; price: number }[] }>(
+    return request<{ items: { name: string; price: number; quantity?: number; unitPrice?: number }[] }>(
       "/ai/parse-bill", "POST", { imageBase64 },
     );
   },
