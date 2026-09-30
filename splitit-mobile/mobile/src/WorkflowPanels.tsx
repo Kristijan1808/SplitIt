@@ -23,15 +23,18 @@ export function DraftResponses({draft,workflow,personId,run,refresh,slug}:{draft
  </Card>;
 }
 export function TransferPanel({group,workflow,personId,run,refresh,settlements}:{group:Group;workflow:Workflow;personId?:string;run:Run;refresh:()=>Promise<void>;settlements:SettlementResult}){
- const {t,c}=useUI();const [open,setOpen]=useState(false),[to,setTo]=useState(''),[amount,setAmount]=useState(''),[note,setNote]=useState('');const [id,setId]=useState(requestKey);
+ const {t,c}=useUI();const [showAll,setShowAll]=useState(false);const [open,setOpen]=useState(false),[to,setTo]=useState(''),[amount,setAmount]=useState(''),[note,setNote]=useState('');const [id,setId]=useState(requestKey);
  const name=(id:string)=>group.people.find(p=>p.id===id)?.name||'?';
- return <View style={{gap:10,borderTopWidth:1,borderColor:c.line,paddingTop:12}}>
+ return <View style={{gap:8}}>
+ <Txt bold size={16}>{t("Evidencija uplata","Repayment records")}</Txt>
  <Txt muted size={12}>{t('Ovo je zapis stvarne uplate, ne novi trošak. Aplikacija ne šalje novac.','This records a real repayment, not an expense. The app does not send money.')}</Txt>
- <Button secondary disabled={!personId||group.locked||workflow.archived} label={open?t('Zatvori unos','Close'):t('Evidentiraj moju uplatu','Record my repayment')} onPress={()=>setOpen(!open)}/>
+ <View style={{alignSelf:"flex-start"}}><Button compact secondary disabled={!personId||group.locked||workflow.archived} label={open?t('Zatvori unos','Close'):t('Evidentiraj moju uplatu','Record my repayment')} onPress={()=>setOpen(!open)}/></View>
  {open&&<><Txt bold>{t('Kome si uplatio/la?','Who did you pay?')}</Txt><View style={s.wrap}>{group.people.filter(p=>p.id!==personId).map(p=><Chip key={p.id} label={p.name} selected={to===p.id} onPress={()=>{setTo(p.id);const debt=settlements.settlements.find(x=>x.from===personId&&x.to===p.id);setAmount(debt?String(debt.amount):'')}}/>)}</View>
  <Field label={`${t('Uplaćeni iznos','Amount paid')} (${group.currency||'EUR'})`} decimal value={amount} onChange={setAmount}/><Field label={t('Bilješka','Note')} value={note} onChange={setNote}/>
  <Button label={t('Spremi zapis uplate','Save repayment')} disabled={!to||!amount} onPress={()=>ask(t('Evidentirati uplatu?','Record repayment?'),`${name(personId!)} → ${name(to)} · ${amount} ${group.currency||"EUR"}`,()=>void run(async()=>{await api.transfer(group.slug,{requestId:id,fromId:personId,toId:to,amount:cents(amount)/100,note,occurredAt:new Date().toISOString()});setId(requestKey());setOpen(false);setAmount('');await refresh()}))}/></>}
- {workflow.transfers.slice(0,15).map(x=><View key={x.id} style={{gap:4,borderTopWidth:1,borderColor:c.line,paddingTop:8}}><Txt bold>{name(x.fromId)} → {name(x.toId)} · {Number(x.amount).toFixed(2)} {group.currency||"EUR"}</Txt><Txt muted size={12}>{new Date(x.occurredAt).toLocaleDateString()} {x.voidedAt?'· Poništeno':''}</Txt>{!!x.note&&<Txt size={12}>{x.note}</Txt>}{x.canManage&&!x.voidedAt&&<Button secondary label={t('Poništi ovaj zapis','Void this record')} disabled={group.locked||workflow.archived} onPress={()=>ask('Poništi zapis','Saldo će se ponovno izračunati.',()=>void run(async()=>{await api.voidTransfer(group.slug,x.id);await refresh()}))}/>}</View>)}
+ {workflow.transfers.slice(0,showAll?workflow.transfers.length:3).map(x=><View key={x.id} style={{gap:4,borderTopWidth:1,borderColor:c.line,paddingTop:8}}><Txt bold size={13}>{name(x.fromId)} → {name(x.toId)} · {Number(x.amount).toFixed(2)} {group.currency||"EUR"}</Txt><Txt muted size={12}>{new Date(x.occurredAt).toLocaleDateString()} {x.voidedAt?'· Poništeno':''}</Txt>{!!x.note&&<Txt size={12}>{x.note}</Txt>}{x.canManage&&!x.voidedAt&&<View style={{alignSelf:"flex-end"}}><Button compact secondary label={t('Poništi','Void')} disabled={group.locked||workflow.archived} onPress={()=>ask('Poništi zapis','Saldo će se ponovno izračunati.',()=>void run(async()=>{await api.voidTransfer(group.slug,x.id);await refresh()}))}/></View>}</View>)}
+ {workflow.transfers.length>3&&<View style={{alignSelf:"flex-start"}}><Button compact secondary label={showAll?t("Prikaži manje","Show less"):`${t("Sve uplate","All repayments")} (${workflow.transfers.length})`} onPress={()=>setShowAll(!showAll)}/></View>}
+ {!workflow.transfers.length&&<Txt muted size={12}>{t("Još nema evidentiranih uplata.","No repayments recorded yet.")}</Txt>}
  </View>;
 }
 export function GroupUtilities({group,workflow,run,refresh}:{group:Group;workflow:Workflow;run:Run;refresh:()=>Promise<void>}){

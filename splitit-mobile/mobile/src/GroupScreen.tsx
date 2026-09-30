@@ -297,11 +297,11 @@ export function GroupScreen({
                   )
                 }
               >
-                {!!e.unassignedAmount&&<Txt bold style={{color:c.info}}>{t("Nedodijeljeno", "Unassigned")}: {money(e.unassignedAmount)}</Txt>}
+                {!!e.unassignedAmount&&<Txt bold size={13} style={{color:c.danger}}>{t("Nedodijeljeno", "Unassigned")}: {money(e.unassignedAmount)}</Txt>}
                 <Txt muted size={12}>
                   {t(
-                    "Označi samo svoje stavke. Promjena se sprema odmah. Za komade odaberi količinu; zajedničke stavke dijele se jednako.",
-                    "Select only your items. Changes save immediately and split the item equally again.",
+                    "Odaberi svoju količinu. Zajedničke stavke: 0 ili 1.",
+                    "Choose your quantity. Shared items: 0 or 1.",
                   )}
                 </Txt>
                 {!me && (
@@ -321,25 +321,29 @@ export function GroupScreen({
                 )}
                 {[...e.items]
                   .sort((a, b) => a.ordinalNumber - b.ordinalNumber)
-                  .map((item) => (
-                    <View key={item.id} style={{gap:10,marginVertical:6,padding:14,borderWidth:1,borderColor:c.line,borderRadius:16,backgroundColor:c.card}}>
-                      <View style={s.between}><Txt bold>{item.name}</Txt><Txt bold>{money(item.price)}</Txt></View>
-                      <Txt muted size={12}>{item.quantity||1} × {money(Number(item.price)/(item.quantity||1))}</Txt>
-                      {item.splitMode === "units" ? <>
-                        <View style={s.between}><Txt>{t("Moji komadi","My units")}</Txt><View style={s.row}>
-                          <Button secondary label="−" disabled={busy||g.locked||!me||!(item.shares.find(x=>x.personId===me.id)?.units)} onPress={()=>void act(()=>api.ownItem(g.slug,e.id,item.id,(item.shares.find(x=>x.personId===me?.id)?.units||0)-1,true))}/>
-                          <Txt bold>{item.shares.find(x=>x.personId===me?.id)?.units||0}</Txt>
-                          <Button secondary label="+" disabled={busy||g.locked||!me||item.shares.reduce((n,x)=>n+(x.units||0),0)>=(item.quantity||1)} onPress={()=>void act(()=>api.ownItem(g.slug,e.id,item.id,(item.shares.find(x=>x.personId===me?.id)?.units||0)+1,true))}/>
-                        </View></View>
-                        <Txt muted size={12}>{t("Preostalo","Remaining")}: {Math.max(0,(item.quantity||1)-item.shares.reduce((n,x)=>n+(x.units||0),0))} / {item.quantity||1}</Txt>
-                      </> : <View style={s.between}><Txt>{t("Moj odabir","My selection")}</Txt><View style={s.row}>
-                        <Button secondary label="−" disabled={busy||g.locked||!me||!item.shares.some(x=>x.personId===me.id)} onPress={()=>void act(()=>api.ownItem(g.slug,e.id,item.id,false,true))}/>
-                        <Txt bold>{item.shares.some(x=>x.personId===me?.id)?1:0}</Txt>
-                        <Button secondary label="+" disabled={busy||g.locked||!me||item.shares.some(x=>x.personId===me.id)} onPress={()=>void act(()=>api.ownItem(g.slug,e.id,item.id,true,true))}/>
-                      </View></View>}
-                      <Txt muted size={12}>{!item.shares.length?t("Još nitko nije odabrao stavku.","No claims yet."):item.shares.map(x=>`${person(x.personId)}${item.splitMode==="units"?` · ${x.units} kom.`:""} · ${money(x.amount)}`).join("\n")}</Txt>
-                    </View>
-                  ))}
+                  .map((item) => {
+                    const byUnits=item.splitMode==="units";
+                    const own=item.shares.find(x=>x.personId===me?.id);
+                    const selected=byUnits?(own?.units||0):(own?1:0);
+                    const remaining=Math.max(0,(item.quantity||1)-item.shares.reduce((n,x)=>n+(x.units||0),0));
+                    const blocked=busy||g.locked||!me;
+                    const change=(delta:number)=>void act(()=>api.ownItem(g.slug,e.id,item.id,byUnits?selected+delta:delta>0,true));
+                    return <View key={item.id} style={{gap:2,paddingHorizontal:10,paddingVertical:7,borderWidth:1,borderColor:c.line,borderRadius:12,backgroundColor:c.card}}>
+                      <View style={[s.between,{gap:8}]}><Txt bold size={14} style={{flex:1}}>{item.name}</Txt><Txt bold size={14}>{money(item.price)}</Txt></View>
+                      <View style={[s.between,{gap:6}]}>
+                        <View style={{flex:1,minWidth:0}}>
+                          <Txt muted size={11}>{item.quantity||1} × {money(Number(item.price)/(item.quantity||1))}</Txt>
+                          {byUnits&&<Txt muted size={11}>{t("Preostalo","Remaining")}: {remaining}</Txt>}
+                        </View>
+                        <View style={{flexDirection:"row",alignItems:"center",borderRadius:12,backgroundColor:c.tint}}>
+                          <Pressable accessibilityRole="button" accessibilityLabel={`${t("Smanji moj odabir","Decrease my selection")}: ${item.name}`} accessibilityState={{disabled:blocked||selected===0}} disabled={blocked||selected===0} onPress={()=>change(-1)} style={{width:44,minHeight:44,alignItems:"center",justifyContent:"center",opacity:blocked||selected===0?.35:1}}><Txt size={20} bold style={{color:c.accent}}>−</Txt></Pressable>
+                          <Txt bold size={14} style={{minWidth:22,textAlign:"center"}}>{selected}</Txt>
+                          <Pressable accessibilityRole="button" accessibilityLabel={`${t("Povećaj moj odabir","Increase my selection")}: ${item.name}`} accessibilityState={{disabled:blocked||(byUnits?remaining===0:selected===1)}} disabled={blocked||(byUnits?remaining===0:selected===1)} onPress={()=>change(1)} style={{width:44,minHeight:44,alignItems:"center",justifyContent:"center",opacity:blocked||(byUnits?remaining===0:selected===1)?.35:1}}><Txt size={20} bold style={{color:c.accent}}>+</Txt></Pressable>
+                        </View>
+                      </View>
+                      {!!item.shares.length&&<Txt muted size={11}>{item.shares.map(x=>`${person(x.personId)}${byUnits?` ×${x.units}`:""} · ${money(x.amount)}`).join("  /  ")}</Txt>}
+                    </View>;
+                  })}
                 <Txt bold>{t("Platili", "Paid by")}</Txt>
                 {e.payers.map((p) => (
                   <View key={p.id} style={s.between}>
@@ -384,14 +388,18 @@ export function GroupScreen({
               {me && <Txt size={22} bold style={{ color: Number(balance?.balance ?? 0) < 0 ? c.debt : c.accent }}>{Number(balance?.balance ?? 0) > 0 ? "+" : ""}{money(balance?.balance ?? 0)}</Txt>}
             </View>
             {!me ? <Button secondary label={t("Odaberi tko si", "Choose who you are")} onPress={() => setTab("people")} /> : <>
-              {!outgoing.length && !incoming.length && <Txt muted>{t("Sve je podmireno. Nemaš dugovanja ni potraživanja.", "All settled. You neither owe nor are owed anything.")}</Txt>}
-              {outgoing.map((x, i) => <View key={`out${i}`} style={[s.between, { paddingVertical: 10, borderTopWidth:1, borderColor:c.line }]}>
+              {!outgoing.length && !incoming.length && <View style={{backgroundColor:c.tint,borderRadius:16,padding:18,gap:6,marginVertical:8,alignItems:"center"}}>
+                <Txt bold size={28} style={{color:c.accent}}>✓</Txt>
+                <Txt bold size={20} style={{color:c.accent}}>{pending.length?t("Trenutačno nema dugovanja","No current debts"):t("Sve je podmireno","All settled")}</Txt>
+                <Txt muted size={13} style={{textAlign:"center"}}>{pending.length?t("Neki računi još čekaju podjelu. Saldo se može promijeniti.","Some bills still await allocation. Your balance may change."):t("Nikome ne duguješ i nitko ne duguje tebi.","You owe nothing and nobody owes you.")}</Txt>
+              </View>}
+              {outgoing.map((x, i) => <View key={`out${i}`} style={[s.between, { padding:14,marginVertical:4,borderRadius:14,backgroundColor:c.debtTint }]}>
                 <View style={{ flex: 1 }}><Txt muted size={12}>{t("Duguješ", "You owe")}</Txt><Txt bold>{x.toName}</Txt></View><Txt bold style={{ color: c.debt }}>{money(x.amount)}</Txt>
               </View>)}
-              {incoming.map((x, i) => <View key={`in${i}`} style={[s.between, { paddingVertical: 10, borderTopWidth:1, borderColor:c.line }]}>
+              {incoming.map((x, i) => <View key={`in${i}`} style={[s.between, { padding:14,marginVertical:4,borderRadius:14,backgroundColor:c.tint }]}>
                 <View style={{ flex: 1 }}><Txt muted size={12}>{t("Duguje ti", "Owes you")}</Txt><Txt bold>{x.fromName}</Txt></View><Txt bold style={{ color: c.accent }}>{money(x.amount)}</Txt>
               </View>)}
-              <TransferPanel group={g} workflow={workflow} personId={participantId} run={run} refresh={refresh} settlements={settlements}/>
+
           <Txt muted size={12}>{t("Preporučene uplate pojednostavljuju dugovanja i ne moraju pratiti pojedini račun.", "Suggested repayments simplify balances and may not match individual bills.")}</Txt>
         </>}
           </Card>
@@ -403,6 +411,7 @@ export function GroupScreen({
               <Txt style={{ flex: 1 }}>{x.fromName} → {x.toName}</Txt><Txt bold style={{ color: c.info }}>{money(x.amount)}</Txt>
             </View>) : <Txt muted>{t("Grupa je poravnata.", "The group is settled.")}</Txt>)}
           </Card>
+          <Card style={{marginTop:8}}><TransferPanel group={g} workflow={workflow} personId={participantId} run={run} refresh={refresh} settlements={settlements}/></Card>
         </>}
         {tab === "people" && (
           <>

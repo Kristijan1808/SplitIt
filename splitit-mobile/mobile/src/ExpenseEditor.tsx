@@ -62,6 +62,7 @@ export function ExpenseEditor({
   const [equalIds, setEqualIds] = useState(group.people.map(p => p.id));
   const [assignNow, setAssignNow] = useState(!!source);
   const [note, setNote] = useState(source?.note ?? "");
+  const [scanPreview,setScanPreview]=useState(false);
   const [items, setItems] = useState<Item[]>(() =>
     source
       ? source.items.map((i) => ({
@@ -187,6 +188,7 @@ export function ExpenseEditor({
           t("Nisu pronađene stavke računa.", "No receipt items found."),
         );
       setMode("items");
+      setScanPreview(true);
       setItems(
         bill.items.map((x) => ({
           key: key(),
@@ -312,10 +314,19 @@ export function ExpenseEditor({
           {!expense && <Card style={{ backgroundColor: c.infoTint, borderColor: c.info }}>
             <Txt bold style={{ color: c.info }}>{t("Unesi → kreiraj račun → ekipa bira", "Enter → create bill → everyone selects")}</Txt>
             <Txt size={12}>{t("Račun odmah ulazi u troškove grupe. Stavke ostaju nedodijeljene dok ih članovi ne označe. Jednu stavku može dijeliti više osoba.", "The bill immediately counts towards group expenses. Members claim unassigned items. Any item can be shared by several people.")}</Txt>
-            <Chip label={t("Podijeli sada", "Assign now")} selected={assignNow} onPress={() => setAssignNow(!assignNow)} />
+            <Chip label={t("Podijeli sada", "Assign now")} selected={assignNow} onPress={() => {setAssignNow(!assignNow);setScanPreview(false);}} />
 
           </Card>}
           <View style={s.between}><Txt bold size={20}>{t("Stavke računa", "Bill items")}</Txt><Txt muted size={13}>{items.length}</Txt></View>
+          {scanPreview ? <Card>
+            <Txt muted size={12}>{t("Provjeri učitane stavke prije spremanja računa.","Review the scanned items before saving.")}</Txt>
+            {items.map((item,index)=><View key={item.key} style={{flexDirection:"row",alignItems:"center",gap:10,paddingVertical:10,borderBottomWidth:1,borderColor:c.line}}>
+              <Txt muted size={12}>{index+1}.</Txt>
+              <View style={{flex:1,minWidth:0}}><Txt bold>{item.name}</Txt><Txt muted size={12}>{normalizedQuantity(item.quantity)} × {item.price} {currency}</Txt></View>
+              <Txt bold>{((Number(item.price.replace(",","."))||0)*normalizedQuantity(item.quantity)).toFixed(2)} {currency}</Txt>
+            </View>)}
+            <View style={{alignSelf:"flex-end",marginTop:4}}><Button compact secondary label={t("Uredi","Edit")} onPress={()=>setScanPreview(false)}/></View>
+          </Card> : <>
           <Txt muted size={12}>{t("Količina 0, 1 ili prazno: zajednička stavka. Više komada: svatko bira svoju količinu.", "Quantity 0, 1 or empty: shared item. More units: each person chooses their quantity.")}</Txt>
           {assignNow && <Pressable
             accessibilityRole="button"
@@ -456,8 +467,9 @@ export function ExpenseEditor({
             }
           />
           </>}
+          </>}
           <Button secondary label={`${t("Platio/la", "Paid by")}: ${multiplePayers?t("više osoba", "multiple people"):group.people.find(p=>p.id===singlePayer)?.name||t("odaberi osobu", "choose person")}`} onPress={()=>setShowPayers(!showPayers)}/>
-          {(showPayers||mode==="items")&&<>
+          {(showPayers)&&<>
           <Card>
             <View style={s.wrap}>
               <Chip

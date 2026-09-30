@@ -45,7 +45,7 @@ export function ExpenseCard({
   const color = net && net.net < 0 ? c.debt : c.accent;
   const date = new Date(e.billDate||e.createdAt);
   return (
-    <View style={{ borderBottomWidth: 1, borderColor: c.line,backgroundColor:pending?c.dangerTint:undefined,borderRadius:0,paddingHorizontal:0 }}>
+    <View style={{ borderWidth:1,borderColor:c.line,backgroundColor:pending?c.dangerTint:c.card,borderRadius:18,paddingHorizontal:10,overflow:"hidden",marginVertical:2 }}>
       <Pressable
         accessibilityRole="button"
         accessibilityState={{ expanded, disabled: busy }}
@@ -55,12 +55,12 @@ export function ExpenseCard({
         style={{
           flexDirection: "row",
           alignItems: "center",
-          gap: 10,
-          paddingVertical: 10,
-          minHeight: 76,
+          gap: 8,
+          paddingVertical: 9,
+          minHeight: 70,
         }}
       >
-        <View style={{ width: 30, alignItems: "center" }}>
+        <View style={{ width: 24, alignItems: "center" }}>
           <Txt muted size={10}>
             {date.toLocaleDateString(t("hr-HR", "en-GB"), { month: "short" })}
           </Txt>
@@ -70,17 +70,17 @@ export function ExpenseCard({
         </View>
         <View
           style={{
-            width: 38,
-            height: 42,
+            width: 32,
+            height: 36,
             backgroundColor: c.tint,
-            borderRadius: 7,
+            borderRadius: 10,
             alignItems: "center",
             justifyContent: "center",
           }}
         >
           <Icon name={categoryIcon(e.category)} color={c.accent} />
         </View>
-        <View style={{ flex: 1, gap: 4 }}>
+        <View style={{ flex: 1, minWidth:0, gap: 3 }}>
           <Txt bold size={15}>
             {e.note || t("Zajednički račun", "Shared bill")}
           </Txt>
@@ -92,7 +92,7 @@ export function ExpenseCard({
             {currency}
           </Txt>
         </View>
-        <View style={{ width: 86, alignItems: "flex-end", gap: 4 }}>
+        <View style={{ width: 78, alignItems: "flex-end", gap: 4 }}>
           <Txt size={10} style={{ color, textAlign: "right" }}>
             {label}
           </Txt>
@@ -107,7 +107,7 @@ export function ExpenseCard({
         </View>
       </Pressable>
       {expanded && (
-        <View style={{ paddingBottom: 16, gap: 12 }}>{children}</View>
+        <View style={{ paddingBottom: 10, paddingTop:4, gap: 7 }}>{children}</View>
       )}
     </View>
   );
