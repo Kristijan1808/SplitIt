@@ -15,7 +15,7 @@ export const translations = {
     moneyMadeSimple: "Novac ostaje jednostavan",
     home: "Početna",
     back: "Natrag",
-    createGroup: "Kreiraj grupu",
+    createGroup: "Napravi novu grupu",
     joinGroup: "Pridruži se grupi",
     myGroups: "Moje grupe",
     themeLight: "Svijetlo",
