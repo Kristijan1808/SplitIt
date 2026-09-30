@@ -9,6 +9,7 @@ import type {
   HistoryItem,
   Expense,
   Workflow,
+  GroupSnapshot,
 } from "./types";
 export const API_URL = (process.env.EXPO_PUBLIC_API_URL ?? "").replace(
   /\/+$/,
@@ -175,6 +176,7 @@ export const api = {
   join: (body: JoinGroupRequest) =>
     request<Group>("/groups/join", "POST", body),
   group: (slug: string) => request<Group>(base(slug)),
+  snapshot: (slug: string) => request<GroupSnapshot>(`${base(slug)}/snapshot`),
   settlements: (slug: string) =>
     request<SettlementResult>(`${base(slug)}/settlements`),
   drafts: (slug: string) =>

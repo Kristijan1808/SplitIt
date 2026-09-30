@@ -19,6 +19,7 @@ import { expenseService } from "../services/expense.service.js";
 import { paymentService } from "../services/payment.service.js";
 import { settlementService } from "../services/settlement.service.js";
 import { historyService } from "../services/history.service.js";
+import { groupSnapshot } from "../services/group-snapshot.service.js";
 
 export const groupRouter = Router();
 
@@ -60,6 +61,7 @@ groupRouter.post(
 );
 
 groupRouter.use("/:slug",groupGate);
+groupRouter.get("/:slug/snapshot", groupSnapshot);
 groupRouter.post("/:slug/fx-quote",joinLimit,createQuote);
 groupRouter.post("/:slug/expenses",createExpense);
 groupRouter.use("/:slug/draft-expenses",(req,res)=>{if(req.method==="GET")res.json([]);else res.status(410).json({error:"Računi se sada kreiraju izravno. Nadogradi aplikaciju i osvježi web."})});

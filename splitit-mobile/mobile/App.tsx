@@ -75,6 +75,7 @@ function Main() {
   const [editorKey, setEditorKey] = useState(0);
   const [initialCode, setInitialCode] = useState("");
   const gate = useRef(false);
+  const groupLoads = useRef(new Map<string, Promise<void>>());
   const groupsRef = useRef(groups);
   const c = isDark ? dark : light;
   const t = (hr: string, en: string) => (locale === "hr" ? hr : en);
@@ -116,26 +117,38 @@ function Main() {
       setBusy(false);
     }
   }, []);
-  async function load(slug: string) {
-    try {
-    const [group, drafts, settlements, history, workflow] = await Promise.all([
-      api.group(slug),
-      Promise.resolve([]),
-      api.settlements(slug),
-      api.history(slug),
-      api.workflow(slug),
-    ]);
-    await saveGroup(group);
-    const snapshot={group,drafts,settlements,history,workflow};
-    await storage.write(`snapshot.${auth?.user.id||"guest"}.${slug}`,snapshot);
-    const mine=workflow.people.find(p=>p.mine&&!p.inactive);
-    await persistGroups(groupsRef.current.map(x=>x.slug===slug?{...x,participantId:mine?.id,participantName:mine?.name,currency:group.currency||"EUR",balance:settlements.balances.find(p=>p.id===mine?.id)?.balance,draftCount:group.expenses.filter(e=>e.allocationComplete===false||e.paymentIncomplete).length}:x));
-    setParticipant(mine?.id);
-    setData(snapshot);
-    } catch(error) {
-      if(error instanceof Error && /network|fetch|timeout|veza|isteklo/i.test(error.message) && !(error as any).status){const cached=await storage.read<Snapshot|null>(`snapshot.${auth?.user.id||"guest"}.${slug}`,null);if(cached){setParticipant(cached.workflow.people.find(p=>p.mine&&!p.inactive)?.id);setData({...cached,offline:true});return;}}
-      throw error;
+  async function load(slug: string, ensureFresh = false) {
+    const existing = groupLoads.current.get(slug);
+    if (existing) {
+      try {
+        await existing;
+      } catch (error) {
+        if (!ensureFresh) throw error;
+      }
+      if (ensureFresh) await load(slug);
+      return;
     }
+
+    let request: Promise<void>;
+    request = (async () => {
+      try {
+        const { group, drafts, settlements, history, workflow } = await api.snapshot(slug);
+        await saveGroup(group);
+        const snapshot={group,drafts,settlements,history,workflow};
+        await storage.write(`snapshot.${auth?.user.id||"guest"}.${slug}`,snapshot);
+        const mine=workflow.people.find(p=>p.mine&&!p.inactive);
+        await persistGroups(groupsRef.current.map(x=>x.slug===slug?{...x,participantId:mine?.id,participantName:mine?.name,currency:group.currency||"EUR",balance:settlements.balances.find(p=>p.id===mine?.id)?.balance,draftCount:group.expenses.filter(e=>e.allocationComplete===false||e.paymentIncomplete).length}:x));
+        setParticipant(mine?.id);
+        setData(snapshot);
+      } catch(error) {
+        if(error instanceof Error && /network|fetch|timeout|veza|isteklo/i.test(error.message) && !(error as any).status){const cached=await storage.read<Snapshot|null>(`snapshot.${auth?.user.id||"guest"}.${slug}`,null);if(cached){setParticipant(cached.workflow.people.find(p=>p.mine&&!p.inactive)?.id);setData({...cached,offline:true});return;}}
+        throw error;
+      }
+    })().finally(() => {
+      if (groupLoads.current.get(slug) === request) groupLoads.current.delete(slug);
+    });
+    groupLoads.current.set(slug, request);
+    await request;
   }
   async function openGroup(g: Group) {
     await load(g.slug);
@@ -143,7 +156,7 @@ function Main() {
     setScreen("group");
   }
   async function refresh() {
-    if (data) await load(data.group.slug);
+    if (data) await load(data.group.slug, true);
   }
   function nav(next: Screen) {
     setError("");

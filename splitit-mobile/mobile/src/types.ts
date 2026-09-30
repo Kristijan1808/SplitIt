@@ -244,3 +244,11 @@ export type Workflow = {
  selections: {draftId:string;personId:string;status:"DONE"|"SKIP"|"PENDING"}[];
  transfers: {id:string;fromId:string;toId:string;amount:number;note?:string;occurredAt:string;voidedAt?:string;canManage:boolean}[];
 };
+
+export type GroupSnapshot = {
+  group: Group;
+  drafts: DraftExpense[];
+  settlements: SettlementResult;
+  history: HistoryItem[];
+  workflow: Workflow;
+};
