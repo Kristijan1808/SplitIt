@@ -20,9 +20,9 @@ import {
   useSafeAreaInsets,
 } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
-import { api, setToken, setParticipant, API_URL, WEB_URL } from "./src/api";
+import { api, setLegacyCredential, setParticipant, API_URL, WEB_URL } from "./src/api";
 import { storage, SavedGroup } from "./src/storage";
-import type { AuthResponse, Group, Expense } from "./src/types";
+import type { Group, Expense } from "./src/types";
 import {
   UI,
   light,
@@ -39,12 +39,11 @@ import {
 } from "./src/ui";
 import { GroupScreen, Snapshot } from "./src/GroupScreen";
 import { ExpenseEditor } from "./src/ExpenseEditor";
-import { AuthForm, GroupForm } from "./src/Forms";
+import { GroupForm } from "./src/Forms";
 type Screen =
   | "home"
   | "groups"
   | "settings"
-  | "auth"
   | "create"
   | "join"
   | "group"
@@ -67,7 +66,7 @@ function Main() {
   const [groupSearch,setGroupSearch]=useState("");
   const [showArchived,setShowArchived]=useState(false);
   const [groups, setGroups] = useState<SavedGroup[]>([]);
-  const [auth, setAuth] = useState<AuthResponse | null>(null);
+  const [deviceScope, setDeviceScope] = useState("guest");
   const [data, setData] = useState<Snapshot | null>(null);
   const [tab, setTab] = useState("overview");
   const [editingExpense, setEditingExpense] = useState<Expense | undefined>();
@@ -135,13 +134,13 @@ function Main() {
         const { group, drafts, settlements, history, workflow } = await api.snapshot(slug);
         await saveGroup(group);
         const snapshot={group,drafts,settlements,history,workflow};
-        await storage.write(`snapshot.${auth?.user.id||"guest"}.${slug}`,snapshot);
+        await storage.write(`snapshot.${deviceScope}.${slug}`,snapshot);
         const mine=workflow.people.find(p=>p.mine&&!p.inactive);
         await persistGroups(groupsRef.current.map(x=>x.slug===slug?{...x,participantId:mine?.id,participantName:mine?.name,currency:group.currency||"EUR",balance:settlements.balances.find(p=>p.id===mine?.id)?.balance,draftCount:group.expenses.filter(e=>e.allocationComplete===false||e.paymentIncomplete).length}:x));
         setParticipant(mine?.id);
         setData(snapshot);
       } catch(error) {
-        if(error instanceof Error && /network|fetch|timeout|veza|isteklo/i.test(error.message) && !(error as any).status){const cached=await storage.read<Snapshot|null>(`snapshot.${auth?.user.id||"guest"}.${slug}`,null);if(cached){setParticipant(cached.workflow.people.find(p=>p.mine&&!p.inactive)?.id);setData({...cached,offline:true});return;}}
+        if(error instanceof Error && /network|fetch|timeout|veza|isteklo/i.test(error.message) && !(error as any).status){const cached=await storage.read<Snapshot|null>(`snapshot.${deviceScope}.${slug}`,null);if(cached){setParticipant(cached.workflow.people.find(p=>p.mine&&!p.inactive)?.id);setData({...cached,offline:true});return;}}
         throw error;
       }
     })().finally(() => {
@@ -171,12 +170,12 @@ function Main() {
   useEffect(() => {
     void run(async () => {
       const [a, gs, prefs] = await Promise.all([
-        storage.auth(),
+        storage.legacySession(),
         storage.read<SavedGroup[]>("groups", []),
         storage.read("prefs", { locale: "hr", dark: false }),
       ]);
-      setAuth(a);
-      setToken(a?.token);
+      setDeviceScope(a?.user.id || "guest");
+      setLegacyCredential(a?.token);
       groupsRef.current = gs;
       setGroups(gs);
       // Keep the initial Home screen; invitation links are handled separately.
@@ -245,7 +244,7 @@ function Main() {
     void tick();const timer=setInterval(tick,20000);
     const subscription=AppState.addEventListener("change",state=>{if(state==="active")void tick();});
     return()=>{active=false;clearInterval(timer);subscription.remove();};
-  },[ready,auth?.user.id,screen,data?.group.slug]);
+  },[ready,deviceScope,screen,data?.group.slug]);
   const needsIdentity=screen==="group"&&!!data&&!data.offline&&!data.workflow.people.some(p=>p.mine&&!p.inactive);
   const groupList = (limit?: number) =>
     (limit ? groups.filter(g=>!g.archived).slice(0,limit) : groups.filter(g=>!!g.archived===showArchived && g.name.toLowerCase().includes(groupSearch.toLowerCase())).sort((a,b)=>Number(!!b.pinned)-Number(!!a.pinned))).map((g, i) => (
@@ -361,7 +360,7 @@ function Main() {
                 justifyContent: "center",
               }}
             >
-              <Icon name="user" color={c.accent} />
+              <Icon name="settings" color={c.accent} />
             </Pressable>
           )}
         </View>
@@ -401,14 +400,7 @@ function Main() {
                       "Manje računanja.\nViše druženja.",
                       "Less maths.\nMore good times.",
                     )}
-                    subtitle={
-                      auth
-                        ? `${t("Bok", "Hi")}, ${auth.user.username}.`
-                        : t(
-                            "Zajednički troškovi, jednostavno podijeljeni.",
-                            "Shared expenses, simply split.",
-                          )
-                    }
+                    subtitle={t("Izradi grupu ili se pridruži kodom. Bez registracije.", "Create a group or join with a code. No registration.")}
                   />
                   <View
                     style={[
@@ -512,41 +504,7 @@ function Main() {
               )}
               {screen === "settings" && (
                 <Page>
-                  <Heading title={t("Tvoj profil", "Your profile")} />
-                  <Card>
-                    <Txt bold size={20}>
-                      {auth?.user.username ?? t("Gost", "Guest")}
-                    </Txt>
-                    <Txt muted>
-                      {t(
-                        "Račun koristi isti backend kao web aplikacija.",
-                        "Your account uses the same backend as the web app.",
-                      )}
-                    </Txt>
-                    {auth ? (
-                      <Button
-                        secondary
-                        label={t("Odjavi se", "Sign out")}
-                        onPress={() =>
-                          void run(async () => {
-                            await storage.setAuth(null);
-                            setToken();
-                            setAuth(null);
-                            setData(null);
-                            nav("home");
-                          })
-                        }
-                      />
-                    ) : (
-                      <Button
-                        label={t(
-                          "Prijava / Registracija",
-                          "Sign in / Register",
-                        )}
-                        onPress={() => nav("auth")}
-                      />
-                    )}
-                  </Card>
+                  <Heading title={t("Postavke", "Settings")} />
                   <Card>
                     <Txt bold>{t("Izgled", "Appearance")}</Txt>
                     <View style={s.wrap}>
@@ -596,18 +554,6 @@ function Main() {
                   </Card>
                 </Page>
               )}
-              {screen === "auth" && (
-                <AuthForm
-                  run={run}
-                  onAuth={async (a) => {
-                    await storage.setAuth(a);
-                    setAuth(a);
-                    setToken(a.token);
-                    setData(null);
-                    nav("home");
-                  }}
-                />
-              )}
               {(screen === "create" || screen === "join") && (
                 <GroupForm
                   key={`${screen}-${initialCode}`}
@@ -615,7 +561,6 @@ function Main() {
                   initialCode={screen === "join" ? initialCode : ""}
                   run={run}
                   open={openGroup}
-                  signedIn={!!auth}
                 />
               )}
               {needsIdentity&&data&&<IdentityScreen key={data.group.slug} group={data.group} workflow={data.workflow} run={run} leave={()=>nav("groups")} done={async id=>{setParticipant(id);await refresh();setTab("overview")}}/>}
@@ -693,7 +638,7 @@ function Main() {
               [
                 ["home", "home", t("Početna", "Home")],
                 ["groups", "groups", t("Grupe", "Groups")],
-                ["settings", "user", t("Profil", "Profile")],
+                ["settings", "settings", t("Postavke", "Settings")],
               ] as [Screen, string, string][]
             ).map(([id, icon, label]) => (
               <Pressable

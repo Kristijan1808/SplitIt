@@ -96,8 +96,7 @@ export class PersonService {
 
       res.status(201).json(
         serializeGroup(
-          updated!,
-          access.user
+          updated!
         )
       );
     } catch (error) {
@@ -196,8 +195,7 @@ export class PersonService {
 
       res.json(
         serializeGroup(
-          updated!,
-          access.user
+          updated!
         )
       );
     } catch (error) {
@@ -277,7 +275,7 @@ export class PersonService {
 
       const updated = await groupService.getGroupBySlug(req.params.slug as string);
 
-      res.json(serializeGroup(updated!,access.user));
+      res.json(serializeGroup(updated!));
     } catch (error) {
       next(error);
     }

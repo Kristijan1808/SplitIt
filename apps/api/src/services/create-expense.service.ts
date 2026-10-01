@@ -4,7 +4,7 @@ import type {RequestHandler} from "express";
 import {Prisma} from "@prisma/client";
 import {z} from "zod";
 import {prisma} from "../core.js";
-import {creatorKey} from "./bill-permissions.js";
+import {creatorKey,billKeys} from "./bill-permissions.js";
 import {expenseActor,auditValue} from "./expense-audit.js";
 import {prepareExpenseEdit,ExpenseInputError} from "./expense-edit.validation.js";
 import {expenseDetailsInclude,serializeExpense} from "../utils.js";
@@ -16,7 +16,8 @@ export const createExpense:RequestHandler=async(req,res,next)=>{
   if(!access.allowed){res.status(access.status).json({error:access.error});return;}
   const uuid=z.string().uuid().parse(req.body.requestId);const owner=creatorKey(req);
   requestId=`${group.id}:${owner}:${uuid}`;
-  const prior=await prisma.expense.findUnique({where:{requestId},include:expenseDetailsInclude});
+  let prior=await prisma.expense.findUnique({where:{requestId},include:expenseDetailsInclude});
+  if(!prior){for(const oldKey of billKeys(req).filter(key=>key!==owner)){prior=await prisma.expense.findUnique({where:{requestId:`${group.id}:${oldKey}:${uuid}`},include:expenseDetailsInclude});if(prior)break;}}
   if(prior){res.json(serializeExpense(prior));return;}
   const actor=await expenseActor(req,group.id);
   const expense=await prisma.$transaction(async tx=>{

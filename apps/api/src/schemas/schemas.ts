@@ -1,12 +1,11 @@
 import { z } from "zod";
 
 export const createGroupSchema = z.object({
-  name: z.string().min(1).max(80),
-  password: z.string().min(1).max(80),
-  people: z.array(z.string().min(1).max(60)).min(1),
+  name: z.string().trim().min(1).max(80),
+  password: z.string().trim().min(1).max(80),
+  people: z.array(z.string().trim().min(1).max(60)).min(1),
   accessType: z
-    .enum(["ANONYMOUS_ONLY", "REGISTERED_ONLY", "MIXED"])
-    .default("ANONYMOUS_ONLY")
+    .unknown().transform(() => "ANONYMOUS_ONLY" as const)
 });
 
 export const joinGroupSchema = z.object({
@@ -16,15 +15,6 @@ export const joinGroupSchema = z.object({
 
 export const addPersonSchema = z.object({
   name: z.string().min(1).max(60)
-});
-
-export const authSchema = z.object({
-  username: z.string().min(3).max(120),
-  password: z.string().min(6).max(120)
-});
-
-export const registerSchema = authSchema.extend({
-  repeatPassword: z.string().min(6).max(120)
 });
 
 //

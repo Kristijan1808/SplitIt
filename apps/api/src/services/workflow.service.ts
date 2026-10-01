@@ -13,7 +13,7 @@ export const failure=(message:string,status=400)=>Object.assign(new Error(messag
 export async function actorPerson(req:Request,groupId:string){
  const id=req.get("X-SplitIt-Participant-Id");
  const person=id?await prisma.person.findFirst({where:{id,groupId,inactive:false}}):null;
- if(!person || !person.identityKey || !billKeys(req).includes(person.identityKey))throw failure("Odaberi i poveži svoj profil u Sudionicima.",403);
+ if(!person || !person.identityKey || !billKeys(req).includes(person.identityKey))throw failure("Odaberi i poveži svoje ime u Sudionicima.",403);
  return person;
 }
 export const groupGate:RequestHandler=async(req,res,next)=>{try{
@@ -50,19 +50,10 @@ workflowRouter.post("/identity",wrap(async(req,res)=>{
  personId=await identityTarget(tx,g.id,req.body,keys);
  const p=await tx.person.findFirst({where:{id:personId,groupId:g.id,inactive:false}});
  if(!p)throw failure("Sudionik nije pronađen.",404);
- if(p.identityKey&&!keys.includes(p.identityKey))throw failure("Ovaj profil je već povezan s drugim računom ili uređajem.",409);
+ if(p.identityKey&&!keys.includes(p.identityKey))throw failure("Ovaj sudionik je već povezan s drugim uređajem.",409);
  const prior=await tx.person.findFirst({where:{groupId:g.id,identityKey:{in:keys},id:{not:personId}}});
- if(prior)throw failure("Već imaš povezan profil u ovoj grupi. Za ispravak se obrati administratoru.",409);
+ if(prior)throw failure("Već imaš povezano ime u ovoj grupi. Za ispravak se obrati administratoru.",409);
  await tx.person.update({where:{id:personId},data:{identityKey:key}});
- // An authenticated guest keeps ownership of bills on this device when upgrading identity.
- if(key.startsWith('user:')){
- const guests=keys.filter(k=>k.startsWith('guest:'));
- const previous=await tx.groupSession.findFirst({where:{groupId:g.id,key:{in:guests}},orderBy:{role:'desc'}});
- if(previous){await tx.groupSession.upsert({where:{groupId_key:{groupId:g.id,key}},create:{groupId:g.id,key,role:previous.role},update:{role:previous.role}});}
- if(g.ownerKey&&guests.includes(g.ownerKey))await tx.group.update({where:{id:g.id},data:{ownerKey:key}});
- await tx.expense.updateMany({where:{groupId:g.id,creatorKey:{in:guests}},data:{creatorKey:key}});
- await tx.expenseDraft.updateMany({where:{groupId:g.id,creatorKey:{in:guests}},data:{creatorKey:key}});
- }
  },serial);res.json({ok:true,personId});
 }));
 workflowRouter.patch("/people/:id",adminGate,wrap(async(req,res)=>{
@@ -130,14 +121,14 @@ workflowRouter.delete("/transfers/:id",wrap(async(req,res)=>{
 workflowRouter.post("/people/:id/release",adminGate,wrap(async(req,res)=>{
  const p=await prisma.person.findFirst({where:{id:req.params.id as string,groupId:res.locals.group.id}});
  if(!p)throw failure("Sudionik nije pronađen.",404);
- // Releasing a profile never transfers ownership of its historical bills.
- await prisma.$transaction(async tx=>{await tx.person.update({where:{id:p.id},data:{identityKey:null}});await tx.history.create({data:{groupId:p.groupId,entity:"PERSON",entityId:p.id,action:"UPDATE",message:`Administrator je oslobodio profil ${p.name} za novo povezivanje.`}})});res.json({ok:true});
+ // Releasing a ime sudionikae never transfers ownership of its historical bills.
+ await prisma.$transaction(async tx=>{await tx.person.update({where:{id:p.id},data:{identityKey:null}});await tx.history.create({data:{groupId:p.groupId,entity:"PERSON",entityId:p.id,action:"UPDATE",message:`Administrator je oslobodio ime sudionika ${p.name} za novo povezivanje.`}})});res.json({ok:true});
 }));
 workflowRouter.patch("/people/:id/role",wrap(async(req,res)=>{
  if(!res.locals.owner)throw failure("Samo vlasnik može mijenjati administratore.",403);
  const {role}=z.object({role:z.enum(["ADMIN","MEMBER"])}).strict().parse(req.body);
  const p=await prisma.person.findFirst({where:{id:req.params.id as string,groupId:res.locals.group.id}});
- if(!p?.identityKey)throw failure("Osoba najprije treba povezati svoj profil.");
+ if(!p?.identityKey)throw failure("Osoba najprije treba povezati svoj ime sudionika.");
  if(p.identityKey===res.locals.group.ownerKey)throw failure("Uloga vlasnika ne može se promijeniti ovdje.");
  await prisma.$transaction(async tx=>{await tx.groupSession.updateMany({where:{groupId:p.groupId,key:p.identityKey!},data:{role}});await tx.history.create({data:{groupId:p.groupId,entity:"PERSON",entityId:p.id,action:"UPDATE",message:`${p.name}: uloga ${role}`}})});res.json({ok:true});
 }));

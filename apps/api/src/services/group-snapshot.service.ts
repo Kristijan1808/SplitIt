@@ -1,5 +1,5 @@
 import type { RequestHandler } from "express";
-import { getUserFromRequest, prisma } from "../core.js";
+import { prisma } from "../core.js";
 import { groupDetailsInclude, serializeGroup } from "../utils.js";
 import { billKeys } from "./bill-permissions.js";
 import { calculateBalances } from "./balance-domain.js";
@@ -29,7 +29,7 @@ export const groupSnapshot: RequestHandler = async (req, res, next) => {
     }
 
     res.json({
-      group: serializeGroup(details, getUserFromRequest(req)),
+      group: serializeGroup(details),
       drafts: [],
       history: details.history,
       settlements: calculateBalances(

@@ -1,6 +1,5 @@
 import { expenseAllocation } from "./services/allocation.js";
 import type { Prisma } from "@prisma/client";
-import type { AuthUser } from "./core.js";
 
 export const groupDetailsInclude = {
   people: {
@@ -22,12 +21,6 @@ export const groupDetailsInclude = {
   },
   history: {
     orderBy: { createdAt: "desc" },
-  },
-  members: {
-    include: {
-      user: { select: { username: true } },
-    },
-    orderBy: { createdAt: "asc" },
   },
   draftExpenses: {
     where: { confirmedExpenseId: null },
@@ -181,13 +174,10 @@ export const serializeExpense = (expense: ExpenseWithDetails) => ({
 
 export const serializeGroup = (
   group: GroupWithDetails,
-  currentUser?: AuthUser | null,
 ) => {
-  const { passwordHash, ownerKey, ...restGroup } = group;
+  const { passwordHash, ownerKey, ownerUserId, accessType, ...restGroup } = group;
 
-  const currentMembership = currentUser
-    ? group.members.find((member) => member.userId === currentUser.id)
-    : null;
+
 
   const payments = group.expenses.flatMap((expense) =>
     expense.payers.map((payer) =>
@@ -199,7 +189,7 @@ export const serializeGroup = (
     ...restGroup,
     code: group.code,
     locked: Boolean(group.locked),
-    currentUserRole: currentMembership?.role ?? null,
+    accessType: "ANONYMOUS_ONLY",
     payments,
     expenses: group.expenses.map(serializeExpense),
     people: group.people.map((person) => ({
@@ -216,14 +206,7 @@ export const serializeGroup = (
       ),
     })),
     history: group.history.filter(h => h.entity !== "COMMENT"),
-    members: group.members.map((member) => ({
-      id: member.id,
-      groupId: member.groupId,
-      userId: member.userId,
-      username: member.user?.username,
-      role: member.role,
-      createdAt: member.createdAt,
-    })),
+    members: [],
     draftExpenses: group.draftExpenses.map(serializeDraftExpense),
   };
 };

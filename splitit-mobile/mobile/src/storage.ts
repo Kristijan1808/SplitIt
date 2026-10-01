@@ -1,7 +1,7 @@
 import { Platform } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as SecureStore from "expo-secure-store";
-import type { AuthResponse, Group } from "./types";
+import type { Group } from "./types";
 export type SavedGroup = Pick<Group, "slug" | "name" | "code"> & {
   participantId?: string;
   participantName?: string;
@@ -13,8 +13,8 @@ export type SavedGroup = Pick<Group, "slug" | "name" | "code"> & {
   avatar?: string;
   memberCount?: number;
 };
-// Browser preview keeps auth in memory; native tokens always use SecureStore.
-let previewAuth: AuthResponse | null = null;
+// Only read old credentials to preserve existing group ownership and queued bills.
+type LegacySession = {token:string;user:{id:string}};
 export const storage = {
   async readStrict<T>(key:string,fallback:T):Promise<T> {const raw=await AsyncStorage.getItem(`splitit.${key}`);return raw===null?fallback:JSON.parse(raw);},
   async guestToken(): Promise<string | null> {
@@ -39,8 +39,8 @@ export const storage = {
   async write(key: string, value: unknown) {
     await AsyncStorage.setItem(`splitit.${key}`, JSON.stringify(value));
   },
-  async auth(): Promise<AuthResponse | null> {
-    if (Platform.OS === "web") return previewAuth;
+  async legacySession(): Promise<LegacySession | null> {
+    if (Platform.OS === "web") return null;
     const raw = await SecureStore.getItemAsync("splitit.auth");
     if (!raw) return null;
     try {
@@ -48,14 +48,5 @@ export const storage = {
     } catch {
       return null;
     }
-  },
-  async setAuth(auth: AuthResponse | null) {
-    if (Platform.OS === "web") {
-      previewAuth = auth;
-      return;
-    }
-    if (auth)
-      await SecureStore.setItemAsync("splitit.auth", JSON.stringify(auth));
-    else await SecureStore.deleteItemAsync("splitit.auth");
   },
 };

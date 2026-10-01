@@ -283,6 +283,7 @@ export function Icon({
     home: "M3 10 12 3 21 10 M5 9v12h5v-7h4v7h5V9",
     groups:
       "M3 21v-3a5 5 0 0 1 10 0v3 M16 13a5 5 0 0 1 5 5v3 M8 3a4 4 0 1 0 0 8 4 4 0 0 0 0-8 M17 4a3 3 0 0 1 0 6",
+    settings: "M4 6h16 M4 12h16 M4 18h16 M8 3v6 M16 9v6 M10 15v6",
     plus: "M12 5v14 M5 12h14",
     back: "M15 5 8 12l7 7",
     receipt: "M5 3v18l3-2 4 2 4-2 3 2V3l-3 2-4-2-4 2z M8 9h8 M8 13h8",

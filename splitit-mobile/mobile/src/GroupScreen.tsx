@@ -402,7 +402,7 @@ export function GroupScreen({
         {tab === "debts" && <>
           <Card>
             <View style={s.between}>
-              <View style={{ flex: 1 }}><Txt size={20} bold>{t("Moje dugovanje", "My balance")}</Txt><Txt muted size={13}>{me?.name || t("Odaberi svoj profil", "Choose your profile")}</Txt></View>
+              <View style={{ flex: 1 }}><Txt size={20} bold>{t("Moje dugovanje", "My balance")}</Txt><Txt muted size={13}>{me?.name || t("Odaberi svoje ime", "Choose your name")}</Txt></View>
               {me && <Txt size={22} bold style={{ color: Number(balance?.balance ?? 0) < 0 ? c.debt : c.accent }}>{Number(balance?.balance ?? 0) > 0 ? "+" : ""}{money(balance?.balance ?? 0)}</Txt>}
             </View>
             {!me ? <Button secondary label={t("Odaberi tko si", "Choose who you are")} onPress={() => setTab("people")} /> : <>
@@ -578,22 +578,8 @@ export function GroupScreen({
                   onPress={() => void act(() => api.lock(g.slug, !rawGroup.locked))}
                 />
               )}
-              <Txt muted size={12}>
-                {g.accessType}
-              </Txt>
             </Card>
-            {g.members.length > 0 && (
-              <Card>
-                <Txt bold>
-                  {t("Registrirani članovi", "Registered members")}
-                </Txt>
-                {g.members.map((m) => (
-                  <Txt key={m.id}>
-                    {m.username ?? m.userId} · {m.role}
-                  </Txt>
-                ))}
-              </Card>
-            )}
+
           </>
         )}
         {tab === "history" && (

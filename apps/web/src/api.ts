@@ -1,19 +1,16 @@
 import type {
   AddPaymentRequest,
   AddPersonRequest,
-  AuthResponse,
   CreateGroupRequest,
   Group,
   Expense,
   HistoryItem,
   JoinGroupRequest,
-  LoginRequest,
   PatchPaymentRequest,
-  RegisterRequest,
   SettlementResult,
   GroupSnapshot,
 } from "./types";
-import { getAuthToken } from "./auth";
+import { legacyCredential } from "./legacy-access";
 import {
   getWhoAmI,
   saveGroupToLocalStorage,
@@ -114,7 +111,7 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
   startApiLoading();
 
   try {
-    const token = getAuthToken();
+    const token = legacyCredential();
     const guest = await guestToken();
     const slug = path.match(/^\/groups\/([^/]+)/)?.[1];
     const participantId = slug
@@ -165,7 +162,7 @@ export const api = {
     startApiLoading();
 
     try {
-      const token = getAuthToken();
+      const token = legacyCredential();
       const guest = await guestToken();
       const formData = new FormData();
       formData.append("file", file);
@@ -189,18 +186,6 @@ export const api = {
       endApiLoading();
     }
   },
-
-  login: (body: LoginRequest) =>
-    request<AuthResponse>("/auth/login", {
-      method: "POST",
-      body: JSON.stringify(body),
-    }),
-
-  register: (body: RegisterRequest) =>
-    request<AuthResponse>("/auth/register", {
-      method: "POST",
-      body: JSON.stringify(body),
-    }),
 
   createGroup: async (body: CreateGroupRequest) => {
     const group = await request<Group>("/groups", {

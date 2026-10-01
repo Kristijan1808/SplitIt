@@ -1,6 +1,5 @@
 import { storage } from "./storage";
 import type {
-  AuthResponse,
   CreateGroupRequest,
   JoinGroupRequest,
   Group,
@@ -24,7 +23,7 @@ let participantId: string | undefined;
 export const setParticipant = (value?: string) => {
   participantId = value;
 };
-export const setToken = (value?: string) => {
+export const setLegacyCredential = (value?: string) => {
   token = value;
 };
 export const requestContext=()=>({token,participantId});
@@ -165,12 +164,6 @@ export const api = {
       `${base(slug)}/${finalized ? "expenses" : "draft-expenses"}/${id}/items/${itemId}/mine`,
       "PATCH",
       typeof selected === "number" ? { units:selected } : { selected },
-    ),
-  auth: (register: boolean, body: object) =>
-    request<AuthResponse>(
-      `/auth/${register ? "register" : "login"}`,
-      "POST",
-      body,
     ),
   create: (body: CreateGroupRequest) => request<Group>("/groups", "POST", body),
   join: (body: JoinGroupRequest) =>

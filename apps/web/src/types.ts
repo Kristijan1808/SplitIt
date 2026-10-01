@@ -1,24 +1,5 @@
-export type AccessType = "ANONYMOUS_ONLY" | "REGISTERED_ONLY" | "MIXED";
+export type AccessType = "ANONYMOUS_ONLY";
 export type GroupRole = "OWNER" | "MEMBER";
-
-export type AuthUser = {
-  id: string;
-  username: string;
-};
-
-export type AuthResponse = {
-  token: string;
-  user: AuthUser;
-};
-
-export type LoginRequest = {
-  username: string;
-  password: string;
-};
-
-export type RegisterRequest = LoginRequest & {
-  repeatPassword: string;
-};
 
 export type CreateGroupRequest = {
   name: string;

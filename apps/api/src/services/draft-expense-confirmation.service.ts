@@ -71,7 +71,7 @@ export class DraftExpenseConfirmationService {
               "Samo autor može uređivati i potvrditi ovaj račun. Označi svoje stavke kvačicom.",
           });
 
-      if(draft.confirmedExpenseId){const prior=await prisma.expense.findUnique({where:{id:draft.confirmedExpenseId},include:{payers:{include:{person:true}},items:{include:{shares:{include:{person:true}}}},shares:{include:{person:true}}}});if(!prior||prior.deletedAt)return res.status(409).json({error:"Ovaj račun je potvrđen pa obrisan. Vrati ga iz obrisanih računa."});return res.json({expense:serializeExpense(prior),group:serializeGroup((await groupService.getGroupBySlug(group.slug))!,access.user)});}
+      if(draft.confirmedExpenseId){const prior=await prisma.expense.findUnique({where:{id:draft.confirmedExpenseId},include:{payers:{include:{person:true}},items:{include:{shares:{include:{person:true}}}},shares:{include:{person:true}}}});if(!prior||prior.deletedAt)return res.status(409).json({error:"Ovaj račun je potvrđen pa obrisan. Vrati ga iz obrisanih računa."});return res.json({expense:serializeExpense(prior),group:serializeGroup((await groupService.getGroupBySlug(group.slug))!)});}
       if(draft.requireResponses){const [members,responses]=await Promise.all([prisma.person.findMany({where:{groupId:group.id,inactive:false}}),prisma.draftSelection.findMany({where:{draftId:draft.id,status:{in:["DONE","SKIP"]}}})]);if(members.some(p=>!responses.some(r=>r.personId===p.id)))return res.status(409).json({error:"Pričekaj da svi članovi završe odabir ili označe da ne sudjeluju."});}
       if (draft.items.length === 0) {
         return res.status(400).json({
@@ -312,7 +312,7 @@ export class DraftExpenseConfirmationService {
       res.status(201).json({
         expense: serializeExpense(expense),
 
-        group: serializeGroup(updated!, access.user),
+        group: serializeGroup(updated!),
       });
     } catch (error) {
       next(error);

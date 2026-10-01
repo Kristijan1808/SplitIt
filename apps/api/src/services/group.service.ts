@@ -10,8 +10,7 @@ import {
 } from "../schemas/schemas.js";
 import { groupDetailsInclude, serializeGroup } from "../utils.js";
 import { ensureCanEditGroup, ensureCanViewGroup } from "./access.service.js";
-import { groupMemberService } from "./group-member.service.js";
-import { getUserFromRequest, prisma } from "../core.js";
+import { prisma } from "../core.js";
 
 const measureMethod = <Arguments extends unknown[], Result>(
   name: string,
@@ -29,13 +28,9 @@ const measureMethod = <Arguments extends unknown[], Result>(
 export class GroupService {
   create = measureMethod("GroupService.create", async (req: Request) => {
     const body = createGroupSchema.parse(req.body);
-    const currentUser = getUserFromRequest(req);
 
-    if (body.accessType === "REGISTERED_ONLY" && !currentUser) {
-      throw new Error(
-        "You must login to create a registered-only group"
-      );
-    }
+
+
 
     const passwordHash = await bcrypt.hash(body.password.trim(), 12);
     const uniquePeople = [
@@ -50,17 +45,10 @@ export class GroupService {
         name: body.name.trim(),
         slug: nanoid(12),
         code,
-        accessType: body.accessType,
+        accessType: "ANONYMOUS_ONLY",
         passwordHash,
-        ownerUserId: currentUser?.id ?? null,
-        members: currentUser
-          ? {
-              create: {
-                userId: currentUser.id,
-                role: "OWNER"
-              }
-            }
-          : undefined,
+        ownerUserId: null,
+
         people: {
           create: uniquePeople.map((name) => ({ name }))
         },
@@ -68,19 +56,19 @@ export class GroupService {
           create: {
             action: "CREATE",
             entity: "GROUP",
-            message: `Group "${body.name.trim()}" created as ${body.accessType}`
+            message: `Group "${body.name.trim()}" created`
           }
         }
       },
       include: groupDetailsInclude
     });
 
-    return serializeGroup(group, currentUser);
+    return serializeGroup(group);
   });
 
   join = measureMethod("GroupService.join", async (req: Request) => {
     const body = joinGroupSchema.parse(req.body);
-    const currentUser = getUserFromRequest(req);
+
 
     const group = await prisma.group.findUnique({where:{code:body.code.toUpperCase()}});
 
@@ -93,14 +81,12 @@ export class GroupService {
 
     if (!validPassword) throw new Error("Invalid password");
 
-    if (group.accessType === "REGISTERED_ONLY" && !currentUser) throw Object.assign(new Error("Prijavi se za pristup ovoj grupi."), {status:401});
+
     await prisma.groupSession.upsert({where:{groupId_key:{groupId:group.id,key:creatorKey(req)}}, create:{groupId:group.id,key:creatorKey(req)}, update:{}});
-    if (currentUser) {
-      await groupMemberService.addIfNeeded(group.id, currentUser);
-    }
+
 
     const refreshed = await this.getGroupBySlug(group.slug);
-    return serializeGroup(refreshed!, currentUser);
+    return serializeGroup(refreshed!);
   });
 
   get = measureMethod("GroupService.get", async (slug: string, req: Request) => {
@@ -118,7 +104,7 @@ export class GroupService {
 
     if (!updated) throw new Error("Group not found");
 
-    return serializeGroup(updated, access.user);
+    return serializeGroup(updated);
   });
 
   update = measureMethod("GroupService.update", async (slug: string, req: Request) => {
@@ -162,7 +148,7 @@ export class GroupService {
 
     if (!updated) throw new Error("Group not found");
 
-    return serializeGroup(updated, access.user);
+    return serializeGroup(updated);
   });
 
   setLock = measureMethod("GroupService.setLock", async (slug: string, req: Request) => {
@@ -171,7 +157,7 @@ export class GroupService {
 
     if (!group) throw new Error("Group not found");
 
-    const currentUser = getUserFromRequest(req);
+
 
     const session = await prisma.groupSession.findFirst({where:{groupId:group.id,key:{in:billKeys(req)},role:{in:["OWNER","ADMIN"]}}});
     if (!session) {
@@ -198,7 +184,7 @@ export class GroupService {
 
     if (!updated) throw new Error("Group not found");
 
-    return serializeGroup(updated, currentUser);
+    return serializeGroup(updated);
   });
 
   getGroupBySlug = async (slug: string) =>

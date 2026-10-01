@@ -214,7 +214,7 @@ export class PaymentService {
         req.params.slug as string,
       );
 
-      res.status(201).json(serializeGroup(updated!, access.user));
+      res.status(201).json(serializeGroup(updated!));
     } catch (error) {
       next(error);
     }

@@ -1,9 +1,6 @@
 import { PrismaClient, Prisma } from "@prisma/client";
-import jwt from "jsonwebtoken";
-import express from "express";
 import "dotenv/config";
 
-const JWT_SECRET = process.env.JWT_SECRET ?? "dev-secret-change-me";
 
 export const prisma = new PrismaClient({
   log: [{ emit: "event", level: "query" }]
@@ -13,10 +10,6 @@ prisma.$on("query", (event) => {
   console.info(`[db] ${event.duration}ms ${event.query}`);
 });
 
-export type AuthUser = {
-  id: string;
-  username: string;
-};
 
 export const calculateEqualShares = (amount: number, personIds: string[]) => {
   if (personIds.length === 0) return [];
@@ -109,50 +102,3 @@ export const roundMoney = (value: number) => Number(value.toFixed(2));
 
 export const moneyEqual = (a: number, b: number) => Math.abs(a - b) < 0.01;
 
-export const getUserFromRequest = (req: express.Request): AuthUser | null => {
-  const token = getTokenFromRequest(req);
-
-  if (!token) {
-    return null;
-  }
-
-  try {
-    const payload = jwt.verify(token, JWT_SECRET) as {
-      userId: string;
-      username: string;
-    };
-
-    return {
-      id: payload.userId,
-      username: payload.username,
-    };
-  } catch {
-    return null;
-  }
-};
-
-const getTokenFromRequest = (req: express.Request) => {
-  const header = req.headers.authorization;
-
-  if (!header?.startsWith("Bearer ")) {
-    return null;
-  }
-
-  return header.slice("Bearer ".length);
-};
-
-export const normalizeUsername = (username: string) =>
-  username.trim().toLowerCase();
-
-export const createToken = (user: AuthUser) => {
-  return jwt.sign(
-    {
-      userId: user.id,
-      username: user.username,
-    },
-    JWT_SECRET,
-    {
-      expiresIn: "30d",
-    },
-  );
-};

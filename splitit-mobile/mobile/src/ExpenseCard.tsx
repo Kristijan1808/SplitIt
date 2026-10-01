@@ -34,7 +34,7 @@ export function ExpenseCard({
   const label =
     e.paymentIncomplete?t("Saldo nakon ispravka", "Balance after correction"):
     net === null
-      ? t("Odaberi svoj profil", "Choose your identity")
+      ? t("Odaberi svoje ime", "Choose your identity")
       : !net.involved
         ? pending?t("Još nema tvog odabira", "Not selected yet"):t("Ne sudjeluješ", "Not involved")
         : net.net > 0

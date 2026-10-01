@@ -272,7 +272,7 @@ export class ExpenseService {
         return res.status(404).json({ error: "Group not found" });
       }
 
-      return res.json(serializeGroup(updated, access.user));
+      return res.json(serializeGroup(updated));
     } catch (error) {
       next(error);
     }

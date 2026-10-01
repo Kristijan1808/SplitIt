@@ -1,7 +1,6 @@
 import "dotenv/config";
 import express from "express";
 import cors from "cors";
-import { authRouter } from "./routes/auth.routes.js";
 import { groupRouter } from "./routes/group.routes.js";
 import { healthRouter } from "./routes/health.routes.js";
 import { billRouter } from "./routes/bill.routes.js";
@@ -41,7 +40,7 @@ app.use(billPermissions);
 
 app.use("/ai", billRouter);
 app.use("/", healthRouter);
-app.use("/auth", authRouter);
+app.use("/auth", (_req, res) => { res.status(410).json({error:"Korisnički računi više se ne koriste. Pridruži se grupi kodom i lozinkom."}); });
 app.use("/groups", groupRouter);
 
 app.use(errorHandler);
