@@ -6,7 +6,7 @@ import {Router} from "express";
 import {Prisma} from "@prisma/client";
 import {z} from "zod";
 import {randomBytes} from "node:crypto";
-import {prisma} from "../core.js";
+import {getUserFromRequest,prisma} from "../core.js";
 import {billKeys,creatorKey,canManageBill} from "./bill-permissions.js";
 import {ensureCanViewGroup,ensureCanEditGroup} from "./access.service.js";
 export const failure=(message:string,status=400)=>Object.assign(new Error(message),{status});
@@ -20,9 +20,13 @@ export const groupGate:RequestHandler=async(req,res,next)=>{try{
  const group=await prisma.group.findUnique({where:{slug:req.params.slug as string}});
  if(!group)throw failure("Grupa nije pronađena.",404);
  const access=await ensureCanViewGroup(group,req);if(!access.allowed)throw failure(access.error!,access.status);
- const sessions=await prisma.groupSession.findMany({where:{groupId:group.id,key:{in:billKeys(req)}}});
- res.locals.group=group;res.locals.admin=sessions.some(session=>["OWNER","ADMIN"].includes(session.role));
- res.locals.owner=!!group.ownerKey && billKeys(req).includes(group.ownerKey);
+ const authUser=getUserFromRequest(req);
+ const [sessions,membership]=await Promise.all([
+  prisma.groupSession.findMany({where:{groupId:group.id,key:{in:billKeys(req)}}}),
+  authUser?prisma.groupMember.findUnique({where:{groupId_userId:{groupId:group.id,userId:authUser.id}}}):null
+ ]);
+ res.locals.group=group;res.locals.admin=sessions.some(session=>["OWNER","ADMIN"].includes(session.role))||!!membership&&["OWNER","ADMIN"].includes(membership.role)||group.ownerUserId===authUser?.id;
+ res.locals.owner=!!group.ownerKey&&billKeys(req).includes(group.ownerKey)||group.ownerUserId===authUser?.id;
  next();
 }catch(e){next(e)}};
 export const adminGate:RequestHandler=(_req,res,next)=>res.locals.admin?next():next(failure("Ovu radnju može izvršiti administrator grupe.",403));

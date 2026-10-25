@@ -37,6 +37,14 @@ groupRouter.use((req, res, next) => {
 
 // Group
 
+groupRouter.get("/mine", async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    res.json(await groupService.listForUser(req));
+  } catch (error) {
+    next(error);
+  }
+});
+
 groupRouter.post(
   "/",
   async (req: Request, res: Response, next: NextFunction) => {

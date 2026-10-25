@@ -15,11 +15,12 @@ const group = {id:"g",slug:"code",code:"ABC123",name:"Ekipa",accessType:"REGISTE
   passwordHash:"",ownerKey:null,ownerUserId:"removed-user",expenses:[],people:[],history:[],draftExpenses:[]};
 
 test("creating a group ignores missing account even with an old signed token", async () => {
-  const oldFind = prisma.group.findUnique, oldCreate = prisma.group.create;
+  const oldFind = prisma.group.findUnique, oldUserFind = prisma.user.findUnique, oldCreate = prisma.group.create;
   const token = jwt.sign({userId:"deleted-user",username:"old"},process.env.JWT_SECRET ?? "dev-secret-change-me");
   let data:any;
   (prisma.group as any).findUnique=async()=>null;
-  (prisma.group as any).create=async(args:any)=>{data=args.data;return group;};
+  (prisma.user as any).findUnique=async()=>null;
+  (prisma.group as any).create=async(args:any)=>{data=args.data;return {...group,accessType:args.data.accessType};};
   try {
     const req=request({headers:{authorization:`Bearer ${token}`}});
     const result=await groupService.create(req);
@@ -32,12 +33,24 @@ test("creating a group ignores missing account even with an old signed token", a
     assert.deepEqual(data.people.create,[{name:"Jura"},{name:"Ana"}]);
     assert.equal((result as any).ownerUserId,undefined);
     assert.equal(result.accessType,"ANONYMOUS_ONLY");
-  } finally {(prisma.group as any).findUnique=oldFind;(prisma.group as any).create=oldCreate;}
+  } finally {(prisma.group as any).findUnique=oldFind;(prisma.user as any).findUnique=oldUserFind;(prisma.group as any).create=oldCreate;}
 });
 
-test("guest joins a formerly registered-only group with code and password", async () => {
+test("guest cannot join a registered-only group", async () => {
   const oldFind=prisma.group.findUnique,oldSession=prisma.groupSession.upsert;
   const found={...group,passwordHash:await bcrypt.hash("lozinka",4)};let saved:any;
+  (prisma.group as any).findUnique=async()=>found;
+  (prisma.groupSession as any).upsert=async(args:any)=>{saved=args;return {};};
+  try {
+    const req=request({body:{code:"ABC123",password:"lozinka"}});
+    await assert.rejects(groupService.join(req),/Sign in to join this group/);
+    assert.equal(saved,undefined);
+  } finally {(prisma.group as any).findUnique=oldFind;(prisma.groupSession as any).upsert=oldSession;}
+});
+
+test("guest can join a mixed-access group with code and password", async () => {
+  const oldFind=prisma.group.findUnique,oldSession=prisma.groupSession.upsert;
+  const found={...group,accessType:"MIXED",passwordHash:await bcrypt.hash("lozinka",4)};let saved:any;
   (prisma.group as any).findUnique=async()=>found;
   (prisma.groupSession as any).upsert=async(args:any)=>{saved=args;return {};};
   try {
@@ -53,12 +66,13 @@ test("guest joins a formerly registered-only group with code and password", asyn
 
 test("guest access still requires a group session and respects locked groups",async()=>{
  const old=prisma.groupSession.findFirst;
+ const mixed={...group,accessType:"MIXED"};
  try {
   (prisma.groupSession as any).findFirst=async()=>null;
-  assert.equal((await ensureCanViewGroup(group,request())).allowed,false);
+  assert.equal((await ensureCanViewGroup(mixed,request())).allowed,false);
   (prisma.groupSession as any).findFirst=async()=>({role:"MEMBER"});
-  assert.equal((await ensureCanViewGroup(group,request())).allowed,true);
-  assert.equal((await ensureCanEditGroup({...group,locked:true},request())).status,423);
+  assert.equal((await ensureCanViewGroup(mixed,request())).allowed,true);
+  assert.equal((await ensureCanEditGroup({...mixed,locked:true},request())).status,423);
  } finally {(prisma.groupSession as any).findFirst=old;}
 });
 

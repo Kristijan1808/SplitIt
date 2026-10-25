@@ -9,6 +9,8 @@ import type {
   PatchPaymentRequest,
   SettlementResult,
   GroupSnapshot,
+  AccountGroup,
+  AuthUser,
 } from "./types";
 import { legacyCredential } from "./legacy-access";
 import {
@@ -143,6 +145,13 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 }
 
 export const api = {
+  login: (body: { username: string; password: string }) =>
+    authRequest<{ token: string; user: AuthUser }>("/login", body),
+  register: (body: { username: string; password: string; repeatPassword: string }) =>
+    authRequest<{ token: string; user: AuthUser }>("/register", body),
+  googleSignIn: (credential: string) =>
+    authRequest<{ token: string; user: AuthUser }>("/google", { credential }),
+  getMyGroups: () => request<AccountGroup[]>("/groups/mine"),
   createExpense:(slug:string,body:CreateDraftExpenseRequest)=>request<Expense>(`/groups/${slug}/expenses`,{method:"POST",body:JSON.stringify(body)}),
   workflow: (slug:string)=>request<any>(`/groups/${slug}/workflow`),
   claim: (slug:string,personId:string)=>request(`/groups/${slug}/workflow/identity`,{method:"POST",body:JSON.stringify({personId})}),
@@ -300,3 +309,21 @@ export const api = {
   getHistory: (slug: string) =>
     request<HistoryItem[]>(`/groups/${slug}/history`),
 };
+
+async function authRequest<T>(path: string, body: unknown): Promise<T> {
+  startApiLoading();
+  try {
+    const response = await fetch(`${API_URL}/auth${path}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ error: "Request failed" }));
+      throw new Error(error.error ?? error.message ?? "Request failed");
+    }
+    return response.json();
+  } finally {
+    endApiLoading();
+  }
+}

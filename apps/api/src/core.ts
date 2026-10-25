@@ -1,10 +1,51 @@
 import { PrismaClient, Prisma } from "@prisma/client";
 import "dotenv/config";
+import jwt from "jsonwebtoken";
+import type { Request } from "express";
 
 
 export const prisma = new PrismaClient({
   log: [{ emit: "event", level: "query" }]
 });
+
+export type AuthUser = { id: string; username: string };
+
+export const normalizeUsername = (username: string) => username.trim().toLowerCase();
+
+export function getJwtSecret() {
+  if (process.env.JWT_SECRET) return process.env.JWT_SECRET;
+  if (process.env.NODE_ENV === "production") {
+    throw new Error("JWT_SECRET must be configured in production");
+  }
+  return "dev-secret-change-me";
+}
+
+export function createToken(user: AuthUser) {
+  return jwt.sign(
+    { userId: user.id, username: user.username },
+    getJwtSecret(),
+    { algorithm: "HS256", expiresIn: "30d" },
+  );
+}
+
+export function getUserFromRequest(req: Request): AuthUser | null {
+  const authorization = req.headers.authorization;
+  if (!authorization?.startsWith("Bearer ")) return null;
+
+  try {
+    const payload = jwt.verify(
+      authorization.slice(7),
+      getJwtSecret(),
+      { algorithms: ["HS256"] },
+    );
+    if (typeof payload === "string" || typeof payload.userId !== "string" || typeof payload.username !== "string") {
+      return null;
+    }
+    return { id: payload.userId, username: payload.username };
+  } catch {
+    return null;
+  }
+}
 
 prisma.$on("query", (event) => {
   console.info(`[db] ${event.duration}ms ${event.query}`);

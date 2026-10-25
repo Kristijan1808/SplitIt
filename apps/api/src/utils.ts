@@ -175,7 +175,7 @@ export const serializeExpense = (expense: ExpenseWithDetails) => ({
 export const serializeGroup = (
   group: GroupWithDetails,
 ) => {
-  const { passwordHash, ownerKey, ownerUserId, accessType, ...restGroup } = group;
+  const { passwordHash, ownerKey, ownerUserId, ...restGroup } = group;
 
 
 
@@ -189,7 +189,7 @@ export const serializeGroup = (
     ...restGroup,
     code: group.code,
     locked: Boolean(group.locked),
-    accessType: "ANONYMOUS_ONLY",
+    accessType: group.accessType,
     payments,
     expenses: group.expenses.map(serializeExpense),
     people: group.people.map((person) => ({

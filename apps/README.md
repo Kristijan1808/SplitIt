@@ -20,7 +20,10 @@ In `api/.env` set:
 ```env
 OPENAI_API_KEY="your-openai-api-key"
 OPENAI_BILL_MODEL="gpt-5.5"
+GOOGLE_CLIENT_ID="your-google-oauth-client-id"
 ```
+
+For Google registration and sign-in, create a Google OAuth 2.0 Web application client. Set its client ID in both `api/.env` as `GOOGLE_CLIENT_ID` and `web/.env` as `VITE_GOOGLE_CLIENT_ID`. Add the web app's development and production origins to the OAuth client's authorized JavaScript origins. Google-verified email addresses become usernames. Apply the API Prisma migrations before deploying this feature.
 
 The uploaded image is limited to 10 MB and accepted formats are JPEG, PNG, WebP, and GIF.
 

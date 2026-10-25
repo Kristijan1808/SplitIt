@@ -4,6 +4,7 @@ import cors from "cors";
 import { groupRouter } from "./routes/group.routes.js";
 import { healthRouter } from "./routes/health.routes.js";
 import { billRouter } from "./routes/bill.routes.js";
+import { authRouter } from "./routes/auth.routes.js";
 import { errorHandler } from "./middleware.error.js";
 
 import { billPermissions, guestSession } from "./services/bill-permissions.js";
@@ -40,7 +41,7 @@ app.use(billPermissions);
 
 app.use("/ai", billRouter);
 app.use("/", healthRouter);
-app.use("/auth", (_req, res) => { res.status(410).json({error:"Korisnički računi više se ne koriste. Pridruži se grupi kodom i lozinkom."}); });
+app.use("/auth", authRouter);
 app.use("/groups", groupRouter);
 
 app.use(errorHandler);

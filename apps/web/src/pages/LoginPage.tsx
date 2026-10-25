@@ -1,10 +1,11 @@
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useCallback, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { ArrowLeft, LogIn, UserPlus } from "lucide-react";
 import { api } from "../api";
 import { saveAuth } from "../auth";
 import { ThemeToggle } from "../components/ThemeToggle";
+import { GoogleSignInButton } from "../components/GoogleSignInButton";
 import { useLanguage } from "../i18n";
 
 export function LoginPage() {
@@ -20,6 +21,20 @@ export function LoginPage() {
   const [repeatPassword, setRepeatPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
+  const handleGoogleCredential = useCallback(async (credential: string) => {
+    try {
+      setLoading(true);
+      setError("");
+      const result = await api.googleSignIn(credential);
+      saveAuth(result.token, result.user);
+      navigate(redirect, { replace: true });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t("somethingWentWrong"));
+    } finally {
+      setLoading(false);
+    }
+  }, [navigate, redirect, t]);
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -59,7 +74,6 @@ export function LoginPage() {
       <section className="card authCard">
         <p className="eyebrow">{mode === "login" ? t("welcomeBack") : t("createAccount")}</p>
         <h1>{mode === "login" ? t("login") : t("signIn")}</h1>
-        <p className="muted">{t("home")}</p>
 
         <form className="form authForm" onSubmit={submit}>
           <label>
@@ -70,6 +84,8 @@ export function LoginPage() {
               onChange={(event) => setUsername(event.target.value)}
               required
               minLength={4}
+              maxLength={mode === "login" ? 254 : 32}
+              autoComplete="username"
             />
           </label>
 
@@ -81,7 +97,9 @@ export function LoginPage() {
               value={password}
               onChange={(event) => setPassword(event.target.value)}
               required
-              minLength={6}
+              minLength={8}
+              maxLength={80}
+              autoComplete={mode === "login" ? "current-password" : "new-password"}
             />
           </label>
 
@@ -94,7 +112,9 @@ export function LoginPage() {
                 value={repeatPassword}
                 onChange={(event) => setRepeatPassword(event.target.value)}
                 required
-                minLength={6}
+                minLength={8}
+                maxLength={80}
+                autoComplete="new-password"
               />
             </label>
           )}
@@ -106,6 +126,9 @@ export function LoginPage() {
             {loading ? t("pleaseWait") : mode === "login" ? t("login") : t("signIn")}
           </button>
         </form>
+
+        <div className="authDivider">{t("or")}</div>
+        <GoogleSignInButton mode={mode} onCredential={handleGoogleCredential} />
 
         <button
           className="secondaryButton authSwitch"

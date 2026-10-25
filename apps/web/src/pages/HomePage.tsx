@@ -1,23 +1,14 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { Plus, UserRoundPlus, WalletCards } from "lucide-react";
+import { LogOut, Plus, UserRoundPlus, WalletCards } from "lucide-react";
+import { clearAuth, getAuthUser } from "../auth";
 import { ThemeToggle } from "../components/ThemeToggle";
 import { LanguageToggle } from "../components/LanguageToggle";
 import { useLanguage } from "../i18n";
 
 export function HomePage() {
-  const [recentGroups, setRecentGroups] = useState<Array<{ slug: string; name: string }>>([]);
+  const [username, setUsername] = useState(getAuthUser()?.username ?? "");
   const { t } = useLanguage();
-
-  useEffect(() => {
-    const saved = window.localStorage.getItem("splitit:groups");
-    if (!saved) return;
-    try {
-      setRecentGroups(JSON.parse(saved));
-    } catch {
-      setRecentGroups([]);
-    }
-  }, []);
 
   return (
     <main className="page">
@@ -53,6 +44,22 @@ export function HomePage() {
         <Link to="/my-groups" className="secondaryButton homeActionButton">
           {t("myGroups")}
         </Link>
+        {username ? (
+          <button
+            type="button"
+            className="secondaryButton homeActionButton"
+            onClick={() => {
+              clearAuth();
+              setUsername("");
+            }}
+          >
+            <LogOut size={18} /> {username} · {t("signOut")}
+          </button>
+        ) : (
+          <Link to="/login" className="secondaryButton homeActionButton">
+            {t("login")}
+          </Link>
+        )}
       </div>
     </main>
   );

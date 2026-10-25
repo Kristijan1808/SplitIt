@@ -10,7 +10,7 @@ import {
 } from "../schemas/schemas.js";
 import { groupDetailsInclude, serializeGroup } from "../utils.js";
 import { ensureCanEditGroup, ensureCanViewGroup } from "./access.service.js";
-import { prisma } from "../core.js";
+import { getUserFromRequest, prisma } from "../core.js";
 
 const measureMethod = <Arguments extends unknown[], Result>(
   name: string,
@@ -28,9 +28,13 @@ const measureMethod = <Arguments extends unknown[], Result>(
 export class GroupService {
   create = measureMethod("GroupService.create", async (req: Request) => {
     const body = createGroupSchema.parse(req.body);
-
-
-
+    const authUser = getUserFromRequest(req);
+    const user = authUser
+      ? await prisma.user.findUnique({ where: { id: authUser.id }, select: { id: true } })
+      : null;
+    if (body.accessType === "REGISTERED_ONLY" && !user) {
+      throw Object.assign(new Error("Sign in to create a registered-only group"), { status: 401 });
+    }
 
     const passwordHash = await bcrypt.hash(body.password.trim(), 12);
     const uniquePeople = [
@@ -45,9 +49,10 @@ export class GroupService {
         name: body.name.trim(),
         slug: nanoid(12),
         code,
-        accessType: "ANONYMOUS_ONLY",
+        accessType: body.accessType,
         passwordHash,
-        ownerUserId: null,
+        ownerUserId: user?.id ?? null,
+        ...(user ? { members: { create: { userId: user.id, role: "OWNER" } } } : {}),
 
         people: {
           create: uniquePeople.map((name) => ({ name }))
@@ -68,11 +73,20 @@ export class GroupService {
 
   join = measureMethod("GroupService.join", async (req: Request) => {
     const body = joinGroupSchema.parse(req.body);
-
+    const authUser = getUserFromRequest(req);
+    const user = authUser
+      ? await prisma.user.findUnique({ where: { id: authUser.id }, select: { id: true } })
+      : null;
 
     const group = await prisma.group.findUnique({where:{code:body.code.toUpperCase()}});
 
     if (!group) throw new Error("Group not found");
+    if (group.accessType === "REGISTERED_ONLY" && !user) {
+      throw Object.assign(new Error("Sign in to join this group"), { status: 401 });
+    }
+    if (group.accessType === "ANONYMOUS_ONLY" && user?.id !== group.ownerUserId) {
+      throw Object.assign(new Error("This group only allows anonymous access"), { status: 403 });
+    }
 
     const validPassword = await bcrypt.compare(
       body.password,
@@ -83,6 +97,13 @@ export class GroupService {
 
 
     await prisma.groupSession.upsert({where:{groupId_key:{groupId:group.id,key:creatorKey(req)}}, create:{groupId:group.id,key:creatorKey(req)}, update:{}});
+    if (user) {
+      await prisma.groupMember.upsert({
+        where: { groupId_userId: { groupId: group.id, userId: user.id } },
+        create: { groupId: group.id, userId: user.id, role: group.ownerUserId === user.id ? "OWNER" : "MEMBER" },
+        update: {}
+      });
+    }
 
 
     const refreshed = await this.getGroupBySlug(group.slug);
@@ -112,7 +133,6 @@ export class GroupService {
       name: z.string().min(1).max(80)
     });
     const body = schema.parse(req.body);
-
     const existing = await prisma.group.findUnique({
       where: { slug }
     });
@@ -159,8 +179,12 @@ export class GroupService {
 
 
 
-    const session = await prisma.groupSession.findFirst({where:{groupId:group.id,key:{in:billKeys(req)},role:{in:["OWNER","ADMIN"]}}});
-    if (!session) {
+    const authUser = getUserFromRequest(req);
+    const [session, membership] = await Promise.all([
+      prisma.groupSession.findFirst({where:{groupId:group.id,key:{in:billKeys(req)},role:{in:["OWNER","ADMIN"]}}}),
+      authUser ? prisma.groupMember.findUnique({where:{groupId_userId:{groupId:group.id,userId:authUser.id}}}) : null
+    ]);
+    if (!session && group.ownerUserId !== authUser?.id && !(membership && ["OWNER", "ADMIN"].includes(membership.role))) {
       throw new Error("Only the group owner can lock or unlock it");
     }
 
@@ -192,6 +216,21 @@ export class GroupService {
       where: { slug },
       include: groupDetailsInclude
     });
+
+  listForUser = async (req: Request) => {
+    const user = getUserFromRequest(req);
+    if (!user) throw Object.assign(new Error("Not logged in"), { status: 401 });
+    return prisma.group.findMany({
+      where: {
+        OR: [
+          { ownerUserId: user.id },
+          { members: { some: { userId: user.id } } }
+        ]
+      },
+      select: { slug: true, name: true, code: true, accessType: true, createdAt: true },
+      orderBy: { updatedAt: "desc" }
+    });
+  };
 
   private generateGroupCode = () => {
     const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";

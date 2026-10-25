@@ -752,6 +752,28 @@ small {
   width: 100%;
 }
 
+.authDivider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 16px 0;
+  color: var(--gray);
+  font-size: 13px;
+}
+
+.authDivider::before,
+.authDivider::after {
+  content: "";
+  flex: 1;
+  border-top: 1px solid var(--line);
+}
+
+.googleSignIn {
+  display: grid;
+  justify-items: center;
+  min-height: 40px;
+}
+
 .link {
   display: block;
   margin-top: 16px;
@@ -767,6 +789,18 @@ small {
 .accessOptions {
   display: grid;
   gap: 12px;
+}
+
+fieldset.accessOptions {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.accessOptions legend {
+  margin-bottom: 8px;
+  font-weight: 700;
 }
 
 .accessOption {
@@ -1497,7 +1531,6 @@ input:user-invalid + .validationMessage {
   box-shadow: 0 18px 40px rgba(0, 0, 0, 0.22);
   animation: toastIn 0.22s ease;
 }
-
 
 
 

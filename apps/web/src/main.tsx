@@ -8,6 +8,7 @@ import { JoinGroupPage } from "./pages/JoinGroupPage";
 import { MyGroupsPage } from "./pages/MyGroupsPage";
 import { GroupPage } from "./pages/GroupPage";
 import { GroupAddExpensePage } from "./pages/GroupAddExpensePage";
+import { LoginPage } from "./pages/LoginPage";
 import { ApiLoadingOverlay } from "./components/ApiLoadingOverlay";
 
 const App = () => (
@@ -15,6 +16,7 @@ const App = () => (
     <ApiLoadingOverlay />
     <Routes>
       <Route path="/" element={<HomePage />} />
+      <Route path="/login" element={<LoginPage />} />
       <Route path="/new" element={<CreateGroupPage />} />
       <Route path="/join" element={<JoinGroupPage />} />
       <Route path="/my-groups" element={<MyGroupsPage />} />

@@ -1,7 +1,9 @@
 
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { ArrowLeft, FolderOpen, X } from "lucide-react";
+import { ArrowLeft, FolderOpen, LogOut, X } from "lucide-react";
+import { api } from "../api";
+import { clearAuth, getAuthUser, isLoggedIn } from "../auth";
 import { ThemeToggle } from "../components/ThemeToggle";
 import { ConfirmationModal } from "../components/ConfirmationModal";
 import { useLanguage } from "../i18n";
@@ -15,11 +17,40 @@ export function MyGroupsPage() {
   const { t } = useLanguage();
   const [groups, setGroups] = useState<SavedGroup[]>([]);
   const [groupToDelete, setGroupToDelete] = useState<SavedGroup | null>(null);
+  const [accountList, setAccountList] = useState(false);
+  const [username, setUsername] = useState(getAuthUser()?.username ?? "");
+  const [error, setError] = useState("");
 
   useEffect(() => {
-    // "My groups" is local-first. localStorage is the source of truth for
-    // which groups are saved on this browser.
-    setGroups(getSavedGroups());
+    let cancelled = false;
+    const loadGroups = async () => {
+      if (!isLoggedIn()) {
+        setGroups(getSavedGroups());
+        return;
+      }
+      try {
+        const accountGroups = await api.getMyGroups();
+        if (cancelled) return;
+        setAccountList(true);
+        setGroups(accountGroups.map((group) => ({
+          ...group,
+          participantId: null,
+          participantName: null,
+          savedAt: group.createdAt
+        })));
+      } catch (loadError) {
+        if (cancelled) return;
+        if (loadError instanceof Error && loadError.message === "Not logged in") {
+          clearAuth();
+          setUsername("");
+          setGroups(getSavedGroups());
+        } else {
+          setError(loadError instanceof Error ? loadError.message : t("somethingWentWrong"));
+        }
+      }
+    };
+    void loadGroups();
+    return () => { cancelled = true; };
   }, []);
 
   const handleDeleteGroup = (group: SavedGroup) => {
@@ -36,10 +67,24 @@ export function MyGroupsPage() {
     setGroupToDelete(null);
   };
 
+  const signOut = () => {
+    clearAuth();
+    setUsername("");
+    setAccountList(false);
+    setGroups(getSavedGroups());
+  };
+
   return (
     <main className="page">
       <div className="topBar">
-        <ThemeToggle />
+        <div className="topBarControls">
+          {username && (
+            <button className="secondaryButton" type="button" onClick={signOut}>
+              <LogOut size={16} /> {t("signOut")}
+            </button>
+          )}
+          <ThemeToggle />
+        </div>
       </div>
 
       <Link className="backLink" to="/">
@@ -48,6 +93,7 @@ export function MyGroupsPage() {
 
       <section className="card">
         <h1>{t("myGroups")}</h1>
+        {error && <p className="error">{error}</p>}
 
         {groups.length === 0 ? (
           <p className="muted">{t("noSavedGroups")}</p>
@@ -81,7 +127,7 @@ export function MyGroupsPage() {
                   </small>
                 </Link>
 
-                <button
+                {!accountList && <button
                   type="button"
                   className="deleteSavedGroupButton"
                   onClick={() => handleDeleteGroup(group)}
@@ -89,7 +135,7 @@ export function MyGroupsPage() {
                   title="Delete from My Groups"
                 >
                   <X size={16} strokeWidth={2.5} />
-                </button>
+                </button>}
               </div>
             ))}
           </div>
@@ -97,7 +143,7 @@ export function MyGroupsPage() {
       </section>
 
       <ConfirmationModal
-        open={groupToDelete !== null}
+        open={!accountList && groupToDelete !== null}
         title="Delete group from My Groups?"
         message={
           groupToDelete

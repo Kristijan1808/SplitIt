@@ -1,4 +1,5 @@
 import type { Request, Response, NextFunction } from "express";
+import { Prisma } from "@prisma/client";
 import {
   createToken,
   getUserFromRequest,
@@ -7,6 +8,10 @@ import {
 } from "../core.js";
 import * as schemas from "../schemas/schemas.js";
 import bcrypt from "bcryptjs";
+import { randomBytes } from "node:crypto";
+import { OAuth2Client } from "google-auth-library";
+
+const googleAuthClient = new OAuth2Client();
 
 export class AuthService {
   register = async (
@@ -41,7 +46,7 @@ export class AuthService {
       if (existingUser) {
         return res.status(409).json({
           error:
-            "Username or email already exists"
+            "Username already exists"
         });
       }
 
@@ -96,7 +101,7 @@ export class AuthService {
       if (!user) {
         return res.status(401).json({
           error:
-            "Invalid username/email or password"
+            "Invalid username or password"
         });
       }
 
@@ -109,7 +114,7 @@ export class AuthService {
       if (!validPassword) {
         return res.status(401).json({
           error:
-            "Invalid username/email or password"
+            "Invalid username or password"
         });
       }
 
@@ -128,6 +133,100 @@ export class AuthService {
       next(error);
     }
   
+  };
+
+  google = async (
+    req: Request,
+    res: Response,
+    next: NextFunction
+  ) => {
+    try {
+      const { credential } = schemas.googleAuthSchema.parse(req.body);
+      const clientId = process.env.GOOGLE_CLIENT_ID;
+
+      if (!clientId) {
+        return res.status(503).json({
+          error: "Google sign-in is not configured"
+        });
+      }
+
+      let payload;
+      try {
+        const ticket = await googleAuthClient.verifyIdToken({
+          idToken: credential,
+          audience: clientId
+        });
+        payload = ticket.getPayload();
+      } catch {
+        return res.status(401).json({
+          error: "Invalid Google credential"
+        });
+      }
+
+      if (!payload?.sub || !payload.email || payload.email_verified !== true) {
+        return res.status(401).json({
+          error: "A verified Google email is required"
+        });
+      }
+
+      const user = await prisma.user.findUnique({
+        where: { googleSubject: payload.sub },
+        select: { id: true, username: true }
+      });
+
+      if (user) {
+        return res.json({ token: createToken(user), user });
+      }
+
+      const username = normalizeUsername(payload.email);
+      const existingUser = await prisma.user.findUnique({
+        where: { username },
+        select: { id: true }
+      });
+
+      if (existingUser) {
+        return res.status(409).json({
+          error: "An account with this email already exists. Sign in with that account."
+        });
+      }
+
+      const passwordHash = await bcrypt.hash(randomBytes(32).toString("hex"), 12);
+      let newUser: { id: string; username: string };
+      try {
+        newUser = await prisma.user.create({
+          data: {
+            username,
+            passwordHash,
+            googleSubject: payload.sub
+          },
+          select: { id: true, username: true }
+        });
+      } catch (error) {
+        if (
+          error instanceof Prisma.PrismaClientKnownRequestError &&
+          error.code === "P2002"
+        ) {
+          const racedUser = await prisma.user.findUnique({
+            where: { googleSubject: payload.sub },
+            select: { id: true, username: true }
+          });
+          if (racedUser) {
+            return res.json({
+              token: createToken(racedUser),
+              user: racedUser
+            });
+          }
+          return res.status(409).json({
+            error: "An account with this email already exists. Sign in with that account."
+          });
+        }
+        throw error;
+      }
+
+      return res.json({ token: createToken(newUser), user: newUser });
+    } catch (error) {
+      next(error);
+    }
   };
 
   me = async (

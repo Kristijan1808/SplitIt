@@ -1,5 +1,14 @@
-export type AccessType = "ANONYMOUS_ONLY";
+export type AccessType = "ANONYMOUS_ONLY" | "REGISTERED_ONLY" | "MIXED";
 export type GroupRole = "OWNER" | "MEMBER";
+
+export type AuthUser = { id: string; username: string };
+export type AccountGroup = {
+  slug: string;
+  name: string;
+  code: string;
+  accessType: AccessType;
+  createdAt: string;
+};
 
 export type CreateGroupRequest = {
   name: string;

@@ -4,6 +4,7 @@ import { ArrowLeft, Copy, Plus } from "lucide-react";
 import { ThemeToggle } from "../components/ThemeToggle";
 import { useLanguage } from "../i18n";
 import { api } from "../api";
+import type { AccessType } from "../types";
 
 export function CreateGroupPage() {
   const navigate = useNavigate();
@@ -11,6 +12,7 @@ export function CreateGroupPage() {
   const [name, setName] = useState("");
   const [password, setPassword] = useState("");
   const [people, setPeople] = useState([""]);
+  const [accessType, setAccessType] = useState<AccessType>("ANONYMOUS_ONLY");
   const [error, setError] = useState("");
   const [createdCode, setCreatedCode] = useState<string | null>(null);
   const [createdSlug, setCreatedSlug] = useState<string | null>(null);
@@ -34,7 +36,7 @@ export function CreateGroupPage() {
         name,
         password,
         people,
-        accessType: "ANONYMOUS_ONLY"
+        accessType
       });
       setCreatedCode(group.code);
       setCreatedSlug(group.slug);
@@ -84,6 +86,30 @@ export function CreateGroupPage() {
               Password must be at least 4 characters.
             </span>
           </label>
+
+            <fieldset className="accessOptions">
+              <legend>{t("groupAccess")}</legend>
+              {([
+                ["ANONYMOUS_ONLY", "anonymousAccess", "anonymousAccessHint"],
+                ["REGISTERED_ONLY", "registeredAccess", "registeredAccessHint"],
+                ["MIXED", "mixedAccess", "mixedAccessHint"]
+              ] as const).map(([value, label, hint]) => (
+                <label
+                  className={`accessOption${accessType === value ? " selected" : ""}`}
+                  key={value}
+                >
+                  <input
+                    type="radio"
+                    name="accessType"
+                    value={value}
+                    checked={accessType === value}
+                    onChange={() => setAccessType(value)}
+                  />
+                  <strong>{t(label)}</strong>
+                  <small>{t(hint)}</small>
+                </label>
+              ))}
+            </fieldset>
 
             <div>
               <label>{t("participants")}</label>

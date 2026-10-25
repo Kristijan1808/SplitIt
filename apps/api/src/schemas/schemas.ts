@@ -4,8 +4,29 @@ export const createGroupSchema = z.object({
   name: z.string().trim().min(1).max(80),
   password: z.string().trim().min(1).max(80),
   people: z.array(z.string().trim().min(1).max(60)).min(1),
-  accessType: z
-    .unknown().transform(() => "ANONYMOUS_ONLY" as const)
+  accessType: z.enum(["ANONYMOUS_ONLY", "REGISTERED_ONLY", "MIXED"]).default("ANONYMOUS_ONLY")
+});
+
+const usernameSchema = z.string().trim().min(4).max(32).regex(/^[a-zA-Z0-9_.-]+$/);
+const loginIdentifierSchema = z.union([
+  usernameSchema,
+  z.string().trim().min(4).max(254).email()
+]);
+const passwordSchema = z.string().min(8).max(80);
+
+export const registerSchema = z.object({
+  username: usernameSchema,
+  password: passwordSchema,
+  repeatPassword: passwordSchema
+});
+
+export const authSchema = z.object({
+  username: loginIdentifierSchema,
+  password: passwordSchema
+});
+
+export const googleAuthSchema = z.object({
+  credential: z.string().min(1).max(8192)
 });
 
 export const joinGroupSchema = z.object({
