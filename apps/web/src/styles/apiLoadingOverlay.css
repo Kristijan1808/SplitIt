@@ -29,12 +29,13 @@
   left: 50%;
   bottom: 28px;
   transform: translateX(-50%);
-  background: #7f1d1d;
-  color: white;
+  background: var(--danger-tint, #fbecee);
+  border: 1px solid var(--danger, #b33442);
+  color: var(--danger, #b33442);
   padding: 14px 18px;
   border-radius: 18px;
   font-weight: 700;
   z-index: 99999;
-  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.22);
+  box-shadow: var(--shadow-card, 0 8px 24px rgba(24, 44, 60, 0.07));
   animation: toastIn 0.22s ease;
 }

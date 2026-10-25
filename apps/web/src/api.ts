@@ -19,6 +19,8 @@ import {
   syncSavedGroupToLocalStorage,
 } from "./storage";
 import { startApiLoading, endApiLoading } from "./loading";
+import { getStoredLanguage, translations } from "./i18n";
+import { showToast } from "./notifications";
 
 type DraftItemShareRequest = {
   personId: string;
@@ -89,6 +91,24 @@ export type DraftExpense = {
 
 const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:4000";
 
+async function responseJson<T>(response: Response): Promise<T> {
+  if (!response.ok) {
+    const messages = translations[getStoredLanguage()];
+    if (response.status === 403) {
+      showToast(messages.forbiddenAction);
+    } else if (response.status === 401) {
+      showToast(messages.unauthorizedMessage);
+    }
+
+    const error = await response
+      .json()
+      .catch(() => ({ error: "Request failed" }));
+    throw new Error(error.error ?? error.message ?? "Request failed");
+  }
+
+  return response.json() as Promise<T>;
+}
+
 let guestPromise: Promise<string> | undefined;
 function guestToken() {
   if (!guestPromise)
@@ -98,7 +118,7 @@ function guestToken() {
       const response = await fetch(`${API_URL}/guest-session`, {
         method: "POST",
       });
-      const data = await response.json();
+      const data = await responseJson<{ token?: string }>(response);
       if (!response.ok || !data?.token)
         throw new Error("API treba nadograditi.");
       localStorage.setItem("splitit.guest-token", data.token);
@@ -131,14 +151,7 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
       },
     });
 
-    if (!response.ok) {
-      const error = await response
-        .json()
-        .catch(() => ({ error: "Request failed" }));
-      throw new Error(error.error ?? error.message ?? "Request failed");
-    }
-
-    return response.json();
+    return responseJson<T>(response);
   } finally {
     endApiLoading();
   }
@@ -183,14 +196,7 @@ export const api = {
         body: formData,
       });
 
-      if (!response.ok) {
-        const error = await response
-          .json()
-          .catch(() => ({ error: "Request failed" }));
-        throw new Error(error.error ?? error.message ?? "Request failed");
-      }
-
-      return response.json();
+      return responseJson<{ items: ParsedBillItem[] }>(response);
     } finally {
       endApiLoading();
     }
@@ -318,11 +324,7 @@ async function authRequest<T>(path: string, body: unknown): Promise<T> {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
     });
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({ error: "Request failed" }));
-      throw new Error(error.error ?? error.message ?? "Request failed");
-    }
-    return response.json();
+    return responseJson<T>(response);
   } finally {
     endApiLoading();
   }

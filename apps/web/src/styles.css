@@ -322,6 +322,10 @@ h2 {
     background 0.18s ease;
 }
 
+.loginBtn{
+  margin-top: 10px;
+}
+
 .primaryButton:disabled {
   opacity: 0.5;
   cursor: not-allowed;

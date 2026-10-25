@@ -56,7 +56,7 @@ export function HomePage() {
             <LogOut size={18} /> {username} · {t("signOut")}
           </button>
         ) : (
-          <Link to="/login" className="secondaryButton homeActionButton">
+          <Link to="/login" className="secondaryButton homeActionButton loginBtn">
             {t("login")}
           </Link>
         )}
