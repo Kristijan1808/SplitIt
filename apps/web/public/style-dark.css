@@ -1,88 +1,100 @@
 :root {
-  --green-950: #d9fff0;
-  --green-900: #34d399;
-  --green-700: #22c55e;
-  --green-500: #4ade80;
-  --mint: #0d2f25;
-  --black: #f8fafc;
-  --white: #07150f;
-  --gray: #94a3b8;
-  --line: #164e3b;
-
+  --green-950: #edf3fa;
+  --green-900: #79daba;
+  --green-800: #234f50;
+  --green-700: #79daba;
+  --green-500: #79daba;
+  --mint: #233f3c;
+  --mint-strong: #2d4b46;
+  --black: #edf3fa;
+  --white: #101923;
+  --gray: #abbccd;
+  --line: #354756;
+  --page-bg: #101923;
+  --panel-bg: #1c2a36;
+  --panel-alt: #101923;
+  --surface: #1c2a36;
+  --surface-solid: #1c2a36;
+  --surface-hover: #233f3c;
+  --accent: #79daba;
+  --tint: #233f3c;
+  --danger: #ffa4ad;
+  --danger-tint: #35252e;
+  --info: #9dbefe;
+  --info-tint: #24354f;
+  --hero: #234f50;
+  --shadow-soft: 0 4px 16px rgba(0, 0, 0, 0.12);
+  --shadow-card: 0 8px 24px rgba(0, 0, 0, 0.16);
   color: var(--black);
-  background:
-    radial-gradient(circle at top left, rgba(34, 197, 94, 0.18), transparent 35%),
-    linear-gradient(135deg, #020617 0%, #06281f 45%, #020617 100%);
+  background: var(--page-bg);
 }
 
 body {
-  background:
-    radial-gradient(circle at top left, rgba(34, 197, 94, 0.18), transparent 35%),
-    linear-gradient(135deg, #020617 0%, #06281f 45%, #020617 100%);
+  background: var(--page-bg);
   color: var(--black);
 }
 
 .logo {
-  background: #0d2f25;
-  color: #d9fff0;
-  box-shadow: 0 18px 40px rgba(34, 197, 94, 0.18);
+  background: var(--hero);
+  color: var(--black);
+  box-shadow: var(--shadow-soft);
 }
 
 h1,
 h2,
 label {
-  color: #d9fff0;
+  color: var(--green-950);
 }
 
 .heroText {
-  color: #cbd5e1;
+  color: var(--gray);
 }
 
 .card,
 .groupHeader {
-  background: rgba(3, 20, 14, 0.86);
+  background: var(--panel-bg);
   border-color: var(--line);
-  box-shadow: 0 18px 60px rgba(0, 0, 0, 0.32);
+  box-shadow: var(--shadow-card);
 }
 
 .primaryButton {
-  background: #22c55e;
-  color: #02130d;
-  box-shadow: 0 14px 30px rgba(34, 197, 94, 0.22);
+  background: var(--accent);
+  color: #101923;
+  box-shadow: none;
 }
 
 .secondaryButton,
 .iconButton {
-  background: #0d2f25;
-  color: #d9fff0;
+  background: var(--tint);
+  color: var(--accent);
   border-color: var(--line);
 }
 
 .iconButton.danger {
-  background: #3f101c;
-  color: #fb7185;
-  border-color: #881337;
+  background: var(--danger-tint);
+  color: var(--danger);
+  border-color: var(--line);
 }
 
 .backLink {
-  color: #86efac;
+  color: var(--accent);
 }
 
 input,
 select {
-  background: #03140e;
+  background: var(--panel-alt);
   border-color: var(--line);
-  color: #f8fafc;
+  color: var(--black);
 }
 
 input::placeholder {
-  color: #64748b;
+  color: var(--gray);
 }
 
 input:focus,
 select:focus {
-  border-color: #22c55e;
-  box-shadow: 0 0 0 4px rgba(34, 197, 94, 0.14);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 16%, transparent);
 }
 
 .groupRow,
@@ -90,55 +102,56 @@ select:focus {
 .paymentRow,
 .settlement,
 .historyItem {
-  background: #061b13;
+  background: var(--panel-bg);
   border-color: var(--line);
 }
 
 .stats div {
-  background: #0d2f25;
+  background: var(--tint);
 }
 
 .stats strong {
-  color: #d9fff0;
+  color: var(--green-950);
 }
 
 .settlement em {
-  color: #86efac;
+  color: var(--accent);
 }
 
 .success {
-  color: #86efac;
+  color: var(--accent);
 }
 
 .error {
-  color: #fb7185;
+  color: var(--danger);
 }
 
 .muted,
 small {
-  color: #94a3b8;
+  color: var(--gray);
 }
+
 /* Auth and access dark overrides */
 .accessOption {
-  background: #061b13;
+  background: var(--panel-bg);
   border-color: var(--line);
 }
 
 .accessOption:hover,
 .accessOption.selected {
-  border-color: rgba(34, 197, 94, 0.55);
-  box-shadow: 0 14px 32px rgba(0, 0, 0, 0.22);
+  border-color: var(--accent);
+  box-shadow: var(--shadow-soft);
 }
 
 .accessOption strong,
 .loadingTitle {
-  color: #d9fff0;
+  color: var(--green-950);
 }
 
 .screenLoader {
-  background: rgba(2, 6, 23, 0.58);
+  background: rgba(16, 25, 35, 0.58);
 }
 
 .toastError {
-  background: #7f1d1d;
+  background: #35252e;
 }
