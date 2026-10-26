@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { LogOut, Plus, UserRoundPlus, WalletCards } from "lucide-react";
+import { CreditCard, LogOut, Plus, UserRoundPlus, WalletCards } from "lucide-react";
 import { clearAuth, getAuthUser } from "../auth";
 import { ThemeToggle } from "../components/ThemeToggle";
 import { LanguageToggle } from "../components/LanguageToggle";
@@ -43,6 +43,9 @@ export function HomePage() {
       <div className="homeActionsSecondary">
         <Link to="/my-groups" className="secondaryButton homeActionButton">
           {t("myGroups")}
+        </Link>
+        <Link to="/subscriptions" className="secondaryButton homeActionButton">
+          <CreditCard size={18} /> {t("subscriptions")}
         </Link>
         {username ? (
           <button
