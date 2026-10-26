@@ -1504,7 +1504,50 @@ input:user-invalid + .validationMessage {
   animation: toastIn 0.22s ease;
 }
 
+.groupChangedNotice {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  max-width: min(520px, calc(100vw - 32px));
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--panel-bg);
+  color: var(--black);
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.24);
+}
 
+.groupChangedNotice span {
+  flex: 1;
+}
+
+.groupChangedRefresh,
+.groupChangedDismiss {
+  border: 0;
+  color: inherit;
+  cursor: pointer;
+}
+
+.groupChangedRefresh {
+  flex: 0 0 auto;
+  padding: 9px 12px;
+  border-radius: 10px;
+  background: var(--accent);
+  color: var(--green-950);
+  font-weight: 800;
+}
+
+.groupChangedDismiss {
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  padding: 4px;
+  background: transparent;
+}
 
 
 

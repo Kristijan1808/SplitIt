@@ -69,6 +69,9 @@ groupRouter.post(
 );
 
 groupRouter.use("/:slug",groupGate);
+groupRouter.get("/:slug/last-changed-at", (_req, res) =>
+  res.json({ lastChangedAt: res.locals.group.lastChangedAt }),
+);
 groupRouter.get("/:slug/snapshot", groupSnapshot);
 groupRouter.post("/:slug/fx-quote",joinLimit,createQuote);
 groupRouter.post("/:slug/expenses",createExpense);

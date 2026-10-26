@@ -68,6 +68,10 @@ export const GroupPage = () => {
   const [drafts, setDrafts] = useState<DraftBill[]>([]);
   const [actionError, setActionError] = useState("");
   const [saving, setSaving] = useState(false);
+  const [groupChangedNotice, setGroupChangedNotice] = useState(false);
+  const [refreshingChanges, setRefreshingChanges] = useState(false);
+  const lastChangedAt = useRef<string | null>(null);
+  const lastNotifiedChange = useRef<string | null>(null);
   const [settlementData, setSettlementData] = useState<SettlementResult>({
     balances: [],
     settlements: [],
@@ -86,6 +90,7 @@ export const GroupPage = () => {
     const load = async () => {
       try {
         const currentGroup = await api.getGroup(slug);
+        lastChangedAt.current = currentGroup.lastChangedAt;
         saveGroupToLocalStorage(currentGroup);
         setGroup({...currentGroup,locked:currentGroup.locked||!!(currentGroup as any).archived});
         const flow=await api.workflow(slug);setWorkflow(flow);
@@ -143,6 +148,9 @@ export const GroupPage = () => {
 
   const refreshSnapshot = async () => {
     const snapshot = await api.getGroupSnapshot(slug);
+    lastChangedAt.current = snapshot.group.lastChangedAt;
+    lastNotifiedChange.current = snapshot.group.lastChangedAt;
+    setGroupChangedNotice(false);
     const nextGroup = {
       ...snapshot.group,
       locked: snapshot.group.locked || !!(snapshot.group as any).archived,
@@ -155,6 +163,80 @@ export const GroupPage = () => {
     const mine = snapshot.workflow.people.find((person) => person.mine && !person.inactive);
     saveWhoAmI(slug, mine?.id ?? "", mine?.name ?? null);
   };
+
+  const refreshGroupChanges = async () => {
+    if (refreshingChanges) return;
+    setRefreshingChanges(true);
+    try {
+      await refreshSnapshot();
+    } catch (error) {
+      setActionError(
+        error instanceof Error ? error.message : t("somethingWentWrong"),
+      );
+    } finally {
+      setRefreshingChanges(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!group) return;
+
+    let checking = false;
+    let localChangePending = false;
+    const checkForChanges = async (localChange = false) => {
+      if (checking) {
+        if (localChange) localChangePending = true;
+        return;
+      }
+      if (document.visibilityState !== "visible") return;
+      checking = true;
+      try {
+        const result = await api.getGroupLastChangedAt(slug);
+        if (
+          lastChangedAt.current !== null &&
+          result.lastChangedAt !== lastChangedAt.current
+        ) {
+          lastChangedAt.current = result.lastChangedAt;
+          if (localChange) {
+            lastNotifiedChange.current = result.lastChangedAt;
+          } else if (lastNotifiedChange.current !== result.lastChangedAt) {
+            lastNotifiedChange.current = result.lastChangedAt;
+            setGroupChangedNotice(true);
+          }
+        }
+      } catch (error) {
+        console.error("Failed to check for group changes", error);
+      } finally {
+        checking = false;
+        if (localChangePending) {
+          localChangePending = false;
+          void checkForChanges(true);
+        }
+      }
+    };
+
+    const timer = window.setInterval(() => void checkForChanges(), 15000);
+    const checkWhenVisible = () => {
+      if (document.visibilityState === "visible") void checkForChanges();
+    };
+    const checkAfterLocalChange = (event: Event) => {
+      if (
+        (event as CustomEvent<{ slug: string }>).detail?.slug === slug
+      ) {
+        void checkForChanges(true);
+      }
+    };
+    document.addEventListener("visibilitychange", checkWhenVisible);
+    window.addEventListener("focus", checkWhenVisible);
+    window.addEventListener("splitit:group-changed-locally", checkAfterLocalChange);
+
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", checkWhenVisible);
+      window.removeEventListener("focus", checkWhenVisible);
+      window.removeEventListener("splitit:group-changed-locally", checkAfterLocalChange);
+    };
+  }, [group, slug]);
 
   const balances = settlementData.balances ?? [];
   const settlements = settlementData.settlements ?? [];
@@ -440,6 +522,27 @@ export const GroupPage = () => {
         </div>
       )}
       {actionError && <div className="toastError">{actionError}</div>}
+      {groupChangedNotice && (
+        <div className="groupChangedNotice" role="status" aria-live="polite">
+          <span>{t("groupChangedNotice")}</span>
+          <button
+            type="button"
+            className="groupChangedRefresh"
+            disabled={refreshingChanges}
+            onClick={() => void refreshGroupChanges()}
+          >
+            {t("refreshGroup")}
+          </button>
+          <button
+            type="button"
+            className="groupChangedDismiss"
+            aria-label={t("dismiss")}
+            onClick={() => setGroupChangedNotice(false)}
+          >
+            <X size={18} />
+          </button>
+        </div>
+      )}
 
       <div className="topBar">
         <ThemeToggle />

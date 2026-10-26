@@ -186,6 +186,7 @@ export type Group = {
   ownerUserId?: string | null;
   createdAt: string;
   updatedAt: string;
+  lastChangedAt: string;
   currentUserRole?: GroupRole | null;
   people: Person[];
   expenses: Expense[];

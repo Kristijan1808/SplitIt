@@ -129,8 +129,12 @@ function guestToken() {
     });
   return guestPromise;
 }
-async function request<T>(path: string, options?: RequestInit): Promise<T> {
-  startApiLoading();
+async function request<T>(
+  path: string,
+  options?: RequestInit,
+  { background = false }: { background?: boolean } = {},
+): Promise<T> {
+  if (!background) startApiLoading();
 
   try {
     const token = legacyCredential();
@@ -151,9 +155,15 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
       },
     });
 
-    return responseJson<T>(response);
+    const data = await responseJson<T>(response);
+    if (slug && options?.method && options.method !== "GET") {
+      window.dispatchEvent(
+        new CustomEvent("splitit:group-changed-locally", { detail: { slug } }),
+      );
+    }
+    return data;
   } finally {
-    endApiLoading();
+    if (!background) endApiLoading();
   }
 }
 
@@ -237,6 +247,13 @@ export const api = {
     syncSavedGroupToLocalStorage(snapshot.group);
     return snapshot;
   },
+
+  getGroupLastChangedAt: (slug: string) =>
+    request<{ lastChangedAt: string }>(
+      `/groups/${slug}/last-changed-at`,
+      undefined,
+      { background: true },
+    ),
 
   updateGroup: (slug: string, name: string) =>
     request<Group>(`/groups/${slug}`, {
