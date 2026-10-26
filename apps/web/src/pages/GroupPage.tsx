@@ -6,7 +6,7 @@ import {
   useParams,
   useSearchParams,
 } from "react-router-dom";
-import { ArrowLeft, Copy, Lock, Plus, Users, X, Dices } from "lucide-react";
+import { ArrowLeft, Copy, Lock, Plus, Users, X, Dices, Pencil } from "lucide-react";
 import { ThemeToggle } from "../components/ThemeToggle";
 import { api } from "../api";
 import { useLanguage } from "../i18n";
@@ -63,8 +63,7 @@ export const GroupPage = () => {
   const [personName, setPersonName] = useState("");
   const [showParticipants, setShowParticipants] = useState(false);
   const [showWhoAreYou, setShowWhoAreYou] = useState(false);
-  const [showExpensesContainer, setShowExpensesContainer] = useState(true);
-  const [receiptFilter,setReceiptFilter]=useState("all");
+  const [showExpensesContainer, setShowExpensesContainer] = useState(false);
   const [showDrafts, setShowDrafts] = useState(false);
   const [drafts, setDrafts] = useState<DraftBill[]>([]);
   const [actionError, setActionError] = useState("");
@@ -706,7 +705,7 @@ export const GroupPage = () => {
           className="open-expenses-btn"
           onClick={() => setShowExpensesContainer((current) => !current)}
         >
-          Računi
+          {t("expenses")}
         </button>
       </section>
 
@@ -741,57 +740,98 @@ export const GroupPage = () => {
 
       {showExpensesContainer && (
         <section id="expenses-container">
-          <button
-            type="button"
-            className="close-drafts-btn"
-            onClick={() => setShowExpensesContainer((current) => !current)}
-          ></button>
           <div className="grid">
             <section className="card">
               <div className="sectionHeaderWithButton">
                 <div>
                   <h2>{t("expenses")}</h2>
                 </div>
+                <button
+                  type="button"
+                  className="iconButton"
+                  aria-label={t("close")}
+                  title={t("close")}
+                  onClick={() => setShowExpensesContainer(false)}
+                >
+                  <X size={18} />
+                </button>
               </div>
-              <div role="tablist" style={{display:"flex",gap:12,marginBottom:16}}>{[["all","Računi"],["pending","Čekaju podjelu"]].map(([id,label])=><button type="button" role="tab" aria-selected={receiptFilter===id} key={id} onClick={()=>setReceiptFilter(id)}>{label} ({group.expenses.filter(e=>id==="all"||e.allocationComplete===false||e.paymentIncomplete).length})</button>)}</div>
-              <p className="muted">Nedodijeljeni dio privremeno ostaje na platiteljima. Saldo se osvježava čim članovi označe stavke.</p>
-              {true &&
-                (() => {
-                  const expenses = group.expenses.filter(e=>receiptFilter!=="pending"||e.allocationComplete===false||e.paymentIncomplete);
+              {(() => {
+                  const expenses = group.expenses;
                   if (expenses.length === 0)
                     return <p className="muted">{t("noExpensesYet")}</p>;
                   return (
                     <div className="list">
                       {expenses.map((expense) => {
                         const expanded = expandedExpenses.has(expense.id);
+                        const currentPayerTotal = expense.payers
+                          .filter((payer) => payer.personId === currentParticipantId)
+                          .reduce((sum, payer) => sum + Number(payer.amount), 0);
+                        const currentShare = expense.shares.find(
+                          (share) => share.personId === currentParticipantId,
+                        )?.amount ?? 0;
+                        const currentNet = currentPayerTotal - Number(currentShare);
+                        const currentInvolved = currentPayerTotal > 0 || Number(currentShare) > 0;
                         return (
-                          <div className="expenseCard" key={expense.id} style={expense.allocationComplete===false?{border:"2px solid #4681d8",backgroundColor:"rgba(70,129,216,.1)"}:undefined}>
-                            <button
-                              type="button"
-                              className="expenseSummary"
-                              onClick={() =>
-                                setExpandedExpenses((current) => {
-                                  const next = new Set(current);
-                                  if (next.has(expense.id))
-                                    next.delete(expense.id);
-                                  else next.add(expense.id);
-                                  return next;
-                                })
-                              }
-                            >
-                              <div className="expenseSummaryMain">
-                                <strong>{expense.note || t("expense")}</strong>
-                                {expense.allocationComplete===false&&<small>Čeka podjelu · {expense.unassignedCount}/{expense.items.length} stavki</small>}
-                                {expense.paymentIncomplete&&<small>Provjeri platitelje</small>}
-                                <small>
-                                  {formatLocalDateTime(expense.createdAt)} ·{" "}
-                                  {expense.items?.length ?? 0} {t("itemsCount")}
-                                </small>
-                              </div>
-                              <strong>
-                                {Number(expense.totalAmount || 0).toFixed(2)} {group?.currency||"EUR"}
-                              </strong>
-                            </button>
+                          <div className="expenseCard" key={expense.id}>
+                            <div className="expenseSummaryRow">
+                              <button
+                                type="button"
+                                className="expenseSummary"
+                                aria-expanded={expanded}
+                                onClick={() =>
+                                  setExpandedExpenses((current) => {
+                                    const next = new Set(current);
+                                    if (next.has(expense.id))
+                                      next.delete(expense.id);
+                                    else next.add(expense.id);
+                                    return next;
+                                  })
+                                }
+                              >
+                                <div className="expenseSummaryMain">
+                                  <strong>{expense.note || t("expense")}</strong>
+                                  {expense.allocationComplete === false && (
+                                    <small className="expenseStatusPending">
+                                      {t("expenseAwaitingSplit")} · {expense.unassignedCount}/{expense.items.length} {t("itemsCount")}
+                                    </small>
+                                  )}
+                                  {expense.paymentIncomplete && (
+                                    <small className="expenseStatusPending">{t("expenseCheckPayers")}</small>
+                                  )}
+                                  <small>
+                                    {formatLocalDateTime(expense.createdAt)} ·{" "}
+                                    {expense.items?.length ?? 0} {t("itemsCount")}
+                                  </small>
+                                  {currentParticipant && (
+                                    <small className={`expensePersonalStatus${currentInvolved ? currentNet < 0 ? " expenseDebt" : "" : " muted"}`}>
+                                      {!currentInvolved
+                                        ? t("expenseNotInvolved")
+                                        : currentNet > 0
+                                          ? `${t("expenseYouLent")} ${currentNet.toFixed(2)} ${group.currency || "EUR"}`
+                                          : currentNet < 0
+                                            ? `${t("expenseYouOwe")} ${Math.abs(currentNet).toFixed(2)} ${group.currency || "EUR"}`
+                                            : t("expenseSettled")}
+                                    </small>
+                                  )}
+                                </div>
+                                <strong className="expenseSummaryAmount">
+                                  {Number(expense.totalAmount || 0).toFixed(2)} {group?.currency||"EUR"}
+                                </strong>
+                              </button>
+                              {expense.canManage && (
+                                <button
+                                  type="button"
+                                  className="expenseEditButton"
+                                  aria-label={`${t("editExpense")}: ${expense.note || t("expense")}`}
+                                  title={t("editExpense")}
+                                  disabled={group.locked}
+                                  onClick={() => navigate(`/g/${slug}/add-expense?edit=${encodeURIComponent(expense.id)}`)}
+                                >
+                                  <Pencil size={17} aria-hidden="true" />
+                                </button>
+                              )}
+                            </div>
 
                             {expanded && (
                               <div className="expenseDetails">
@@ -825,16 +865,17 @@ export const GroupPage = () => {
                                         className="expenseDetailItem"
                                         key={item.id}
                                       >
-                                        {item.splitMode === "units" ? <label>Moji komadi
+                                        {item.splitMode === "units" ? <label>{t("myUnits")}
                                           <select aria-label={`Moja količina: ${item.name}`} disabled={group.locked||saving||!currentParticipantId}
                                             value={item.shares.find(s=>s.personId===currentParticipantId)?.units||0}
                                             onChange={async event=>{const units=Number(event.target.value);setSaving(true);setActionError("");try{await api.ownItem(slug,expense.id,item.id,units,true);await refreshSnapshot();}catch(e){setActionError(e instanceof Error?e.message:"Error");}finally{setSaving(false);}}}>
                                             {Array.from({length:Math.max(0,(item.quantity||1)-item.shares.filter(s=>s.personId!==currentParticipantId).reduce((n,s)=>n+(s.units||0),0))+1},(_,n)=><option key={n} value={n}>{n}</option>)}
                                           </select>
-                                          <span> Preostalo: {Math.max(0,(item.quantity||1)-item.shares.reduce((n,s)=>n+(s.units||0),0))}</span>
+                                          <span> {t("remainingUnits")}: {Math.max(0,(item.quantity||1)-item.shares.reduce((n,s)=>n+(s.units||0),0))}</span>
                                         </label> : <>
                                         <label>
                                           <input
+                                            className="expenseSelectionCheckbox"
                                             type="checkbox"
                                             checked={item.shares.some(
                                               (s) =>
@@ -871,9 +912,7 @@ export const GroupPage = () => {
                                               }
                                             }}
                                           />
-                                          {locale.startsWith("hr")
-                                            ? "Moja stavka"
-                                            : "My item"}
+                                          {t("myItem")}
                                         </label>
                                         </>}
                                         <div className="expenseDetailItemTop">

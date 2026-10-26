@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { ArrowLeft, Camera, ImagePlus, Plus, RefreshCw, Trash2, Dices } from "lucide-react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { api } from "../api";
 import { useLanguage } from "../i18n";
-import type { Group } from "../types";
+import type { Expense, Group } from "../types";
 import { RandomSplitWheel } from "../components/RandomSplitWheel";
 //push comment
 type DraftItem = {
@@ -13,6 +13,9 @@ type DraftItem = {
   name: string;
   price: string;
   assignedPersonIds: string[];
+  splitMode?: "shared" | "units";
+  assignedUnits?: Record<string, number>;
+  originalShares?: Array<{ personId: string; amount: number; units?: number | null }>;
 };
 
 type DraftPayer = {
@@ -39,9 +42,12 @@ const sanitizeDecimalInput = (value: string): string => {
 export const GroupAddExpensePage = () => {
   const navigate = useNavigate();
   const { slug = "" } = useParams();
+  const [searchParams] = useSearchParams();
   const { t } = useLanguage();
+  const editExpenseId = searchParams.get("edit");
 
   const [group, setGroup] = useState<Group | null>(null);
+  const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
   const [assignNow,setAssignNow]=useState(false);
   const [requestId]=useState(()=>crypto.randomUUID());
   const [saved,setSaved]=useState(false);
@@ -61,6 +67,41 @@ export const GroupAddExpensePage = () => {
       try {
         const currentGroup = await api.getGroup(slug);
         setGroup(currentGroup);
+        const expense = editExpenseId
+          ? currentGroup.expenses.find((entry) => entry.id === editExpenseId)
+          : undefined;
+        if (editExpenseId && !expense) {
+          navigate(`/g/${slug}`);
+          return;
+        }
+        if (expense) {
+          setEditingExpense(expense);
+          setNote(expense.note ?? "");
+          setAssignNow(true);
+          setDraftItems(expense.items.map((item, index) => ({
+            id: item.id,
+            ordinalNumber: index + 1,
+            name: item.name,
+            quantity: String(item.quantity ?? 1),
+            price: (Number(item.price) / (item.quantity || 1)).toFixed(2),
+            splitMode: item.splitMode ?? "shared",
+            assignedPersonIds: item.shares.map((share) => share.personId),
+            assignedUnits: Object.fromEntries(
+              item.shares.map((share) => [share.personId, share.units ?? 1]),
+            ),
+            originalShares: item.shares.map((share) => ({
+              personId: share.personId,
+              amount: Number(share.amount),
+              units: share.units,
+            })),
+          })));
+          setDraftPayers(expense.payers.map((payer) => ({
+            id: payer.id,
+            personId: payer.personId,
+            amount: String(payer.amount),
+          })));
+          return;
+        }
 
         setDraftItems([
           {
@@ -79,7 +120,7 @@ export const GroupAddExpensePage = () => {
     };
 
     void load();
-  }, [slug, navigate]);
+  }, [slug, navigate, editExpenseId]);
 
   const itemTotal = useMemo(
     () =>
@@ -136,9 +177,30 @@ export const GroupAddExpensePage = () => {
     value: string | string[]
   ) => {
     setDraftItems((current) =>
-      current.map((item) =>
-        item.id === id ? { ...item, [field]: value } : item
-      )
+      current.map((item) => {
+        if (item.id !== id) return item;
+        const updated = { ...item, [field]: value };
+        if (field !== "quantity" || typeof value !== "string" || !/^\d+$/.test(value)) {
+          return field === "price" || field === "assignedPersonIds"
+            ? { ...updated, originalShares: undefined }
+            : updated;
+        }
+        const quantity = Number(value);
+        const assignedUnits = Object.fromEntries(
+          Object.entries(item.assignedUnits ?? {}).map(([personId, units]) => [
+            personId,
+            Math.min(units, quantity),
+          ]),
+        );
+        return {
+          ...updated,
+          originalShares: undefined,
+          assignedUnits,
+          assignedPersonIds: item.assignedPersonIds.filter(
+            (personId) => (assignedUnits[personId] ?? 1) > 0,
+          ),
+        };
+      })
     );
   };
 
@@ -434,9 +496,10 @@ export const GroupAddExpensePage = () => {
       setSaving(true);
       setActionError("");
 
-      const expense = await api.createExpense(slug, {
-        requestId,
+      const body = {
         note: note.trim() || undefined,
+        ...(editingExpense?.billDate ? { billDate: editingExpense.billDate } : {}),
+        ...(editingExpense?.category ? { category: editingExpense.category } : {}),
         payers: validPayers.map((payer) => ({
           personId: payer.personId,
           amount: Number(payer.amount)
@@ -444,17 +507,35 @@ export const GroupAddExpensePage = () => {
         items: validItems.map((item, index) => ({
           ordinalNumber: index + 1,
           quantity:Number(item.quantity??1),
-          splitMode: !assignNow && Number(item.quantity??1)>1 ? "units" : "shared",
+          splitMode: item.splitMode ?? (!assignNow && Number(item.quantity??1)>1 ? "units" : "shared"),
           name: item.name.trim(),
           price: (Math.round(Number(item.price)*100)*Number(item.quantity??1)/100),
-          shares: (assignNow?item.assignedPersonIds:[]).map((personId) => ({
-            personId
-          }))
+          shares: (assignNow ? item.assignedPersonIds : []).map((personId) => {
+            const originalShare = item.originalShares?.find(
+              (share) => share.personId === personId,
+            );
+            return {
+              personId,
+              ...(item.splitMode === "units"
+                ? { units: item.assignedUnits?.[personId] ?? 1 }
+                : originalShare
+                  ? { amount: originalShare.amount }
+                  : {}),
+            };
+          })
         }))
-      });
+      };
+
+      if (editingExpense) {
+        await api.updateExpense(slug, editingExpense.id, {
+          ...body,
+          expectedUpdatedAt: editingExpense.updatedAt,
+        });
+      } else {
+        await api.createExpense(slug, { ...body, requestId });
+      }
 
       setSaved(true);
-
       navigate(`/g/${slug}`);
     } catch (error) {
       setActionError(
@@ -485,8 +566,8 @@ export const GroupAddExpensePage = () => {
       <section className="card formCard">
         <div className="sectionHeaderWithButton">
           <div>
-            <p className="eyebrow">Novi račun</p>
-            <h2>{t("addItems")} · {group?.currency||"EUR"}</h2>
+            <p className="eyebrow">{editingExpense ? t("editExpense") : t("newExpense")}</p>
+            <h2>{editingExpense ? t("editExpense") : t("addItems")} · {group?.currency||"EUR"}</h2>
           </div>
           <div className="randomSplitHeaderAction">
             <strong>{itemTotal.toFixed(2)}</strong>
@@ -505,7 +586,7 @@ export const GroupAddExpensePage = () => {
 
         {/* ITEMS */}
         <div className="form">
-          <div className="billImageActions">
+          {!editingExpense && <div className="billImageActions">
             {/* Camera */}
             <input
               id="bill-camera"
@@ -554,8 +635,8 @@ export const GroupAddExpensePage = () => {
                 {t("retryBillParse")}
               </button>
             )}
-          </div>
-          {billParseRetryUsed && <p className="billImageHint">{t("billRetryGuidance")}</p>}
+          </div>}
+          {!editingExpense && billParseRetryUsed && <p className="billImageHint">{t("billRetryGuidance")}</p>}
 
           <div>
             <div className="sectionHeaderWithButton sectionHeaderMargin">
@@ -574,8 +655,13 @@ export const GroupAddExpensePage = () => {
             </div>
 
             <div className="list">
-              <label><input type="checkbox" checked={assignNow} onChange={e=>setAssignNow(e.target.checked)}/> Podijeli sada</label>
-              <p>Račun odmah ulazi u troškove. Ako ne uključiš podjelu, svi članovi sami označuju svoje stavke. Količina ne ograničava broj osoba koje dijele stavku.</p>
+              <label><input type="checkbox" checked={assignNow} onChange={e=>{
+                setAssignNow(e.target.checked);
+                if (editingExpense) {
+                  setDraftItems(current => current.map(item => ({ ...item, originalShares: undefined })));
+                }
+              }}/>{t("assignNow")}</label>
+              <p>{t("assignNowHint")}</p>
               {draftItems.map((item, index) => (
                 <div
                   key={item.id}
@@ -598,7 +684,7 @@ export const GroupAddExpensePage = () => {
                     </label>
 
                     <label>
-                      <span>Jedinična cijena ({group?.currency||"EUR"})</span>
+                      <span>{t("price")} ({group?.currency||"EUR"})</span>
                       <input
                         type="text"
                         inputMode="decimal"
@@ -615,7 +701,7 @@ export const GroupAddExpensePage = () => {
                       />
                     </label>
 
-                    <label>Količina<input type="number" min="1" max="999" step="1" value={item.quantity??"1"} onChange={e=>updateDraftItem(item.id,"quantity",e.target.value)}/></label>
+                    <label>{t("quantity")}<input type="number" min="1" max="999" step="1" value={item.quantity??"1"} onChange={e=>updateDraftItem(item.id,"quantity",e.target.value)}/></label>
                     <div className="draftItemShares" hidden={!assignNow}>
                       <div className="draftItemSharesHeader">
                         <div className="draftItemSharesTitle">
@@ -655,6 +741,39 @@ export const GroupAddExpensePage = () => {
                       <div className="sharePicker">
                         {group.people.map((person) => {
                           const checked = item.assignedPersonIds.includes(person.id);
+                          if (editingExpense && item.splitMode === "units") {
+                            return (
+                              <label key={person.id} className="shareOption">
+                                <span>{person.name}</span>
+                                <input
+                                  aria-label={`${person.name} · ${t("quantity")}`}
+                                  type="number"
+                                  min="0"
+                                  max={item.quantity ?? "1"}
+                                  step="1"
+                                  value={item.assignedUnits?.[person.id] ?? 0}
+                                  onChange={(event) => {
+                                    const units = Math.min(
+                                      Number(item.quantity ?? 1),
+                                      Math.max(0, Math.floor(Number(event.target.value) || 0)),
+                                    );
+                                    setDraftItems((current) => current.map((entry) => {
+                                      if (entry.id !== item.id) return entry;
+                                      const assignedUnits = { ...entry.assignedUnits, [person.id]: units };
+                                      return {
+                                        ...entry,
+                                        originalShares: undefined,
+                                        assignedUnits,
+                                        assignedPersonIds: units > 0
+                                          ? [...new Set([...entry.assignedPersonIds, person.id])]
+                                          : entry.assignedPersonIds.filter((id) => id !== person.id),
+                                      };
+                                    }));
+                                  }}
+                                />
+                              </label>
+                            );
+                          }
                           return (
                             <label key={person.id} className="shareOption">
                               <input
@@ -816,7 +935,7 @@ export const GroupAddExpensePage = () => {
             disabled={group.locked || saving || paymentOverpaid || assignmentAmountInvalid}
           >
             <Plus size={18} />
-            Kreiraj račun
+            {editingExpense ? t("saveChanges") : t("createExpense")}
           </button>
         </div>
       </section>

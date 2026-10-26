@@ -25,6 +25,7 @@ import { showToast } from "./notifications";
 type DraftItemShareRequest = {
   personId: string;
   amount?: number;
+  units?: number;
 };
 
 export type ParsedBillItem = {
@@ -46,6 +47,12 @@ export type CreateDraftExpenseRequest = {
     splitMode?:"shared"|"units";
     shares: DraftItemShareRequest[];
   }>;
+};
+
+export type UpdateExpenseRequest = Omit<CreateDraftExpenseRequest, "requestId"> & {
+  expectedUpdatedAt: string;
+  billDate?: string;
+  category?: "other" | "food" | "travel" | "home" | "fun" | "taxi" | "shopping" | "health";
 };
 
 export type UpdateDraftExpenseItemRequest = {
@@ -178,6 +185,11 @@ export const api = {
     authRequest<{ token: string; user: AuthUser }>("/google", { credential }),
   getMyGroups: () => request<AccountGroup[]>("/groups/mine"),
   createExpense:(slug:string,body:CreateDraftExpenseRequest)=>request<Expense>(`/groups/${slug}/expenses`,{method:"POST",body:JSON.stringify(body)}),
+  updateExpense: (slug: string, expenseId: string, body: UpdateExpenseRequest) =>
+    request<Expense>(`/groups/${slug}/expenses/${expenseId}`, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    }),
   workflow: (slug:string)=>request<any>(`/groups/${slug}/workflow`),
   claim: (slug:string,personId:string)=>request(`/groups/${slug}/workflow/identity`,{method:"POST",body:JSON.stringify({personId})}),
   response: (slug:string,id:string,status:string)=>request(`/groups/${slug}/workflow/drafts/${id}/response`,{method:"POST",body:JSON.stringify({status})}),

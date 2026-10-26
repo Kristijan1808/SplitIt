@@ -1247,6 +1247,13 @@ fieldset.accessOptions {
   margin: 0;
 }
 
+.shareOption input[type="number"] {
+  width: 76px;
+  min-width: 76px;
+  min-height: 36px;
+  padding: 6px 8px;
+}
+
 .draftItemRow {
   display: flex;
   flex-direction: column;
@@ -1285,6 +1292,70 @@ fieldset.accessOptions {
   padding: 15px;
   text-align: left;
   cursor: pointer;
+}
+
+.expenseSummaryRow {
+  display: flex;
+  align-items: stretch;
+}
+
+.expenseSummaryRow .expenseSummary {
+  flex: 1;
+  min-width: 0;
+}
+
+.expenseEditButton {
+  display: grid;
+  width: 44px;
+  min-width: 44px;
+  place-items: center;
+  align-self: center;
+  margin: 0 12px 0 0;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--panel-alt);
+  color: var(--accent);
+  cursor: pointer;
+  transition: background 0.15s ease, transform 0.15s ease;
+}
+
+.expenseEditButton:hover:not(:disabled) {
+  transform: translateY(-1px);
+  background: var(--tint);
+}
+
+.expenseEditButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.expenseSummaryAmount {
+  flex: 0 0 auto;
+}
+
+.expenseStatusPending {
+  color: var(--danger);
+  font-weight: 700;
+}
+
+.expensePersonalStatus {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.expensePersonalStatus.expenseDebt {
+  color: var(--danger);
+}
+
+.expenseSelectionCheckbox {
+  width: 16px !important;
+  height: 16px;
+  min-width: 16px;
+  margin: 0 7px 0 0;
+  padding: 0;
+  accent-color: var(--accent);
+  vertical-align: middle;
 }
 
 .expenseSummary:hover {
@@ -1797,6 +1868,4 @@ input:user-invalid + .validationMessage {
   padding: 4px;
   background: transparent;
 }
-
-
 

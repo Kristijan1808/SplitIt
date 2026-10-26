@@ -98,6 +98,8 @@ export type Expense = {
   currency?:string;
   exchangeRate?:number;
   originalTotal?:number|null;
+  billDate?:string;
+  category?: "other" | "food" | "travel" | "home" | "fun" | "taxi" | "shopping" | "health";
   allocationComplete?:boolean;
   unassignedCount?:number;
   unassignedAmount?:number;
