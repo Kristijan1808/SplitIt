@@ -28,6 +28,7 @@ app.use(
       "Authorization",
       "X-SplitIt-Participant-Id",
       "X-SplitIt-Guest-Token",
+      "X-SplitIt-Language",
     ],
   }),
 );

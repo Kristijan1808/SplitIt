@@ -12,6 +12,26 @@ import { groupDetailsInclude, serializeGroup } from "../utils.js";
 import { ensureCanEditGroup, ensureCanViewGroup } from "./access.service.js";
 import { getUserFromRequest, prisma } from "../core.js";
 
+const supportedLanguages = ["hr", "en", "ja", "de"] as const;
+const joinCredentialErrors = {
+  hr: "Pogrešan kod grupe ili lozinka",
+  en: "Wrong group code or password",
+  ja: "グループコードまたはパスワードが違います",
+  de: "Gruppencode oder Passwort ist falsch",
+};
+
+function invalidJoinCredentials(req: Request) {
+  const requestedLanguage = (req.get("X-SplitIt-Language") ?? "")
+    .toLowerCase()
+    .split("-")[0];
+  const language =
+    supportedLanguages.find((code) => code === requestedLanguage) ?? "hr";
+
+  return Object.assign(new Error(joinCredentialErrors[language]), {
+    status: 400,
+  });
+}
+
 const measureMethod = <Arguments extends unknown[], Result>(
   name: string,
   method: (...args: Arguments) => Promise<Result>
@@ -80,7 +100,7 @@ export class GroupService {
 
     const group = await prisma.group.findUnique({where:{code:body.code.toUpperCase()}});
 
-    if (!group) throw new Error("Group not found");
+    if (!group) throw invalidJoinCredentials(req);
     if (group.accessType === "REGISTERED_ONLY" && !user) {
       throw Object.assign(new Error("Sign in to join this group"), { status: 401 });
     }
@@ -93,7 +113,7 @@ export class GroupService {
       group.passwordHash
     );
 
-    if (!validPassword) throw new Error("Invalid password");
+    if (!validPassword) throw invalidJoinCredentials(req);
 
 
     await prisma.groupSession.upsert({where:{groupId_key:{groupId:group.id,key:creatorKey(req)}}, create:{groupId:group.id,key:creatorKey(req)}, update:{}});

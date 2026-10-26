@@ -1,4 +1,5 @@
 import { FormEvent, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   Link,
   useNavigate,
@@ -594,7 +595,7 @@ export const GroupPage = () => {
         </div>
       </section>
 
-      {showWhoAreYou && (
+      {showWhoAreYou && createPortal(
         <div
           className="participantsOverlay"
           onClick={() => setShowWhoAreYou(false)}
@@ -631,10 +632,11 @@ export const GroupPage = () => {
               ))}
             </div>
           </section>
-        </div>
+        </div>,
+        document.body,
       )}
 
-      {showParticipants && (
+      {showParticipants && createPortal(
         <div
           className="participantsOverlay"
           onClick={() => setShowParticipants(false)}
@@ -686,7 +688,8 @@ export const GroupPage = () => {
               </button>
             </form>
           </section>
-        </div>
+        </div>,
+        document.body,
       )}
 
       <section className="buttons-container-right">

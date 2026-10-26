@@ -8,7 +8,7 @@ import { billKeys, creatorKey, canManageBill } from "./bill-permissions.js";
 import { ensureCanViewGroup, ensureCanEditGroup } from "./access.service.js";
 const secret = "c".repeat(64);
 function request(extra: any = {}): any {
-  return { headers:{}, get:(name:string)=>name === "X-SplitIt-Guest-Token" ? secret : undefined,
+  return { headers:{}, get:(name:string)=>name === "X-SplitIt-Guest-Token" ? secret : extra.headers?.[name.toLowerCase()],
     body:{name:"Ekipa",password:"lozinka",people:["Jura","Ana"]}, ...extra };
 }
 const group = {id:"g",slug:"code",code:"ABC123",name:"Ekipa",accessType:"REGISTERED_ONLY",locked:false,
@@ -59,9 +59,39 @@ test("guest can join a mixed-access group with code and password", async () => {
     assert.equal(saved.create.key,creatorKey(req));
     assert.equal(saved.create.groupId,"g");
     saved=null;
-    await assert.rejects(groupService.join(request({body:{code:"ABC123",password:"wrong"}})),/Invalid password/);
+    await assert.rejects(
+      groupService.join(request({
+        headers: { "x-splitit-language": "en" },
+        body: { code: "ABC123", password: "wrong" },
+      })),
+      (error: any) => {
+        assert.equal(error.message, "Wrong group code or password");
+        assert.equal(error.status, 400);
+        return true;
+      },
+    );
     assert.equal(saved,null);
   } finally {(prisma.group as any).findUnique=oldFind;(prisma.groupSession as any).upsert=oldSession;}
+});
+
+test("join credential errors use the requested language for unknown groups", async () => {
+  const oldFind = prisma.group.findUnique;
+  (prisma.group as any).findUnique = async () => null;
+  try {
+    await assert.rejects(
+      groupService.join(request({
+        headers: { "x-splitit-language": "de-DE" },
+        body: { code: "ABC123", password: "wrong" },
+      })),
+      (error: any) => {
+        assert.equal(error.message, "Gruppencode oder Passwort ist falsch");
+        assert.equal(error.status, 400);
+        return true;
+      },
+    );
+  } finally {
+    (prisma.group as any).findUnique = oldFind;
+  }
 });
 
 test("guest access still requires a group session and respects locked groups",async()=>{

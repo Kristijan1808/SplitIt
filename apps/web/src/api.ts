@@ -117,6 +117,7 @@ function guestToken() {
       if (saved) return saved;
       const response = await fetch(`${API_URL}/guest-session`, {
         method: "POST",
+        headers: { "X-SplitIt-Language": getStoredLanguage() },
       });
       const data = await responseJson<{ token?: string }>(response);
       if (!response.ok || !data?.token)
@@ -149,6 +150,7 @@ async function request<T>(
       headers: {
         "Content-Type": "application/json",
         "X-SplitIt-Guest-Token": guest,
+        "X-SplitIt-Language": getStoredLanguage(),
         ...(participantId ? { "X-SplitIt-Participant-Id": participantId } : {}),
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
         ...(options?.headers ?? {}),
@@ -199,6 +201,7 @@ export const api = {
       const formData = new FormData();
       formData.append("file", file);
       formData.append("attempt", String(attempt));
+      formData.append("language", getStoredLanguage());
 
       const response = await fetch(`${API_URL}/ai/parse-bill`, {
         method: "POST",
@@ -338,7 +341,10 @@ async function authRequest<T>(path: string, body: unknown): Promise<T> {
   try {
     const response = await fetch(`${API_URL}/auth${path}`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        "X-SplitIt-Language": getStoredLanguage(),
+      },
       body: JSON.stringify(body),
     });
     return responseJson<T>(response);
