@@ -6,7 +6,7 @@ import {
   useParams,
   useSearchParams,
 } from "react-router-dom";
-import { ArrowLeft, Copy, Lock, Plus, Users, X, Dices, Pencil } from "lucide-react";
+import { ArrowLeft, Copy, Lock, Plus, Users, X, Dices, Pencil, Clock3, Receipt, ArrowLeftRight } from "lucide-react";
 import { ThemeToggle } from "../components/ThemeToggle";
 import { api } from "../api";
 import { useLanguage } from "../i18n";
@@ -16,6 +16,7 @@ import type {
   ExpensePayer,
   Group,
   SettlementResult,
+  Workflow,
 } from "../types";
 import { RandomSplitWheel } from "../components/RandomSplitWheel";
 import { getWhoAmI, saveWhoAmI, saveGroupToLocalStorage } from "../storage";
@@ -58,12 +59,30 @@ export const GroupPage = () => {
   const { slug = "" } = useParams();
   const [searchParams, setSearchParams] = useSearchParams();
   const { t, locale } = useLanguage();
-  const [workflow,setWorkflow]=useState<any>(null);
+  const [workflow,setWorkflow]=useState<Workflow>({
+    avatar: "👥",
+    archived: false,
+    canAdmin: false,
+    canOwn: false,
+    people: [],
+    selections: [],
+    transfers: [],
+  });
   const [group, setGroup] = useState<Group | null>(null);
   const [personName, setPersonName] = useState("");
-  const [showParticipants, setShowParticipants] = useState(false);
   const [showWhoAreYou, setShowWhoAreYou] = useState(false);
-  const [showExpensesContainer, setShowExpensesContainer] = useState(false);
+  const [activeTab, setActiveTab] = useState<"expenses" | "debts" | "people" | "history">("expenses");
+  const [expenseSearch, setExpenseSearch] = useState("");
+  const [expenseMonth, setExpenseMonth] = useState("");
+  const [expenseCategory, setExpenseCategory] = useState("");
+  const [pendingOnly, setPendingOnly] = useState(false);
+  const [mineOnly, setMineOnly] = useState(false);
+  const [historyFilter, setHistoryFilter] = useState("all");
+  const [transferTo, setTransferTo] = useState("");
+  const [transferAmount, setTransferAmount] = useState("");
+  const [transferNote, setTransferNote] = useState("");
+  const [editingPersonId, setEditingPersonId] = useState<string | null>(null);
+  const [groupName, setGroupName] = useState("");
   const [showDrafts, setShowDrafts] = useState(false);
   const [drafts, setDrafts] = useState<DraftBill[]>([]);
   const [actionError, setActionError] = useState("");
@@ -94,8 +113,9 @@ export const GroupPage = () => {
         saveGroupToLocalStorage(currentGroup);
         setGroup({...currentGroup,locked:currentGroup.locked||!!(currentGroup as any).archived});
         const flow=await api.workflow(slug);setWorkflow(flow);
-        const mine=flow.people.find((p:any)=>p.mine&&!p.inactive);
+        const mine=flow.people.find(p=>p.mine&&!p.inactive);
         saveWhoAmI(slug,mine?.id??"",mine?.name??null);
+        setGroupName(currentGroup.name);
       } catch {
         navigate("/");
       }
@@ -162,6 +182,7 @@ export const GroupPage = () => {
     setSettlementData(snapshot.settlements);
     const mine = snapshot.workflow.people.find((person) => person.mine && !person.inactive);
     saveWhoAmI(slug, mine?.id ?? "", mine?.name ?? null);
+    setGroupName(snapshot.group.name);
   };
 
   const refreshGroupChanges = async () => {
@@ -267,6 +288,24 @@ export const GroupPage = () => {
   const currentParticipant = group?.people.find(
     (person) => person.id === currentParticipantId,
   );
+  const currentBalance = balances.find((balance) => balance.id === currentParticipantId);
+  const outgoingSettlements = settlements.filter((settlement) => settlement.from === currentParticipantId);
+  const incomingSettlements = settlements.filter((settlement) => settlement.to === currentParticipantId);
+  const filteredExpenses = (group?.expenses ?? []).filter((expense) => {
+    const query = expenseSearch.trim().toLocaleLowerCase();
+    const matchesSearch = !query || [
+      expense.note ?? "",
+      ...expense.items.map((item) => item.name),
+      ...expense.payers.map((payer) => group?.people.find((person) => person.id === payer.personId)?.name ?? ""),
+    ].join(" ").toLocaleLowerCase().includes(query);
+    const expenseDate = expense.billDate || expense.createdAt;
+    const matchesMonth = !expenseMonth || expenseDate.startsWith(expenseMonth);
+    const matchesCategory = !expenseCategory || expense.category === expenseCategory;
+    const matchesPending = !pendingOnly || expense.allocationComplete === false || expense.paymentIncomplete;
+    const matchesMine = !mineOnly || expense.shares.some((share) => share.personId === currentParticipantId) ||
+      expense.payers.some((payer) => payer.personId === currentParticipantId);
+    return matchesSearch && matchesMonth && matchesCategory && matchesPending && matchesMine;
+  });
 
   const updateDraftShares = async (
     draftId: string,
@@ -459,10 +498,88 @@ export const GroupPage = () => {
 
     await executeAction(async () => {
       const nextGroup = await api.addPerson(slug, { name: personName });
+      setWorkflow(await api.workflow(slug));
       setPersonName("");
-      setShowParticipants(true);
+      setActiveTab("people");
       return nextGroup;
     });
+  };
+
+  const savePersonName = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!editingPersonId || !personName.trim() || !group || group.locked) return;
+    try {
+      setSaving(true);
+      setActionError("");
+      await api.updatePerson(slug, editingPersonId, personName.trim());
+      setPersonName("");
+      setEditingPersonId(null);
+      await refreshSnapshot();
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : t("somethingWentWrong"));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const setParticipantInactive = async (personId: string, inactive: boolean) => {
+    if (!window.confirm(t("participantStatusConfirmation"))) return;
+    try {
+      setSaving(true);
+      setActionError("");
+      await api.setPersonInactive(slug, personId, inactive);
+      await refreshSnapshot();
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : t("somethingWentWrong"));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const recordTransfer = async (event: FormEvent) => {
+    event.preventDefault();
+    const amount = Number(transferAmount);
+    if (!currentParticipantId || !transferTo || !Number.isFinite(amount) || amount <= 0) return;
+    try {
+      setSaving(true);
+      setActionError("");
+      await api.transfer(slug, {
+        requestId: crypto.randomUUID(),
+        fromId: currentParticipantId,
+        toId: transferTo,
+        amount,
+        note: transferNote.trim() || undefined,
+        occurredAt: new Date().toISOString(),
+      });
+      setTransferAmount("");
+      setTransferNote("");
+      setTransferTo("");
+      await refreshSnapshot();
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : t("somethingWentWrong"));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const voidTransfer = async (transferId: string) => {
+    if (!window.confirm(t("voidTransferConfirmation"))) return;
+    try {
+      setSaving(true);
+      setActionError("");
+      await api.voidTransfer(slug, transferId);
+      await refreshSnapshot();
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : t("somethingWentWrong"));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const saveGroupName = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!groupName.trim() || !group || group.locked) return;
+    await executeAction(() => api.updateGroup(slug, groupName.trim()));
   };
 
   const toggleLock = async () => {
@@ -557,17 +674,23 @@ export const GroupPage = () => {
           <p className="eyebrow">
             {t("code")}: {group.code}
           </p>
-          <h1>{group.name}</h1><p>{group.currency||"EUR"}</p>
+          <div className="groupTitleRow">
+            <span className="groupAvatar" aria-hidden="true">{workflow.avatar || "👥"}</span>
+            <div>
+              <h1>{group.name}</h1>
+              <p>{group.currency || "EUR"}</p>
+            </div>
+          </div>
 
           <div className="groupMetaRow">
             <p className="muted">{group.locked ? t("groupLocked") : ""}</p>
             <button
               type="button"
               className="participantsToggle"
-              onClick={() => setShowParticipants((current) => !current)}
+              onClick={() => setActiveTab("people")}
             >
               <Users size={16} />
-              <span>{t("participantsLabel")},</span>
+              <span>{t("participantsLabel")} ({group.people.length})</span>
               {currentParticipant && (
                 <span className="">
                   {t("youAre")}: {currentParticipant.name}
@@ -623,7 +746,7 @@ export const GroupPage = () => {
                   key={person.id}
                   type="button"
                   className="secondaryButton participantChoiceButton"
-                  disabled={saving || !!workflow?.people.find((p:any)=>p.id===person.id&&(p.inactive||(p.claimed&&!p.mine)))}
+                  disabled={saving || !!workflow.people.find((member) => member.id === person.id && (member.inactive || (member.claimed && !member.mine)))}
                   onClick={() => void chooseParticipant(person.id)}
                 >
                   {person.name}
@@ -635,131 +758,274 @@ export const GroupPage = () => {
         document.body,
       )}
 
-      {showParticipants && createPortal(
-        <div
-          className="participantsOverlay"
-          onClick={() => setShowParticipants(false)}
-        >
-          <section
-            className="card participantsCard"
-            onClick={(event) => event.stopPropagation()}
+      <nav className="groupTabBar" role="tablist" aria-label={t("groupSections")}>
+        {([
+          ["expenses", t("groupTabExpenses"), Receipt],
+          ["debts", t("groupTabDebts"), ArrowLeftRight],
+          ["people", t("groupTabPeople"), Users],
+          ["history", t("groupTabHistory"), Clock3],
+        ] as const).map(([id, label, Icon]) => (
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeTab === id}
+            className={`groupTab${activeTab === id ? " groupTabActive" : ""}`}
+            key={id}
+            onClick={() => setActiveTab(id)}
           >
-            <div className="participantsHeader">
-              <h3>{t("participantsPanelTitle")}</h3>
-              <button
-                type="button"
-                className="iconButton"
-                onClick={() => setShowParticipants(false)}
-                aria-label={t("participantsPanelTitle")}
-              >
-                ×
-              </button>
+            <Icon size={17} aria-hidden="true" />
+            <span>{label}</span>
+          </button>
+        ))}
+        {activeTab === "expenses" && !group.locked && !workflow.archived && group.people.length > 0 && currentParticipantId && (
+          <Link className="primaryButton compactButton groupAddExpense" to={`/g/${slug}/add-expense`}>
+            <Plus size={18} /> {t("addExpense")}
+          </Link>
+        )}
+      </nav>
+
+      {activeTab === "debts" && (
+        <section className="groupTabContent">
+          <section className="card">
+            <div className="sectionHeaderWithButton">
+              <div>
+                <h2>{t("myBalance")}</h2>
+                <p className="muted">{currentParticipant?.name ?? t("selectYourParticipant")}</p>
+              </div>
+              {currentBalance && (
+                <strong className={`groupBalanceAmount${currentBalance.balance < 0 ? " groupBalanceDebt" : ""}`}>
+                  {currentBalance.balance > 0 ? "+" : ""}{currentBalance.balance.toFixed(2)} {group.currency || "EUR"}
+                </strong>
+              )}
             </div>
+            {!currentParticipantId ? (
+              <button className="secondaryButton" onClick={() => setShowWhoAreYou(true)}>{t("whoAreYou")}</button>
+            ) : outgoingSettlements.length || incomingSettlements.length ? (
+              <div className="list">
+                {outgoingSettlements.map((settlement, index) => (
+                  <div className="settlement groupOwes" key={`out-${index}`}>
+                    <span>{t("youOwe")} {settlement.toName}</span>
+                    <strong>{settlement.amount.toFixed(2)} {group.currency || "EUR"}</strong>
+                  </div>
+                ))}
+                {incomingSettlements.map((settlement, index) => (
+                  <div className="settlement groupOwed" key={`in-${index}`}>
+                    <span>{settlement.fromName} {t("owesYou")}</span>
+                    <strong>{settlement.amount.toFixed(2)} {group.currency || "EUR"}</strong>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="success">{t("everythingBalanced")}</p>
+            )}
+          </section>
+
+          <section className="card">
+            <h2>{t("groupBalances")}</h2>
+            <p className="muted">{t("totalSpent")}: {group.expenses.reduce((sum, expense) => sum + Number(expense.totalAmount), 0).toFixed(2)} {group.currency || "EUR"}</p>
             <div className="list">
-              {group.people.map((person) => (
-                <div className="personRow" key={person.id}>
-                  <strong>{person.name}</strong>
-                  <small>
-                    {person.payments.length}{" "}
-                    {person.payments.length === 1
-                      ? t("expense")
-                      : t("expenses")}
-                  </small>
+              {balances.map((balance) => (
+                <div className="settlement" key={balance.id}>
+                  <span>{balance.name}</span>
+                  <strong className={balance.balance < 0 ? "groupBalanceDebt" : ""}>
+                    {balance.balance > 0 ? "+" : ""}{balance.balance.toFixed(2)} {group.currency || "EUR"}
+                  </strong>
                 </div>
               ))}
             </div>
-            <form
-              onSubmit={addPerson}
-              className="inlineInput addParticipantForm"
-            >
+            <h3>{t("whoOwesWhom")}</h3>
+            {settlements.length === 0 ? <p className="success">{t("everythingBalanced")}</p> : (
+              <div className="list">
+                {settlements.map((settlement, index) => (
+                  <div className="settlement" key={`settlement-${index}`}>
+                    <span>{settlement.fromName} → {settlement.toName}</span>
+                    <strong>{settlement.amount.toFixed(2)} {group.currency || "EUR"}</strong>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+
+          <section className="card">
+            <h2>{t("repaymentRecords")}</h2>
+            <p className="muted">{t("repaymentRecordsHint")}</p>
+            <form className="repaymentForm" onSubmit={(event) => void recordTransfer(event)}>
+              <label>
+                {t("paidTo")}
+                <select value={transferTo} onChange={(event) => {
+                  const personId = event.target.value;
+                  setTransferTo(personId);
+                  const suggested = settlements.find((settlement) => settlement.from === currentParticipantId && settlement.to === personId);
+                  setTransferAmount(suggested ? String(suggested.amount) : "");
+                }} disabled={!currentParticipantId || group.locked || workflow.archived}>
+                  <option value="">{t("chooseParticipant")}</option>
+                  {group.people.filter((person) => person.id !== currentParticipantId && !workflow.people.find((member) => member.id === person.id)?.inactive).map((person) => (
+                    <option key={person.id} value={person.id}>{person.name}</option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                {t("amountPaid")} ({group.currency || "EUR"})
+                <input type="number" min="0.01" step="0.01" value={transferAmount} onChange={(event) => setTransferAmount(event.target.value)} disabled={!currentParticipantId || group.locked || workflow.archived} required />
+              </label>
+              <label>
+                {t("note")}
+                <input value={transferNote} maxLength={200} onChange={(event) => setTransferNote(event.target.value)} disabled={!currentParticipantId || group.locked || workflow.archived} />
+              </label>
+              <button className="primaryButton" type="submit" disabled={!currentParticipantId || !transferTo || !transferAmount || saving || group.locked || workflow.archived}>
+                {t("saveRepayment")}
+              </button>
+            </form>
+            {!currentParticipantId && <p className="muted">{t("selectParticipantToRecordRepayment")}</p>}
+            {!workflow.transfers.length && <p className="muted">{t("noRepaymentRecords")}</p>}
+            <div className="list repaymentList">
+              {workflow.transfers.map((transfer) => (
+                <article className={`repaymentRow${transfer.voidedAt ? " repaymentVoided" : ""}`} key={transfer.id}>
+                  <div>
+                    <strong>{group.people.find((person) => person.id === transfer.fromId)?.name ?? t("someone")} → {group.people.find((person) => person.id === transfer.toId)?.name ?? t("someone")}</strong>
+                    <small>{formatLocalDateTime(transfer.occurredAt)}{transfer.voidedAt ? ` · ${t("voided")}` : ""}</small>
+                    {transfer.note && <small>{transfer.note}</small>}
+                  </div>
+                  <div className="repaymentAmount">
+                    <strong>{Number(transfer.amount).toFixed(2)} {group.currency || "EUR"}</strong>
+                    {transfer.canManage && !transfer.voidedAt && (
+                      <button type="button" className="secondaryButton compact" disabled={group.locked || workflow.archived || saving} onClick={() => void voidTransfer(transfer.id)}>{t("voidRepayment")}</button>
+                    )}
+                  </div>
+                </article>
+              ))}
+            </div>
+          </section>
+        </section>
+      )}
+
+      {activeTab === "people" && (
+        <section className="groupTabContent">
+          <section className="card">
+            <div className="sectionHeaderWithButton">
+              <div><h2>{t("participantsPanelTitle")}</h2><p className="muted">{group.people.length} {t("participantsLabel").toLocaleLowerCase()}</p></div>
+              <button type="button" className="secondaryButton compact" onClick={() => void navigator.clipboard.writeText(`${window.location.origin}/join?code=${group.code}`)}><Copy size={16} /> {t("copyLink")}</button>
+            </div>
+            <h3>{t("whoAreYou")}</h3>
+            <p className="muted">{t("selectYourParticipant")}</p>
+            <div className="participantChoices">
+              {group.people.filter((person) => !workflow.people.find((member) => member.id === person.id)?.inactive).map((person) => {
+                const member = workflow.people.find((entry) => entry.id === person.id);
+                return (
+                  <button
+                    className={`participantChoice${person.id === currentParticipantId ? " participantChoiceSelected" : ""}`}
+                    type="button"
+                    key={person.id}
+                    disabled={saving || Boolean(member?.claimed && !member.mine)}
+                    onClick={() => void chooseParticipant(person.id)}
+                  >
+                    {person.name}{person.id === currentParticipantId ? ` · ${t("youAre")}` : ""}
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+          <section className="card">
+            <h2>{editingPersonId ? t("editParticipant") : t("addParticipant")}</h2>
+            <form className="inlineInput addParticipantForm" onSubmit={editingPersonId ? savePersonName : addPerson}>
               <input
                 placeholder={t("addParticipantInput")}
                 value={personName}
                 onChange={(event) => setPersonName(event.target.value)}
-                disabled={group.locked}
+                maxLength={60}
+                disabled={group.locked || saving}
+                required
               />
-              <button
-                className="iconButton"
-                type="submit"
-                disabled={group.locked}
-              >
-                <Plus size={18} />
+              <button className="primaryButton" type="submit" disabled={group.locked || saving || !personName.trim()}>
+                {editingPersonId ? t("saveChanges") : <><Plus size={18} /> {t("addParticipant")}</>}
               </button>
+              {editingPersonId && <button type="button" className="secondaryButton" onClick={() => { setEditingPersonId(null); setPersonName(""); }}>{t("cancel")}</button>}
             </form>
+            <div className="list participantManagementList">
+              {group.people.map((person) => {
+                const member = workflow.people.find((entry) => entry.id === person.id);
+                return (
+                  <article className={`participantManagementRow${member?.inactive ? " participantInactive" : ""}`} key={person.id}>
+                    <div><strong>{person.name}{person.id === currentParticipantId ? ` · ${t("youAre")}` : ""}</strong><small>{person.payments.length} {person.payments.length === 1 ? t("expense") : t("expenses")}{member?.inactive ? ` · ${t("inactive")}` : ""}</small></div>
+                    <div className="participantActions">
+                      <button type="button" className="secondaryButton compact" disabled={group.locked || !workflow.canAdmin || saving} onClick={() => { setEditingPersonId(person.id); setPersonName(person.name); }}>{t("edit")}</button>
+                      <button type="button" className="secondaryButton compact" disabled={group.locked || !workflow.canAdmin || saving} onClick={() => void setParticipantInactive(person.id, !member?.inactive)}>{member?.inactive ? t("reactivate") : t("deactivate")}</button>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
           </section>
-        </div>,
-        document.body,
+          <section className="card">
+            <h2>{t("groupSettings")}</h2>
+            <form className="inlineInput" onSubmit={(event) => void saveGroupName(event)}>
+              <input value={groupName} onChange={(event) => setGroupName(event.target.value)} maxLength={80} disabled={group.locked || !workflow.canAdmin || saving} aria-label={t("groupName")} />
+              <button type="submit" className="secondaryButton" disabled={group.locked || !workflow.canAdmin || saving || !groupName.trim()}>{t("saveChanges")}</button>
+            </form>
+            <p className="muted">{group.locked ? t("groupLocked") : ""}</p>
+          </section>
+        </section>
       )}
 
-      <section className="buttons-container-right">
-        <Link
-          className="primaryButton compactButton"
-          to={`/g/${slug}/add-expense`}
-        >
-          <Plus size={18} /> {t("addExpense")}
-        </Link>
-      </section>
-
-      <section className="buttons-container-left">
-        <button
-          className="open-expenses-btn"
-          onClick={() => setShowExpensesContainer((current) => !current)}
-        >
-          {t("expenses")}
-        </button>
-      </section>
-
-      <div className="grid">
-        <section className="card resultCard">
-          <h2>{t("balances")}</h2>
-          <div className="totalSpentSummary">
-            <div>
-              <small>{t("totalSpent")}: </small>
-              <strong>
-                {balances
-                  .reduce((sum, balance) => sum + balance.paid, 0)
-                  .toFixed(2)}
-              </strong>
-            </div>
-          </div>
-          {settlements.length === 0 ? (
-            <p className="success">{t("everythingBalanced")}</p>
-          ) : (
-            <div className="list">
-              {settlements.map((settlement, index) => (
-                <div className="settlement" key={index}>
-                  <span>{settlement.fromName}</span>
-                  <strong>→ {settlement.toName}</strong>
-                  <em>{settlement.amount.toFixed(2)} {group?.currency||"EUR"}</em>
-                </div>
+      {activeTab === "history" && (
+        <section className="groupTabContent">
+          <section className="card">
+            <h2>{t("groupHistory")}</h2>
+            <div className="groupHistoryFilters" role="group" aria-label={t("historyFilters")}>
+              {[
+                ["all", t("allActivity")],
+                ["EXPENSE", t("expenses")],
+                ["TRANSFER", t("repaymentRecords")],
+                ["PERSON", t("participantsLabel")],
+              ].map(([filter, label]) => (
+                <button type="button" className={`secondaryButton compact${historyFilter === filter ? " filterSelected" : ""}`} key={filter} onClick={() => setHistoryFilter(filter)} aria-pressed={historyFilter === filter}>{label}</button>
               ))}
             </div>
-          )}
+            {!(group.history ?? []).filter((entry) => historyFilter === "all" || entry.entity === historyFilter).length ? (
+              <p className="muted">{t("noActivityYet")}</p>
+            ) : (
+              <div className="list">
+                {(group.history ?? []).filter((entry) => historyFilter === "all" || entry.entity === historyFilter).map((entry) => (
+                  <article className="groupHistoryEntry" key={entry.id}>
+                    <span className="groupHistoryIcon">{entry.entity === "EXPENSE" ? <Receipt size={18} /> : entry.entity === "TRANSFER" ? <ArrowLeftRight size={18} /> : <Users size={18} />}</span>
+                    <div><strong>{entry.message}</strong><small>{formatLocalDateTime(entry.createdAt)} · {entry.action.toLocaleLowerCase()}</small></div>
+                  </article>
+                ))}
+              </div>
+            )}
+          </section>
         </section>
-      </div>
+      )}
 
-      {showExpensesContainer && (
+      {activeTab === "expenses" && (
         <section id="expenses-container">
           <div className="grid">
             <section className="card">
               <div className="sectionHeaderWithButton">
                 <div>
                   <h2>{t("expenses")}</h2>
+                  <p className="muted">{group.expenses.length} · {group.expenses.reduce((sum, expense) => sum + Number(expense.totalAmount), 0).toFixed(2)} {group.currency || "EUR"}</p>
                 </div>
-                <button
-                  type="button"
-                  className="iconButton"
-                  aria-label={t("close")}
-                  title={t("close")}
-                  onClick={() => setShowExpensesContainer(false)}
-                >
-                  <X size={18} />
-                </button>
+              </div>
+              <div className="expenseBalanceSummary">
+                <span>{currentParticipant ? `${t("myBalance")} · ${currentParticipant.name}` : t("selectYourParticipant")}</span>
+                <strong>{currentBalance ? `${currentBalance.balance > 0 ? "+" : ""}${currentBalance.balance.toFixed(2)} ${group.currency || "EUR"}` : "—"}</strong>
+                <button type="button" className="textButton" onClick={() => setActiveTab("debts")}>{t("groupTabDebts")}</button>
+              </div>
+              <div className="expenseFilters">
+                <input aria-label={t("searchExpenses")} placeholder={t("searchExpenses")} value={expenseSearch} onChange={(event) => setExpenseSearch(event.target.value)} />
+                <label>{t("monthFilter")}<input type="month" value={expenseMonth} onChange={(event) => setExpenseMonth(event.target.value)} /></label>
+                <label>{t("categoryFilter")}<select value={expenseCategory} onChange={(event) => setExpenseCategory(event.target.value)}><option value="">{t("allCategories")}</option><option value="other">{t("categoryOther")}</option><option value="food">{t("categoryFood")}</option><option value="travel">{t("categoryTravel")}</option><option value="home">{t("categoryHome")}</option><option value="fun">{t("categoryFun")}</option><option value="taxi">{t("categoryTaxi")}</option><option value="shopping">{t("categoryShopping")}</option><option value="health">{t("categoryHealth")}</option></select></label>
+                <button type="button" className={`secondaryButton compact${pendingOnly ? " filterSelected" : ""}`} aria-pressed={pendingOnly} onClick={() => setPendingOnly((value) => !value)}>{t("pendingExpenses")} ({group.expenses.filter((expense) => expense.allocationComplete === false || expense.paymentIncomplete).length})</button>
+                <button type="button" className={`secondaryButton compact${mineOnly ? " filterSelected" : ""}`} aria-pressed={mineOnly} onClick={() => setMineOnly((value) => !value)} disabled={!currentParticipantId}>{t("myExpenses")}</button>
+                {(expenseSearch || expenseMonth || expenseCategory || pendingOnly || mineOnly) && <button type="button" className="textButton" onClick={() => { setExpenseSearch(""); setExpenseMonth(""); setExpenseCategory(""); setPendingOnly(false); setMineOnly(false); }}>{t("clearFilters")}</button>}
               </div>
               {(() => {
-                  const expenses = group.expenses;
-                  if (expenses.length === 0)
+                  const expenses = filteredExpenses;
+                  if (group.expenses.length === 0)
                     return <p className="muted">{t("noExpensesYet")}</p>;
+                  if (expenses.length === 0)
+                    return <p className="muted">{t("noExpensesMatch")}</p>;
                   return (
                     <div className="list">
                       {expenses.map((expense) => {

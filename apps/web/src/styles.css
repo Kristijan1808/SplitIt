@@ -560,6 +560,345 @@ small {
   }
 }
 
+.groupTabBar {
+  display: flex;
+  align-items: stretch;
+  gap: 6px;
+  margin: 0 0 18px;
+  padding: 5px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--panel-bg);
+}
+
+.groupTitleRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.groupTitleRow h1 {
+  margin: 0 0 5px;
+}
+
+.groupTitleRow p {
+  margin: 0;
+  color: var(--gray);
+}
+
+.groupAvatar {
+  display: grid;
+  flex: 0 0 48px;
+  width: 48px;
+  height: 48px;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--tint);
+  font-size: 25px;
+}
+
+.groupTab {
+  display: inline-flex;
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 48px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--gray);
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.groupTab:hover,
+.groupTabActive {
+  background: var(--tint);
+  color: var(--accent);
+}
+
+.groupTab:focus-visible,
+.participantChoice:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--accent) 45%, transparent);
+  outline-offset: 2px;
+}
+
+.groupAddExpense {
+  flex: 0 0 auto;
+  align-self: center;
+  min-height: 42px;
+  margin-left: 4px;
+}
+
+.groupTabContent {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.groupTabContent > .card {
+  min-width: 0;
+}
+
+.groupTabContent > .card:last-child {
+  grid-column: 1 / -1;
+}
+
+.groupBalanceAmount {
+  color: var(--accent);
+  font-size: clamp(20px, 3vw, 30px);
+}
+
+.groupBalanceDebt {
+  color: var(--danger);
+}
+
+.groupOwes,
+.groupOwed {
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--panel-alt);
+}
+
+.groupOwes strong {
+  color: var(--danger);
+}
+
+.groupOwed strong {
+  color: var(--accent);
+}
+
+.repaymentForm {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin: 14px 0;
+}
+
+.repaymentForm label:first-child {
+  grid-column: 1 / -1;
+}
+
+.repaymentForm > button {
+  align-self: end;
+}
+
+.repaymentRow,
+.participantManagementRow,
+.groupHistoryEntry {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 0;
+  border-top: 1px solid var(--line);
+}
+
+.repaymentRow > div:first-child,
+.participantManagementRow > div:first-child,
+.groupHistoryEntry > div {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
+}
+
+.repaymentRow small,
+.participantManagementRow small,
+.groupHistoryEntry small {
+  display: block;
+}
+
+.repaymentAmount,
+.participantActions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.repaymentVoided,
+.participantInactive {
+  opacity: 0.65;
+}
+
+.participantChoices,
+.groupHistoryFilters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.participantChoice {
+  min-height: 42px;
+  padding: 8px 14px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--panel-alt);
+  color: var(--black);
+  font: inherit;
+  cursor: pointer;
+}
+
+.participantChoice:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.participantChoiceSelected,
+.filterSelected {
+  border-color: var(--accent);
+  background: var(--tint);
+  color: var(--accent);
+}
+
+.textButton {
+  padding: 5px;
+  border: 0;
+  background: transparent;
+  color: var(--accent);
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.expenseBalanceSummary {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 12px 0;
+  padding: 12px;
+  border-radius: 12px;
+  background: var(--panel-alt);
+}
+
+.expenseBalanceSummary span {
+  flex: 1;
+}
+
+.expenseBalanceSummary strong {
+  color: var(--accent);
+}
+
+.expenseFilters {
+  display: grid;
+  grid-template-columns: minmax(180px, 2fr) minmax(150px, 1fr) auto auto auto;
+  align-items: end;
+  gap: 8px;
+  margin: 12px 0 18px;
+}
+
+.expenseFilters label {
+  gap: 4px;
+  font-size: 13px;
+}
+
+.groupHistoryEntry {
+  justify-content: flex-start;
+}
+
+.groupHistoryEntry strong {
+  overflow-wrap: anywhere;
+}
+
+.groupHistoryIcon {
+  display: grid;
+  flex: 0 0 38px;
+  width: 38px;
+  height: 38px;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--tint);
+  color: var(--accent);
+}
+
+#expenses-container {
+  position: static;
+  z-index: auto;
+  width: 100%;
+  min-height: 0;
+  padding: 0;
+  background: transparent;
+}
+
+#expenses-container .grid {
+  grid-template-columns: minmax(0, 1fr);
+  margin-bottom: 0;
+}
+
+@media (max-width: 760px) {
+  .groupTabContent {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .expenseFilters {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .expenseFilters > input,
+  .expenseFilters > label {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 560px) {
+  .groupTabBar {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 2px;
+    padding: 4px;
+  }
+
+  .groupTab {
+    flex-direction: column;
+    gap: 4px;
+    min-height: 58px;
+    padding: 6px 2px;
+    font-size: 11px;
+  }
+
+  .groupAddExpense {
+    grid-column: 1 / -1;
+    width: 100%;
+    margin: 4px 0 0;
+  }
+
+  .groupHistoryFilters .secondaryButton {
+    width: auto;
+  }
+
+  .repaymentForm {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .repaymentForm label:first-child {
+    grid-column: auto;
+  }
+
+  .repaymentRow,
+  .participantManagementRow {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .repaymentAmount,
+  .participantActions {
+    justify-content: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .expenseBalanceSummary {
+    flex-wrap: wrap;
+  }
+}
+
 .loadingScreen {
   min-height: 70vh;
   display: grid;
@@ -938,14 +1277,14 @@ fieldset.accessOptions {
 }
 
 #expenses-container{
-    z-index:10001;
-    position: absolute;
-    top:0px;
-    left:0px;
-    min-height:100%;
+    z-index:auto;
+    position: static;
+    top:auto;
+    left:auto;
+    min-height:0;
     width:100%;
-    padding:20px;
-    background-color: rgba(8, 139, 95, 0.542);
+    padding:0;
+    background:transparent;
 }
 
 /* GroupPage responsive/shared page-specific */
@@ -1868,4 +2207,3 @@ input:user-invalid + .validationMessage {
   padding: 4px;
   background: transparent;
 }
-

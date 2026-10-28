@@ -224,28 +224,31 @@ export type GroupSnapshot = {
   drafts: DraftExpense[];
   settlements: SettlementResult;
   history: HistoryItem[];
-  workflow: {
-    avatar: string;
-    archived: boolean;
-    canAdmin: boolean;
-    canOwn: boolean;
-    people: Array<{
-      id: string;
-      name: string;
-      role: string;
-      inactive: boolean;
-      claimed: boolean;
-      mine: boolean;
-    }>;
-    selections: Array<{ draftId: string; personId: string; status: string }>;
-    transfers: Array<{
-      id: string;
-      fromId: string;
-      toId: string;
-      amount: number;
-      note?: string | null;
-      occurredAt: string;
-      voidedAt?: string | null;
-    }>;
-  };
+  workflow: Workflow;
+};
+
+export type Workflow = {
+  avatar: string;
+  archived: boolean;
+  canAdmin: boolean;
+  canOwn: boolean;
+  people: Array<{
+    id: string;
+    name: string;
+    role: string;
+    inactive: boolean;
+    claimed: boolean;
+    mine: boolean;
+  }>;
+  selections: Array<{ draftId: string; personId: string; status: string }>;
+  transfers: Array<{
+    id: string;
+    fromId: string;
+    toId: string;
+    amount: number;
+    note?: string | null;
+    occurredAt: string;
+    voidedAt?: string | null;
+    canManage: boolean;
+  }>;
 };

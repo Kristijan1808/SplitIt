@@ -8,6 +8,7 @@ import type {
   JoinGroupRequest,
   PatchPaymentRequest,
   SettlementResult,
+  Workflow,
   GroupSnapshot,
   AccountGroup,
   AuthUser,
@@ -190,8 +191,23 @@ export const api = {
       method: "PATCH",
       body: JSON.stringify(body),
     }),
-  workflow: (slug:string)=>request<any>(`/groups/${slug}/workflow`),
+  workflow: (slug: string) => request<Workflow>(`/groups/${slug}/workflow`),
   claim: (slug:string,personId:string)=>request(`/groups/${slug}/workflow/identity`,{method:"POST",body:JSON.stringify({personId})}),
+  transfer: (slug: string, body: {
+    requestId: string;
+    fromId: string;
+    toId: string;
+    amount: number;
+    note?: string;
+    occurredAt: string;
+  }) => request(`/groups/${slug}/workflow/transfers`, { method: "POST", body: JSON.stringify(body) }),
+  voidTransfer: (slug: string, transferId: string) =>
+    request(`/groups/${slug}/workflow/transfers/${transferId}`, { method: "DELETE" }),
+  setPersonInactive: (slug: string, personId: string, inactive: boolean) =>
+    request(`/groups/${slug}/workflow/people/${personId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ inactive }),
+    }),
   response: (slug:string,id:string,status:string)=>request(`/groups/${slug}/workflow/drafts/${id}/response`,{method:"POST",body:JSON.stringify({status})}),
   ownItem: (
     slug: string,
