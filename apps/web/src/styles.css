@@ -1829,12 +1829,12 @@ fieldset.accessOptions {
 
 /* CreateGroupPage */
 .validationMessage {
-  display: none;
-}
-
-input:user-invalid + .validationMessage {
-  display: inline-block;
-  color: #be123c;
+  display: block;
+  flex-basis: 100%;
+  margin-top: 4px;
+  color: var(--danger);
+  font-size: 0.875rem;
+  font-weight: 700;
 }
 
 .peopleInputs{

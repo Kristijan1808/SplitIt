@@ -5,6 +5,7 @@ import { api } from "../api";
 import { useLanguage } from "../i18n";
 import type { Expense, Group } from "../types";
 import { RandomSplitWheel } from "../components/RandomSplitWheel";
+import { showToast } from "../notifications";
 //push comment
 type DraftItem = {
   quantity?:string;
@@ -55,6 +56,7 @@ export const GroupAddExpensePage = () => {
   const [draftItems, setDraftItems] = useState<DraftItem[]>([]);
   const [draftPayers, setDraftPayers] = useState<DraftPayer[]>([]);
   const [actionError, setActionError] = useState("");
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const [parsingBill, setParsingBill] = useState(false);
   const [billImageFile, setBillImageFile] = useState<File | null>(null);
@@ -176,6 +178,7 @@ export const GroupAddExpensePage = () => {
     field: keyof Omit<DraftItem, "id" | "ordinalNumber">,
     value: string | string[]
   ) => {
+    setFieldErrors((current) => ({ ...current, [`item-${id}-${field}`]: "" }));
     setDraftItems((current) =>
       current.map((item) => {
         if (item.id !== id) return item;
@@ -323,6 +326,7 @@ export const GroupAddExpensePage = () => {
     field: "personId" | "amount",
     value: string
   ) => {
+    setFieldErrors((current) => ({ ...current, [`payer-${id}-${field}`]: "" }));
     setDraftPayers((current) =>
       current.map((payer) =>
         payer.id === id ? { ...payer, [field]: value } : payer
@@ -420,9 +424,59 @@ export const GroupAddExpensePage = () => {
   const saveDraftBill = async () => {
     if (!group || group.locked || saving) return;
     if(saved){navigate(`/g/${slug}`);return;}
-    if(draftItems.some(i=>!Number.isInteger(Number(i.quantity??1))||Number(i.quantity??1)<1||Number(i.quantity??1)>999)){setActionError("Količina treba biti cijeli broj od 1 do 999.");return;}
+    setActionError("");
+    const errors: Record<string, string> = {};
+    if (draftItems.length === 0) errors.items = t("atLeastOneItem");
+    for (const item of draftItems) {
+      if (!item.name.trim()) {
+        errors[`item-${item.id}-name`] = t("fieldRequired");
+      } else if (item.name.trim().length > 120) {
+        errors[`item-${item.id}-name`] = t("fieldMaxLength").replace("{count}", "120");
+      }
+      if (!item.price.trim()) {
+        errors[`item-${item.id}-price`] = t("fieldRequired");
+      } else if (!/^\d+(\.\d{1,2})?$/.test(item.price)) {
+        errors[`item-${item.id}-price`] = t("invalidPrice");
+      }
+      if (!Number.isInteger(Number(item.quantity ?? 1)) || Number(item.quantity ?? 1) < 1 || Number(item.quantity ?? 1) > 999) {
+        errors[`item-${item.id}-quantity`] = t("invalidQuantity");
+      }
+    }
+    if (draftPayers.length === 0) errors.payers = t("atLeastOnePayer");
+    for (const payer of draftPayers) {
+      const amount = Number(payer.amount);
+      if (!payer.personId) errors[`payer-${payer.id}-personId`] = t("fieldRequired");
+      if (!payer.amount || !Number.isFinite(amount) || amount <= 0 || !/^\d+(\.\d{1,2})?$/.test(payer.amount)) {
+        errors[`payer-${payer.id}-amount`] = payer.amount ? t("invalidAmount") : t("fieldRequired");
+      }
+    }
+    const payerIdsForValidation = draftPayers.map((payer) => payer.personId);
+    const duplicatePayerIds = new Set(
+      payerIdsForValidation.filter((personId, index) => payerIdsForValidation.indexOf(personId) !== index),
+    );
+    if (duplicatePayerIds.size > 0) {
+      for (const payer of draftPayers) {
+        if (duplicatePayerIds.has(payer.personId)) {
+          errors[`payer-${payer.id}-personId`] = t("duplicatePayer");
+        }
+      }
+    }
+    const totalForValidation = draftItems.reduce(
+      (sum, item) => sum + (Math.round(Number(item.price) * 100) * Number(item.quantity ?? 1) / 100),
+      0,
+    );
+    const paidForValidation = draftPayers.reduce((sum, payer) => sum + (Number(payer.amount) || 0), 0);
+    if (draftPayers.length > 0 && Math.abs(paidForValidation - totalForValidation) >= 0.01) {
+      errors.paymentTotal = t("paidTotalMustMatch");
+    }
+    if (paymentOverpaid) errors.paymentTotal = t("paidTotalMustMatch");
+    if (assignmentAmountInvalid) errors.assignmentTotal = t("invalidAmount");
+    setFieldErrors(errors);
+    if (Object.keys(errors).length > 0) {
+      showToast(t("formCorrectionToast"));
+      return;
+    }
 
-    if(draftItems.some(i=>!/^\d+(\.\d{1,2})?$/.test(i.price))){setActionError("Unesi jedinične cijene s najviše dvije decimale.");return;}
     const validItems = draftItems.filter(
       (item) =>
         item.name.trim().length > 0 &&
@@ -432,6 +486,7 @@ export const GroupAddExpensePage = () => {
 
     if (validItems.length === 0) {
       setActionError(t("atLeastOneItem"));
+      showToast(t("formCorrectionToast"));
       return;
     }
 
@@ -453,12 +508,14 @@ export const GroupAddExpensePage = () => {
 
     if (validPayers.length === 0) {
       setActionError(t("atLeastOnePayer"));
+      showToast(t("formCorrectionToast"));
       return;
     }
 
     const payerIds = validPayers.map((payer) => payer.personId);
     if (new Set(payerIds).size !== payerIds.length) {
       setActionError(t("duplicatePayer"));
+      showToast(t("formCorrectionToast"));
       return;
     }
 
@@ -486,8 +543,9 @@ export const GroupAddExpensePage = () => {
     {
       if (Math.abs(finalPaymentDifference) >= 0.01) {
         setActionError(
-          `Paid total must equal the item total (${validItemsTotal.toFixed(2)}).`
+          t("paidTotalMustMatch")
         );
+        showToast(t("formCorrectionToast"));
         return;
       }
     }
@@ -680,7 +738,9 @@ export const GroupAddExpensePage = () => {
                         }
                         placeholder={t("itemPlaceholder")}
                         disabled={group.locked}
+                        aria-invalid={Boolean(fieldErrors[`item-${item.id}-name`])}
                       />
+                      {fieldErrors[`item-${item.id}-name`] && <span className="validationMessage">{fieldErrors[`item-${item.id}-name`]}</span>}
                     </label>
 
                     <label>
@@ -698,10 +758,16 @@ export const GroupAddExpensePage = () => {
                         }
                         placeholder="0.00"
                         disabled={group.locked}
+                        aria-invalid={Boolean(fieldErrors[`item-${item.id}-price`])}
                       />
+                      {fieldErrors[`item-${item.id}-price`] && <span className="validationMessage">{fieldErrors[`item-${item.id}-price`]}</span>}
                     </label>
 
-                    <label>{t("quantity")}<input type="number" min="1" max="999" step="1" value={item.quantity??"1"} onChange={e=>updateDraftItem(item.id,"quantity",e.target.value)}/></label>
+                    <label>
+                      {t("quantity")}
+                      <input type="number" min="1" max="999" step="1" value={item.quantity??"1"} onChange={e=>updateDraftItem(item.id,"quantity",e.target.value)} aria-invalid={Boolean(fieldErrors[`item-${item.id}-quantity`])}/>
+                      {fieldErrors[`item-${item.id}-quantity`] && <span className="validationMessage">{fieldErrors[`item-${item.id}-quantity`]}</span>}
+                    </label>
                     <div className="draftItemShares" hidden={!assignNow}>
                       <div className="draftItemSharesHeader">
                         <div className="draftItemSharesTitle">
@@ -811,6 +877,7 @@ export const GroupAddExpensePage = () => {
                 </div>
               ))}
             </div>
+            {fieldErrors.items && <p className="validationMessage">{fieldErrors.items}</p>}
           </div>
 
           {/* PAYERS */}
@@ -847,6 +914,7 @@ export const GroupAddExpensePage = () => {
                           updateDraftPayer(payer.id, "personId", event.target.value)
                         }
                         disabled={group.locked}
+                        aria-invalid={Boolean(fieldErrors[`payer-${payer.id}-personId`])}
                       >
                         {group.people.map((person) => (
                           <option key={person.id} value={person.id}>
@@ -854,6 +922,7 @@ export const GroupAddExpensePage = () => {
                           </option>
                         ))}
                       </select>
+                      {fieldErrors[`payer-${payer.id}-personId`] && <span className="validationMessage">{fieldErrors[`payer-${payer.id}-personId`]}</span>}
                     </label>
 
                     <label>
@@ -868,7 +937,9 @@ export const GroupAddExpensePage = () => {
                         }
                         placeholder="0.00"
                         disabled={group.locked}
+                        aria-invalid={Boolean(fieldErrors[`payer-${payer.id}-amount`])}
                       />
+                      {fieldErrors[`payer-${payer.id}-amount`] && <span className="validationMessage">{fieldErrors[`payer-${payer.id}-amount`]}</span>}
                     </label>
 
                     <button
@@ -884,6 +955,7 @@ export const GroupAddExpensePage = () => {
                 ))}
               </div>
             )}
+            {fieldErrors.payers && <p className="validationMessage">{fieldErrors.payers}</p>}
           </div>
 
           {/* TOTALS */}
@@ -909,6 +981,8 @@ export const GroupAddExpensePage = () => {
               </strong>
             </div>
           </div>
+          {fieldErrors.paymentTotal && <p className="validationMessage">{fieldErrors.paymentTotal}</p>}
+          {fieldErrors.assignmentTotal && <p className="validationMessage">{fieldErrors.assignmentTotal}</p>}
 
           <label>
             {t("note")}
@@ -916,6 +990,7 @@ export const GroupAddExpensePage = () => {
               value={note}
               onChange={(event) => setNote(event.target.value)}
               placeholder={t("billNote")}
+              maxLength={200}
               disabled={group.locked}
             />
           </label>
@@ -932,7 +1007,7 @@ export const GroupAddExpensePage = () => {
             className="primaryButton"
             type="button"
             onClick={saveDraftBill}
-            disabled={group.locked || saving || paymentOverpaid || assignmentAmountInvalid}
+            disabled={group.locked || saving}
           >
             <Plus size={18} />
             {editingExpense ? t("saveChanges") : t("createExpense")}

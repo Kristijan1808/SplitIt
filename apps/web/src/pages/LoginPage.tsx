@@ -7,6 +7,7 @@ import { saveAuth } from "../auth";
 import { ThemeToggle } from "../components/ThemeToggle";
 import { GoogleSignInButton } from "../components/GoogleSignInButton";
 import { useLanguage } from "../i18n";
+import { showToast } from "../notifications";
 
 export function LoginPage() {
   const navigate = useNavigate();
@@ -21,6 +22,7 @@ export function LoginPage() {
   const [repeatPassword, setRepeatPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   const handleGoogleCredential = useCallback(async (credential: string) => {
     try {
@@ -38,8 +40,38 @@ export function LoginPage() {
 
   async function submit(event: FormEvent) {
     event.preventDefault();
-    if (mode === "register" && password !== repeatPassword) {
-      setError(t("invalidPasswordMatch"));
+    const errors: Record<string, string> = {};
+    const usernameValue = username.trim();
+    const usernameMaxLength = mode === "login" ? 254 : 32;
+    if (!usernameValue) {
+      errors.username = t("fieldRequired");
+    } else if (usernameValue.length < 4) {
+      errors.username = t("fieldMinLength").replace("{count}", "4");
+    } else if (usernameValue.length > usernameMaxLength) {
+      errors.username = t("fieldMaxLength").replace("{count}", String(usernameMaxLength));
+    } else if (mode === "register" && !/^[a-zA-Z0-9_.-]+$/.test(usernameValue)) {
+      errors.username = t("invalidUsername");
+    }
+
+    if (password.length < 8) {
+      errors.password = password ? t("fieldMinLength").replace("{count}", "8") : t("fieldRequired");
+    } else if (password.length > 80) {
+      errors.password = t("fieldMaxLength").replace("{count}", "80");
+    }
+    if (mode === "register") {
+      if (repeatPassword.length < 8) {
+        errors.repeatPassword = repeatPassword ? t("fieldMinLength").replace("{count}", "8") : t("fieldRequired");
+      } else if (repeatPassword.length > 80) {
+        errors.repeatPassword = t("fieldMaxLength").replace("{count}", "80");
+      } else if (password !== repeatPassword) {
+        errors.repeatPassword = t("invalidPasswordMatch");
+      }
+    }
+
+    setFieldErrors(errors);
+    if (Object.keys(errors).length > 0) {
+      setError("");
+      showToast(t("formCorrectionToast"));
       return;
     }
 
@@ -49,8 +81,8 @@ export function LoginPage() {
 
       const result =
         mode === "login"
-          ? await api.login({ username, password })
-          : await api.register({ username, password, repeatPassword });
+          ? await api.login({ username: usernameValue, password })
+          : await api.register({ username: usernameValue, password, repeatPassword });
 
       saveAuth(result.token, result.user);
       navigate(redirect, { replace: true });
@@ -75,18 +107,21 @@ export function LoginPage() {
         <p className="eyebrow">{mode === "login" ? t("welcomeBack") : t("createAccount")}</p>
         <h1>{mode === "login" ? t("login") : t("signIn")}</h1>
 
-        <form className="form authForm" onSubmit={submit}>
+        <form className="form authForm" onSubmit={submit} noValidate>
           <label>
             {t("usernameOrEmail")}
             <input
               placeholder={t("usernamePlaceholder")}
               value={username}
-              onChange={(event) => setUsername(event.target.value)}
-              required
-              minLength={4}
+              onChange={(event) => {
+                setUsername(event.target.value);
+                setFieldErrors((current) => ({ ...current, username: "" }));
+              }}
               maxLength={mode === "login" ? 254 : 32}
               autoComplete="username"
+              aria-invalid={Boolean(fieldErrors.username)}
             />
+            {fieldErrors.username && <span className="validationMessage">{fieldErrors.username}</span>}
           </label>
 
           <label>
@@ -95,12 +130,15 @@ export function LoginPage() {
               type="password"
               placeholder={t("enterPassword")}
               value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              required
-              minLength={8}
+              onChange={(event) => {
+                setPassword(event.target.value);
+                setFieldErrors((current) => ({ ...current, password: "" }));
+              }}
               maxLength={80}
+              aria-invalid={Boolean(fieldErrors.password)}
               autoComplete={mode === "login" ? "current-password" : "new-password"}
             />
+            {fieldErrors.password && <span className="validationMessage">{fieldErrors.password}</span>}
           </label>
 
           {mode === "register" && (
@@ -110,12 +148,15 @@ export function LoginPage() {
                 type="password"
                 placeholder={t("repeatPassword")}
                 value={repeatPassword}
-                onChange={(event) => setRepeatPassword(event.target.value)}
-                required
-                minLength={8}
+                onChange={(event) => {
+                  setRepeatPassword(event.target.value);
+                  setFieldErrors((current) => ({ ...current, repeatPassword: "" }));
+                }}
                 maxLength={80}
+                aria-invalid={Boolean(fieldErrors.repeatPassword)}
                 autoComplete="new-password"
               />
+              {fieldErrors.repeatPassword && <span className="validationMessage">{fieldErrors.repeatPassword}</span>}
             </label>
           )}
 
@@ -135,6 +176,7 @@ export function LoginPage() {
           type="button"
           onClick={() => {
             setError("");
+            setFieldErrors({});
             setMode(mode === "login" ? "register" : "login");
           }}
         >

@@ -5,6 +5,7 @@ import { ThemeToggle } from "../components/ThemeToggle";
 import { useLanguage } from "../i18n";
 import { api } from "../api";
 import type { AccessType } from "../types";
+import { showToast } from "../notifications";
 
 export function CreateGroupPage() {
   const navigate = useNavigate();
@@ -16,11 +17,11 @@ export function CreateGroupPage() {
   const [error, setError] = useState("");
   const [createdCode, setCreatedCode] = useState<string | null>(null);
   const [createdSlug, setCreatedSlug] = useState<string | null>(null);
-
-  const isFormValid = name.trim().length >= 3 && password.length >= 4 && people?.length > 0;
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   const updatePerson = (index: number, value: string) => {
     setPeople((current) => current.map((person, i) => (i === index ? value : person)));
+    setFieldErrors((current) => ({ ...current, [`person-${index}`]: "" }));
   }
 
   const removePerson = (index: number) => {
@@ -30,6 +31,32 @@ export function CreateGroupPage() {
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     setError("");
+    const errors: Record<string, string> = {};
+    if (!name.trim()) {
+      errors.name = t("fieldRequired");
+    } else if (name.trim().length < 3) {
+      errors.name = t("fieldMinLength").replace("{count}", "3");
+    } else if (name.trim().length > 80) {
+      errors.name = t("fieldMaxLength").replace("{count}", "80");
+    }
+    if (!password.trim()) {
+      errors.password = t("fieldRequired");
+    } else if (password.trim().length < 4) {
+      errors.password = t("fieldMinLength").replace("{count}", "4");
+    } else if (password.trim().length > 80) {
+      errors.password = t("fieldMaxLength").replace("{count}", "80");
+    }
+    people.forEach((person, index) => {
+      if (!person.trim()) errors[`person-${index}`] = t("fieldRequired");
+      else if (person.trim().length > 60) {
+        errors[`person-${index}`] = t("fieldMaxLength").replace("{count}", "60");
+      }
+    });
+    setFieldErrors(errors);
+    if (Object.keys(errors).length > 0) {
+      showToast(t("formCorrectionToast"));
+      return;
+    }
 
     try {
       const group = await api.createGroup({
@@ -59,18 +86,19 @@ export function CreateGroupPage() {
         <p className="muted">{t("groupNamesRepeat")}</p>
 
         {!createdCode ? (
-          <form onSubmit={submit} className="form">
+          <form onSubmit={submit} className="form" noValidate>
            <label>
             {t("groupName")}
             <input
               value={name}
-              minLength={3}
-              required
-              onChange={(event) => setName(event.target.value)}
+              maxLength={80}
+              aria-invalid={Boolean(fieldErrors.name)}
+              onChange={(event) => {
+                setName(event.target.value);
+                setFieldErrors((current) => ({ ...current, name: "" }));
+              }}
             />
-            <span className="validationMessage">
-              Group name must be at least 3 characters.
-            </span>
+            {fieldErrors.name && <span className="validationMessage">{fieldErrors.name}</span>}
           </label>
 
           <label>
@@ -78,13 +106,14 @@ export function CreateGroupPage() {
             <input
               type="password"
               value={password}
-              minLength={4}
-              required
-              onChange={(event) => setPassword(event.target.value)}
+              maxLength={80}
+              aria-invalid={Boolean(fieldErrors.password)}
+              onChange={(event) => {
+                setPassword(event.target.value);
+                setFieldErrors((current) => ({ ...current, password: "" }));
+              }}
             />
-            <span className="validationMessage">
-              Password must be at least 4 characters.
-            </span>
+            {fieldErrors.password && <span className="validationMessage">{fieldErrors.password}</span>}
           </label>
 
             <fieldset className="accessOptions">
@@ -119,8 +148,11 @@ export function CreateGroupPage() {
                     <input
                       placeholder={`${t("participant")} ${index + 1}`}
                       value={person}
+                      maxLength={60}
+                      aria-invalid={Boolean(fieldErrors[`person-${index}`])}
                       onChange={(event) => updatePerson(index, event.target.value)}
                     />
+                    {fieldErrors[`person-${index}`] && <span className="validationMessage">{fieldErrors[`person-${index}`]}</span>}
                     {people.length > 1 && (
                       <button type="button" className="iconButton" onClick={() => removePerson(index)}>
                         ×
@@ -135,7 +167,7 @@ export function CreateGroupPage() {
             </div>
 
             {error && <p className="error">{error}</p>}
-            <button className="primaryButton" type="submit" disabled={!isFormValid}>
+            <button className="primaryButton" type="submit">
               {t("createGroup")}
             </button>
           </form>

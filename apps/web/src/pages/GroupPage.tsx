@@ -20,6 +20,7 @@ import type {
 } from "../types";
 import { RandomSplitWheel } from "../components/RandomSplitWheel";
 import { getWhoAmI, saveWhoAmI, saveGroupToLocalStorage } from "../storage";
+import { showToast } from "../notifications";
 
 type DraftBill = {
   requireResponses?: boolean;
@@ -86,6 +87,7 @@ export const GroupPage = () => {
   const [showDrafts, setShowDrafts] = useState(false);
   const [drafts, setDrafts] = useState<DraftBill[]>([]);
   const [actionError, setActionError] = useState("");
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const [groupChangedNotice, setGroupChangedNotice] = useState(false);
   const [refreshingChanges, setRefreshingChanges] = useState(false);
@@ -494,7 +496,18 @@ export const GroupPage = () => {
 
   const addPerson = async (event: FormEvent) => {
     event.preventDefault();
-    if (!personName.trim() || !group || group.locked) return;
+    if (!group || group.locked) return;
+    const nameError = !personName.trim()
+      ? t("fieldRequired")
+      : personName.trim().length > 60
+        ? t("fieldMaxLength").replace("{count}", "60")
+        : "";
+    if (nameError) {
+      setFieldErrors((current) => ({ ...current, personName: nameError }));
+      showToast(t("formCorrectionToast"));
+      return;
+    }
+    setFieldErrors((current) => ({ ...current, personName: "" }));
 
     await executeAction(async () => {
       const nextGroup = await api.addPerson(slug, { name: personName });
@@ -507,7 +520,18 @@ export const GroupPage = () => {
 
   const savePersonName = async (event: FormEvent) => {
     event.preventDefault();
-    if (!editingPersonId || !personName.trim() || !group || group.locked) return;
+    if (!editingPersonId || !group || group.locked) return;
+    const nameError = !personName.trim()
+      ? t("fieldRequired")
+      : personName.trim().length > 60
+        ? t("fieldMaxLength").replace("{count}", "60")
+        : "";
+    if (nameError) {
+      setFieldErrors((current) => ({ ...current, personName: nameError }));
+      showToast(t("formCorrectionToast"));
+      return;
+    }
+    setFieldErrors((current) => ({ ...current, personName: "" }));
     try {
       setSaving(true);
       setActionError("");
@@ -539,7 +563,27 @@ export const GroupPage = () => {
   const recordTransfer = async (event: FormEvent) => {
     event.preventDefault();
     const amount = Number(transferAmount);
-    if (!currentParticipantId || !transferTo || !Number.isFinite(amount) || amount <= 0) return;
+    if (!currentParticipantId) {
+      setFieldErrors((current) => ({ ...current, participant: t("fieldRequired") }));
+      showToast(t("formCorrectionToast"));
+      return;
+    }
+    const errors: Record<string, string> = {};
+    if (!transferTo) errors.transferTo = t("fieldRequired");
+    if (!transferAmount || !Number.isFinite(amount) || amount <= 0 || !/^\d+(\.\d{1,2})?$/.test(transferAmount)) {
+      errors.transferAmount = transferAmount ? t("invalidAmount") : t("fieldRequired");
+    }
+    setFieldErrors((current) => ({ ...current, ...errors }));
+    if (Object.keys(errors).length > 0) {
+      showToast(t("formCorrectionToast"));
+      return;
+    }
+    setFieldErrors((current) => ({
+      ...current,
+      participant: "",
+      transferTo: "",
+      transferAmount: "",
+    }));
     try {
       setSaving(true);
       setActionError("");
@@ -578,7 +622,18 @@ export const GroupPage = () => {
 
   const saveGroupName = async (event: FormEvent) => {
     event.preventDefault();
-    if (!groupName.trim() || !group || group.locked) return;
+    if (!group || group.locked) return;
+    const nameError = !groupName.trim()
+      ? t("fieldRequired")
+      : groupName.trim().length > 80
+        ? t("fieldMaxLength").replace("{count}", "80")
+        : "";
+    if (nameError) {
+      setFieldErrors((current) => ({ ...current, groupName: nameError }));
+      showToast(t("formCorrectionToast"));
+      return;
+    }
+    setFieldErrors((current) => ({ ...current, groupName: "" }));
     await executeAction(() => api.updateGroup(slug, groupName.trim()));
   };
 
@@ -849,34 +904,40 @@ export const GroupPage = () => {
           <section className="card">
             <h2>{t("repaymentRecords")}</h2>
             <p className="muted">{t("repaymentRecordsHint")}</p>
-            <form className="repaymentForm" onSubmit={(event) => void recordTransfer(event)}>
+            <form className="repaymentForm" onSubmit={(event) => void recordTransfer(event)} noValidate>
               <label>
                 {t("paidTo")}
                 <select value={transferTo} onChange={(event) => {
                   const personId = event.target.value;
                   setTransferTo(personId);
+                  setFieldErrors((current) => ({ ...current, transferTo: "" }));
                   const suggested = settlements.find((settlement) => settlement.from === currentParticipantId && settlement.to === personId);
                   setTransferAmount(suggested ? String(suggested.amount) : "");
-                }} disabled={!currentParticipantId || group.locked || workflow.archived}>
+                }} disabled={!currentParticipantId || group.locked || workflow.archived} aria-invalid={Boolean(fieldErrors.transferTo)}>
                   <option value="">{t("chooseParticipant")}</option>
                   {group.people.filter((person) => person.id !== currentParticipantId && !workflow.people.find((member) => member.id === person.id)?.inactive).map((person) => (
                     <option key={person.id} value={person.id}>{person.name}</option>
                   ))}
                 </select>
+                {fieldErrors.transferTo && <span className="validationMessage">{fieldErrors.transferTo}</span>}
               </label>
               <label>
                 {t("amountPaid")} ({group.currency || "EUR"})
-                <input type="number" min="0.01" step="0.01" value={transferAmount} onChange={(event) => setTransferAmount(event.target.value)} disabled={!currentParticipantId || group.locked || workflow.archived} required />
+                <input type="number" min="0.01" step="0.01" value={transferAmount} onChange={(event) => {
+                  setTransferAmount(event.target.value);
+                  setFieldErrors((current) => ({ ...current, transferAmount: "" }));
+                }} disabled={!currentParticipantId || group.locked || workflow.archived} aria-invalid={Boolean(fieldErrors.transferAmount)} />
+                {fieldErrors.transferAmount && <span className="validationMessage">{fieldErrors.transferAmount}</span>}
               </label>
               <label>
                 {t("note")}
                 <input value={transferNote} maxLength={200} onChange={(event) => setTransferNote(event.target.value)} disabled={!currentParticipantId || group.locked || workflow.archived} />
               </label>
-              <button className="primaryButton" type="submit" disabled={!currentParticipantId || !transferTo || !transferAmount || saving || group.locked || workflow.archived}>
+              <button className="primaryButton" type="submit" disabled={saving || group.locked || workflow.archived}>
                 {t("saveRepayment")}
               </button>
             </form>
-            {!currentParticipantId && <p className="muted">{t("selectParticipantToRecordRepayment")}</p>}
+            {!currentParticipantId && <p className={fieldErrors.participant ? "validationMessage" : "muted"}>{t("selectParticipantToRecordRepayment")}</p>}
             {!workflow.transfers.length && <p className="muted">{t("noRepaymentRecords")}</p>}
             <div className="list repaymentList">
               {workflow.transfers.map((transfer) => (
@@ -927,16 +988,20 @@ export const GroupPage = () => {
           </section>
           <section className="card">
             <h2>{editingPersonId ? t("editParticipant") : t("addParticipant")}</h2>
-            <form className="inlineInput addParticipantForm" onSubmit={editingPersonId ? savePersonName : addPerson}>
+            <form className="inlineInput addParticipantForm" onSubmit={editingPersonId ? savePersonName : addPerson} noValidate>
               <input
                 placeholder={t("addParticipantInput")}
                 value={personName}
-                onChange={(event) => setPersonName(event.target.value)}
+                onChange={(event) => {
+                  setPersonName(event.target.value);
+                  setFieldErrors((current) => ({ ...current, personName: "" }));
+                }}
                 maxLength={60}
                 disabled={group.locked || saving}
-                required
+                aria-invalid={Boolean(fieldErrors.personName)}
               />
-              <button className="primaryButton" type="submit" disabled={group.locked || saving || !personName.trim()}>
+              {fieldErrors.personName && <span className="validationMessage">{fieldErrors.personName}</span>}
+              <button className="primaryButton" type="submit" disabled={group.locked || saving}>
                 {editingPersonId ? t("saveChanges") : <><Plus size={18} /> {t("addParticipant")}</>}
               </button>
               {editingPersonId && <button type="button" className="secondaryButton" onClick={() => { setEditingPersonId(null); setPersonName(""); }}>{t("cancel")}</button>}
@@ -958,9 +1023,13 @@ export const GroupPage = () => {
           </section>
           <section className="card">
             <h2>{t("groupSettings")}</h2>
-            <form className="inlineInput" onSubmit={(event) => void saveGroupName(event)}>
-              <input value={groupName} onChange={(event) => setGroupName(event.target.value)} maxLength={80} disabled={group.locked || !workflow.canAdmin || saving} aria-label={t("groupName")} />
-              <button type="submit" className="secondaryButton" disabled={group.locked || !workflow.canAdmin || saving || !groupName.trim()}>{t("saveChanges")}</button>
+            <form className="inlineInput" onSubmit={(event) => void saveGroupName(event)} noValidate>
+              <input value={groupName} onChange={(event) => {
+                setGroupName(event.target.value);
+                setFieldErrors((current) => ({ ...current, groupName: "" }));
+              }} maxLength={80} disabled={group.locked || !workflow.canAdmin || saving} aria-label={t("groupName")} aria-invalid={Boolean(fieldErrors.groupName)} />
+              {fieldErrors.groupName && <span className="validationMessage">{fieldErrors.groupName}</span>}
+              <button type="submit" className="secondaryButton" disabled={group.locked || !workflow.canAdmin || saving}>{t("saveChanges")}</button>
             </form>
             <p className="muted">{group.locked ? t("groupLocked") : ""}</p>
           </section>
