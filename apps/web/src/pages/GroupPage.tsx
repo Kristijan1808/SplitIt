@@ -135,7 +135,8 @@ export const GroupPage = () => {
       storedParticipantId &&
       group.people.some((person) => person.id === storedParticipantId);
     const shouldPrompt =
-      searchParams.get("chooseParticipant") === "1" || !validSelection;
+      group.accessType !== "REGISTERED_ONLY" &&
+      (searchParams.get("chooseParticipant") === "1" || !validSelection);
     setShowWhoAreYou(shouldPrompt);
   }, [group, slug, searchParams]);
 
@@ -853,8 +854,10 @@ export const GroupPage = () => {
                 </strong>
               )}
             </div>
-            {!currentParticipantId ? (
+            {!currentParticipantId && group.accessType !== "REGISTERED_ONLY" ? (
               <button className="secondaryButton" onClick={() => setShowWhoAreYou(true)}>{t("whoAreYou")}</button>
+            ) : !currentParticipantId ? (
+              <p className="muted">{t("registeredParticipantsAutoAdded")}</p>
             ) : outgoingSettlements.length || incomingSettlements.length ? (
               <div className="list">
                 {outgoingSettlements.map((settlement, index) => (
@@ -967,55 +970,65 @@ export const GroupPage = () => {
               <div><h2>{t("participantsPanelTitle")}</h2><p className="muted">{group.people.length} {t("participantsLabel").toLocaleLowerCase()}</p></div>
               <button type="button" className="secondaryButton compact" onClick={() => void navigator.clipboard.writeText(`${window.location.origin}/join?code=${group.code}`)}><Copy size={16} /> {t("copyLink")}</button>
             </div>
-            <h3>{t("whoAreYou")}</h3>
-            <p className="muted">{t("selectYourParticipant")}</p>
-            <div className="participantChoices">
-              {group.people.filter((person) => !workflow.people.find((member) => member.id === person.id)?.inactive).map((person) => {
-                const member = workflow.people.find((entry) => entry.id === person.id);
-                return (
-                  <button
-                    className={`participantChoice${person.id === currentParticipantId ? " participantChoiceSelected" : ""}`}
-                    type="button"
-                    key={person.id}
-                    disabled={saving || Boolean(member?.claimed && !member.mine)}
-                    onClick={() => void chooseParticipant(person.id)}
-                  >
-                    {person.name}{person.id === currentParticipantId ? ` · ${t("youAre")}` : ""}
-                  </button>
-                );
-              })}
-            </div>
+            {group.accessType === "REGISTERED_ONLY" ? (
+              <p className="muted">{t("registeredParticipantsAutoAdded")}</p>
+            ) : (
+              <>
+                <h3>{t("whoAreYou")}</h3>
+                <p className="muted">{t("selectYourParticipant")}</p>
+                <div className="participantChoices">
+                  {group.people.filter((person) => !workflow.people.find((member) => member.id === person.id)?.inactive).map((person) => {
+                    const member = workflow.people.find((entry) => entry.id === person.id);
+                    return (
+                      <button
+                        className={`participantChoice${person.id === currentParticipantId ? " participantChoiceSelected" : ""}`}
+                        type="button"
+                        key={person.id}
+                        disabled={saving || Boolean(member?.claimed && !member.mine)}
+                        onClick={() => void chooseParticipant(person.id)}
+                      >
+                        {person.name}{person.id === currentParticipantId ? ` · ${t("youAre")}` : ""}
+                      </button>
+                    );
+                  })}
+                </div>
+              </>
+            )}
           </section>
           <section className="card">
-            <h2>{editingPersonId ? t("editParticipant") : t("addParticipant")}</h2>
-            <form className="inlineInput addParticipantForm" onSubmit={editingPersonId ? savePersonName : addPerson} noValidate>
-              <input
-                placeholder={t("addParticipantInput")}
-                value={personName}
-                onChange={(event) => {
-                  setPersonName(event.target.value);
-                  setFieldErrors((current) => ({ ...current, personName: "" }));
-                }}
-                maxLength={60}
-                disabled={group.locked || saving}
-                aria-invalid={Boolean(fieldErrors.personName)}
-              />
-              {fieldErrors.personName && <span className="validationMessage">{fieldErrors.personName}</span>}
-              <button className="primaryButton" type="submit" disabled={group.locked || saving}>
-                {editingPersonId ? t("saveChanges") : <><Plus size={18} /> {t("addParticipant")}</>}
-              </button>
-              {editingPersonId && <button type="button" className="secondaryButton" onClick={() => { setEditingPersonId(null); setPersonName(""); }}>{t("cancel")}</button>}
-            </form>
+            {group.accessType !== "REGISTERED_ONLY" && (
+              <>
+                <h2>{editingPersonId ? t("editParticipant") : t("addParticipant")}</h2>
+                <form className="inlineInput addParticipantForm" onSubmit={editingPersonId ? savePersonName : addPerson} noValidate>
+                  <input
+                    placeholder={t("addParticipantInput")}
+                    value={personName}
+                    onChange={(event) => {
+                      setPersonName(event.target.value);
+                      setFieldErrors((current) => ({ ...current, personName: "" }));
+                    }}
+                    maxLength={60}
+                    disabled={group.locked || saving}
+                    aria-invalid={Boolean(fieldErrors.personName)}
+                  />
+                  {fieldErrors.personName && <span className="validationMessage">{fieldErrors.personName}</span>}
+                  <button className="primaryButton" type="submit" disabled={group.locked || saving}>
+                    {editingPersonId ? t("saveChanges") : <><Plus size={18} /> {t("addParticipant")}</>}
+                  </button>
+                  {editingPersonId && <button type="button" className="secondaryButton" onClick={() => { setEditingPersonId(null); setPersonName(""); }}>{t("cancel")}</button>}
+                </form>
+              </>
+            )}
             <div className="list participantManagementList">
               {group.people.map((person) => {
                 const member = workflow.people.find((entry) => entry.id === person.id);
                 return (
                   <article className={`participantManagementRow${member?.inactive ? " participantInactive" : ""}`} key={person.id}>
                     <div><strong>{person.name}{person.id === currentParticipantId ? ` · ${t("youAre")}` : ""}</strong><small>{person.payments.length} {person.payments.length === 1 ? t("expense") : t("expenses")}{member?.inactive ? ` · ${t("inactive")}` : ""}</small></div>
-                    <div className="participantActions">
+                    {group.accessType !== "REGISTERED_ONLY" && <div className="participantActions">
                       <button type="button" className="secondaryButton compact" disabled={group.locked || !workflow.canAdmin || saving} onClick={() => { setEditingPersonId(person.id); setPersonName(person.name); }}>{t("edit")}</button>
                       <button type="button" className="secondaryButton compact" disabled={group.locked || !workflow.canAdmin || saving} onClick={() => void setParticipantInactive(person.id, !member?.inactive)}>{member?.inactive ? t("reactivate") : t("deactivate")}</button>
-                    </div>
+                    </div>}
                   </article>
                 );
               })}

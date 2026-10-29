@@ -111,7 +111,11 @@ async function responseJson<T>(response: Response): Promise<T> {
     const error = await response
       .json()
       .catch(() => ({ error: "Request failed" }));
-    throw new Error(error.error ?? error.message ?? "Request failed");
+    const requestError = new Error(
+      error.error ?? error.message ?? "Request failed",
+    ) as Error & { status: number };
+    requestError.status = response.status;
+    throw requestError;
   }
 
   return response.json() as Promise<T>;

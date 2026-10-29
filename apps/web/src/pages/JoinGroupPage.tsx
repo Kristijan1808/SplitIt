@@ -12,6 +12,7 @@ export function JoinGroupPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [requiresLogin, setRequiresLogin] = useState(false);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -41,7 +42,14 @@ export function JoinGroupPage() {
       const group = await api.joinGroup({ code: code.trim(), password });
       navigate(`/g/${group.slug}?chooseParticipant=1`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : t("somethingWentWrong"));
+      if (err instanceof Error && "status" in err && err.status === 401) {
+        setRequiresLogin(true);
+        setError(t("registeredJoinRequiresLogin"));
+        showToast(t("registeredJoinRequiresLogin"));
+      } else {
+        setRequiresLogin(false);
+        setError(err instanceof Error ? err.message : t("somethingWentWrong"));
+      }
     }
   }
 
@@ -99,6 +107,14 @@ export function JoinGroupPage() {
           </label>
 
           {error && <p className="error">{error}</p>}
+          {requiresLogin && (
+            <Link
+              className="secondaryButton"
+              to={`/login?redirect=${encodeURIComponent(`/join?code=${code.trim()}`)}`}
+            >
+              {t("login")}
+            </Link>
+          )}
 
           <button className="primaryButton" type="submit">
             <UserRoundPlus size={18} /> {t("joinButton")}

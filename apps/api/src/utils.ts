@@ -195,7 +195,7 @@ export const serializeGroup = (
     people: group.people.map((person) => ({
       id: person.id,
       name: person.name,
-      claimed: !!person.identityKey,
+      claimed: !!person.identityKey || !!person.userId,
       inactive: person.inactive,
       groupId: person.groupId,
       createdAt: person.createdAt,

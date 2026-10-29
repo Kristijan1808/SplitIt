@@ -50,7 +50,7 @@ export class GroupService {
     const body = createGroupSchema.parse(req.body);
     const authUser = getUserFromRequest(req);
     const user = authUser
-      ? await prisma.user.findUnique({ where: { id: authUser.id }, select: { id: true } })
+      ? await prisma.user.findUnique({ where: { id: authUser.id }, select: { id: true, username: true } })
       : null;
     if (body.accessType === "REGISTERED_ONLY" && !user) {
       throw Object.assign(new Error("Sign in to create a registered-only group"), { status: 401 });
@@ -75,7 +75,9 @@ export class GroupService {
         ...(user ? { members: { create: { userId: user.id, role: "OWNER" } } } : {}),
 
         people: {
-          create: uniquePeople.map((name) => ({ name }))
+          create: body.accessType === "REGISTERED_ONLY"
+            ? [{ name: user!.username, user: { connect: { id: user!.id } } }]
+            : uniquePeople.map((name) => ({ name }))
         },
         history: {
           create: {
@@ -95,7 +97,7 @@ export class GroupService {
     const body = joinGroupSchema.parse(req.body);
     const authUser = getUserFromRequest(req);
     const user = authUser
-      ? await prisma.user.findUnique({ where: { id: authUser.id }, select: { id: true } })
+      ? await prisma.user.findUnique({ where: { id: authUser.id }, select: { id: true, username: true } })
       : null;
 
     const group = await prisma.group.findUnique({where:{code:body.code.toUpperCase()}});
@@ -116,15 +118,27 @@ export class GroupService {
     if (!validPassword) throw invalidJoinCredentials(req);
 
 
-    await prisma.groupSession.upsert({where:{groupId_key:{groupId:group.id,key:creatorKey(req)}}, create:{groupId:group.id,key:creatorKey(req)}, update:{}});
-    if (user) {
-      await prisma.groupMember.upsert({
-        where: { groupId_userId: { groupId: group.id, userId: user.id } },
-        create: { groupId: group.id, userId: user.id, role: group.ownerUserId === user.id ? "OWNER" : "MEMBER" },
+    await prisma.$transaction(async (tx) => {
+      await tx.groupSession.upsert({
+        where: { groupId_key: { groupId: group.id, key: creatorKey(req) } },
+        create: { groupId: group.id, key: creatorKey(req) },
         update: {}
       });
-    }
-
+      if (user) {
+        await tx.groupMember.upsert({
+          where: { groupId_userId: { groupId: group.id, userId: user.id } },
+          create: { groupId: group.id, userId: user.id, role: group.ownerUserId === user.id ? "OWNER" : "MEMBER" },
+          update: {}
+        });
+        if (group.accessType === "REGISTERED_ONLY") {
+          await tx.person.upsert({
+            where: { groupId_userId: { groupId: group.id, userId: user.id } },
+            create: { groupId: group.id, userId: user.id, name: user.username },
+            update: {}
+          });
+        }
+      }
+    });
 
     const refreshed = await this.getGroupBySlug(group.slug);
     return serializeGroup(refreshed!);
@@ -139,6 +153,21 @@ export class GroupService {
 
     if (!access.allowed) {
       throw new Error(access.error ?? "Access denied");
+    }
+
+    const authUser = getUserFromRequest(req);
+    if (group.accessType === "REGISTERED_ONLY" && authUser) {
+      const user = await prisma.user.findUnique({
+        where: { id: authUser.id },
+        select: { id: true, username: true },
+      });
+      if (user) {
+        await prisma.person.upsert({
+          where: { groupId_userId: { groupId: group.id, userId: user.id } },
+          create: { groupId: group.id, userId: user.id, name: user.username },
+          update: {},
+        });
+      }
     }
 
     const updated = await this.getGroupBySlug(slug);

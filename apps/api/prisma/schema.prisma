@@ -23,6 +23,7 @@ model User {
 
   ownedGroups Group[]       @relation("GroupOwner")
   memberships GroupMember[]
+  people      Person[]
 
   @@map("users")
 }
@@ -73,6 +74,8 @@ model GroupMember {
 model Person {
   identityKey String?
   @@unique([groupId, identityKey])
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
   inactive Boolean @default(false)
   id        String   @id @default(uuid())
   name      String
@@ -90,6 +93,7 @@ model Person {
   draftPayers     ExpenseDraftPayer[]
   draftItemShares ExpenseDraftItemShare[]
 
+  @@unique([groupId, userId])
   @@map("people")
 }
 

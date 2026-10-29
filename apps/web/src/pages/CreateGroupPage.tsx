@@ -6,6 +6,7 @@ import { useLanguage } from "../i18n";
 import { api } from "../api";
 import type { AccessType } from "../types";
 import { showToast } from "../notifications";
+import { getAuthUser, isLoggedIn } from "../auth";
 
 export function CreateGroupPage() {
   const navigate = useNavigate();
@@ -31,6 +32,11 @@ export function CreateGroupPage() {
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     setError("");
+    if (accessType === "REGISTERED_ONLY" && !isLoggedIn()) {
+      setError(t("registeredGroupLoginRequired"));
+      showToast(t("registeredGroupLoginRequired"));
+      return;
+    }
     const errors: Record<string, string> = {};
     if (!name.trim()) {
       errors.name = t("fieldRequired");
@@ -46,12 +52,14 @@ export function CreateGroupPage() {
     } else if (password.trim().length > 80) {
       errors.password = t("fieldMaxLength").replace("{count}", "80");
     }
-    people.forEach((person, index) => {
-      if (!person.trim()) errors[`person-${index}`] = t("fieldRequired");
-      else if (person.trim().length > 60) {
-        errors[`person-${index}`] = t("fieldMaxLength").replace("{count}", "60");
-      }
-    });
+    if (accessType !== "REGISTERED_ONLY") {
+      people.forEach((person, index) => {
+        if (!person.trim()) errors[`person-${index}`] = t("fieldRequired");
+        else if (person.trim().length > 60) {
+          errors[`person-${index}`] = t("fieldMaxLength").replace("{count}", "60");
+        }
+      });
+    }
     setFieldErrors(errors);
     if (Object.keys(errors).length > 0) {
       showToast(t("formCorrectionToast"));
@@ -62,7 +70,7 @@ export function CreateGroupPage() {
       const group = await api.createGroup({
         name,
         password,
-        people,
+        people: accessType === "REGISTERED_ONLY" ? [] : people,
         accessType
       });
       setCreatedCode(group.code);
@@ -140,6 +148,14 @@ export function CreateGroupPage() {
               ))}
             </fieldset>
 
+            {accessType === "REGISTERED_ONLY" ? (
+              <p className="muted">
+                {t("registeredGroupOwnerHint").replace(
+                  "{username}",
+                  getAuthUser()?.username ?? "",
+                )}
+              </p>
+            ) : (
             <div>
               <label>{t("participants")}</label>
               <div className="peopleInputs">
@@ -165,8 +181,14 @@ export function CreateGroupPage() {
                 <Plus size={18} /> {t("addParticipant")}
               </button>
             </div>
+            )}
 
             {error && <p className="error">{error}</p>}
+            {accessType === "REGISTERED_ONLY" && !isLoggedIn() && (
+              <Link className="secondaryButton" to="/login?redirect=%2Fnew">
+                {t("login")}
+              </Link>
+            )}
             <button className="primaryButton" type="submit">
               {t("createGroup")}
             </button>

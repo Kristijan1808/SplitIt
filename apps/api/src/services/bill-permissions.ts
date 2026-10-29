@@ -36,7 +36,7 @@ export function publicBills(value: any, keys: string[]): any {
   if (!value || typeof value !== "object" || value instanceof Date)
     return value;
   if (typeof value.toNumber === "function") return value.toNumber();
-  const { creatorKey: owner, identityKey, ownerKey, passwordHash, requestId, ...rest } = value;
+  const { creatorKey: owner, identityKey, ownerKey, passwordHash, requestId, userId, ...rest } = value;
   const result = Object.fromEntries(
     Object.entries(rest).map(([k, v]) => [k, publicBills(v, keys)]),
   );

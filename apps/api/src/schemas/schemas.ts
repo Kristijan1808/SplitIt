@@ -3,8 +3,30 @@ import { z } from "zod";
 export const createGroupSchema = z.object({
   name: z.string().trim().min(1).max(80),
   password: z.string().trim().min(1).max(80),
-  people: z.array(z.string().trim().min(1).max(60)).min(1),
+  people: z.array(z.string().trim().min(1).max(60)),
   accessType: z.enum(["ANONYMOUS_ONLY", "REGISTERED_ONLY", "MIXED"]).default("ANONYMOUS_ONLY")
+}).superRefine((body, context) => {
+  if (body.accessType === "REGISTERED_ONLY") {
+    if (body.people.length > 0) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["people"],
+        message: "Registered-only groups automatically add the owner as a participant"
+      });
+    }
+    return;
+  }
+
+  if (body.people.length === 0) {
+    context.addIssue({
+      code: z.ZodIssueCode.too_small,
+      minimum: 1,
+      type: "array",
+      inclusive: true,
+      path: ["people"],
+      message: "Add at least one participant"
+    });
+  }
 });
 
 const usernameSchema = z.string().trim().min(4).max(32).regex(/^[a-zA-Z0-9_.-]+$/);

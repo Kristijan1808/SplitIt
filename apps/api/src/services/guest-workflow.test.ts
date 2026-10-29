@@ -6,6 +6,7 @@ import { prisma } from "../core.js";
 import { groupService } from "./group.service.js";
 import { billKeys, creatorKey, canManageBill } from "./bill-permissions.js";
 import { ensureCanViewGroup, ensureCanEditGroup } from "./access.service.js";
+import { createGroupSchema } from "../schemas/schemas.js";
 const secret = "c".repeat(64);
 function request(extra: any = {}): any {
   return { headers:{}, get:(name:string)=>name === "X-SplitIt-Guest-Token" ? secret : extra.headers?.[name.toLowerCase()],
@@ -48,11 +49,86 @@ test("guest cannot join a registered-only group", async () => {
   } finally {(prisma.group as any).findUnique=oldFind;(prisma.groupSession as any).upsert=oldSession;}
 });
 
+test("registered-only group creation adds the creator and rejects supplied participants", async () => {
+  const oldFind = prisma.group.findUnique;
+  const oldUserFind = prisma.user.findUnique;
+  const oldCreate = prisma.group.create;
+  const token = jwt.sign({userId:"owner-user",username:"Owner"},process.env.JWT_SECRET ?? "dev-secret-change-me");
+  let data:any;
+  (prisma.group as any).findUnique=async()=>null;
+  (prisma.user as any).findUnique=async()=>({id:"owner-user",username:"Owner"});
+  (prisma.group as any).create=async(args:any)=>{data=args.data;return {...group,accessType:"REGISTERED_ONLY"};};
+  try {
+    const req=request({
+      headers:{authorization:`Bearer ${token}`},
+      body:{name:"Private group",password:"lozinka",people:[],accessType:"REGISTERED_ONLY"}
+    });
+    await groupService.create(req);
+    assert.deepEqual(data.people.create,[{name:"Owner",user:{connect:{id:"owner-user"}}}]);
+    assert.equal(data.members.create.userId,"owner-user");
+    assert.equal(
+      createGroupSchema.safeParse({
+        name:"Private group",
+        password:"lozinka",
+        people:["Someone else"],
+        accessType:"REGISTERED_ONLY"
+      }).success,
+      false
+    );
+  } finally {
+    (prisma.group as any).findUnique=oldFind;
+    (prisma.user as any).findUnique=oldUserFind;
+    (prisma.group as any).create=oldCreate;
+  }
+});
+
+test("registered-only join creates one account-linked participant after password validation", async () => {
+  const oldFind=prisma.group.findUnique;
+  const oldUserFind=prisma.user.findUnique;
+  const oldTransaction=prisma.$transaction;
+  const oldGet=groupService.getGroupBySlug;
+  const found={...group,accessType:"REGISTERED_ONLY",passwordHash:await bcrypt.hash("lozinka",4)};
+  const writes:any[]=[];
+  (prisma.group as any).findUnique=async()=>found;
+  (prisma.user as any).findUnique=async()=>({id:"member-user",username:"Member"});
+  (prisma as any).$transaction=async(fn:any)=>fn({
+    groupSession:{upsert:async(args:any)=>writes.push({table:"session",...args})},
+    groupMember:{upsert:async(args:any)=>writes.push({table:"member",...args})},
+    person:{upsert:async(args:any)=>writes.push({table:"person",...args})},
+  });
+  (groupService as any).getGroupBySlug=async()=>({
+    ...found,
+    people:[],
+    expenses:[],
+    history:[],
+    draftExpenses:[],
+  });
+  try {
+    const token=jwt.sign({userId:"member-user",username:"Member"},process.env.JWT_SECRET ?? "dev-secret-change-me");
+    await groupService.join(request({
+      headers:{authorization:`Bearer ${token}`},
+      body:{code:"ABC123",password:"lozinka"}
+    }));
+    const personWrite=writes.find((write)=>write.table==="person");
+    assert.deepEqual(personWrite.where.groupId_userId,{groupId:"g",userId:"member-user"});
+    assert.deepEqual(personWrite.create,{groupId:"g",userId:"member-user",name:"Member"});
+    assert.equal(writes.filter((write)=>write.table==="person").length,1);
+  } finally {
+    (prisma.group as any).findUnique=oldFind;
+    (prisma.user as any).findUnique=oldUserFind;
+    (prisma as any).$transaction=oldTransaction;
+    (groupService as any).getGroupBySlug=oldGet;
+  }
+});
+
 test("guest can join a mixed-access group with code and password", async () => {
-  const oldFind=prisma.group.findUnique,oldSession=prisma.groupSession.upsert;
+  const oldFind=prisma.group.findUnique,oldTransaction=prisma.$transaction,oldGet=groupService.getGroupBySlug;
   const found={...group,accessType:"MIXED",passwordHash:await bcrypt.hash("lozinka",4)};let saved:any;
   (prisma.group as any).findUnique=async()=>found;
-  (prisma.groupSession as any).upsert=async(args:any)=>{saved=args;return {};};
+  (prisma as any).$transaction=async(fn:any)=>fn({
+    groupSession:{upsert:async(args:any)=>{saved=args;return {};}},
+  });
+  (groupService as any).getGroupBySlug=async()=>({...found,people:[],expenses:[],history:[],draftExpenses:[]});
   try {
     const req=request({body:{code:"ABC123",password:"lozinka"}});
     await groupService.join(req);
@@ -71,7 +147,11 @@ test("guest can join a mixed-access group with code and password", async () => {
       },
     );
     assert.equal(saved,null);
-  } finally {(prisma.group as any).findUnique=oldFind;(prisma.groupSession as any).upsert=oldSession;}
+  } finally {
+    (prisma.group as any).findUnique=oldFind;
+    (prisma as any).$transaction=oldTransaction;
+    (groupService as any).getGroupBySlug=oldGet;
+  }
 });
 
 test("join credential errors use the requested language for unknown groups", async () => {

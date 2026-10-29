@@ -51,6 +51,12 @@ export class PersonService {
           });
       }
 
+      if (group.accessType === "REGISTERED_ONLY") {
+        return res.status(403).json({
+          error: "Registered-only groups automatically add participants when members join"
+        });
+      }
+
       const name =
         body.name.trim();
 
@@ -154,6 +160,12 @@ export class PersonService {
       if (!person) {
         return res.status(404).json({
           error: "Person not found"
+        });
+      }
+
+      if (group.accessType === "REGISTERED_ONLY" && person.userId) {
+        return res.status(403).json({
+          error: "Registered participants must keep their account username"
         });
       }
 

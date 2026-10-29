@@ -13,7 +13,10 @@ export const failure=(message:string,status=400)=>Object.assign(new Error(messag
 export async function actorPerson(req:Request,groupId:string){
  const id=req.get("X-SplitIt-Participant-Id");
  const person=id?await prisma.person.findFirst({where:{id,groupId,inactive:false}}):null;
- if(!person || !person.identityKey || !billKeys(req).includes(person.identityKey))throw failure("Odaberi i poveži svoje ime u Sudionicima.",403);
+ const user=getUserFromRequest(req);
+ const ownsPerson=!!person?.userId&&person.userId===user?.id;
+ const ownsDevice=!!person?.identityKey&&billKeys(req).includes(person.identityKey);
+ if(!person || (!ownsPerson && !ownsDevice))throw failure("Odaberi i poveži svoje ime u Sudionicima.",403);
  return person;
 }
 export const groupGate:RequestHandler=async(req,res,next)=>{try{
@@ -35,19 +38,27 @@ const wrap=(fn:(req:Request,res:any)=>Promise<unknown>):RequestHandler=>async(re
 async function editable(req:Request,group:any){const a=await ensureCanEditGroup(group,req);if(!a.allowed)throw failure(a.error!,a.status)}
 const serial={isolationLevel:Prisma.TransactionIsolationLevel.Serializable};
 workflowRouter.get("/",wrap(async(req,res)=>{
- const g=res.locals.group,keys=billKeys(req);
+ const g=res.locals.group,keys=billKeys(req),user=getUserFromRequest(req);
  const [people,selections,transfers,sessions]=await Promise.all([
  prisma.person.findMany({where:{groupId:g.id},orderBy:{createdAt:"asc"}}),
  prisma.draftSelection.findMany({where:{draft:{groupId:g.id,confirmedExpenseId:null}}}),
  prisma.settlementTransfer.findMany({where:{groupId:g.id},orderBy:{createdAt:"desc"}}),
  prisma.groupSession.findMany({where:{groupId:g.id}})]);
  res.json({avatar:g.avatar,archived:g.archived,canAdmin:res.locals.admin,canOwn:res.locals.owner,
- people:people.map(p=>({id:p.id,name:p.name,role:sessions.find(s=>s.key===p.identityKey)?.role||"MEMBER",inactive:p.inactive,claimed:!!p.identityKey,mine:!!p.identityKey&&keys.includes(p.identityKey)})),selections,
+ people:people.map(p=>({id:p.id,name:p.name,role:sessions.find(s=>s.key===p.identityKey)?.role||"MEMBER",inactive:p.inactive,claimed:!!p.identityKey||!!p.userId,mine:(!!p.userId&&p.userId===user?.id)||!!p.identityKey&&keys.includes(p.identityKey)})),selections,
  transfers:transfers.map(p=>({...p,amount:Number(p.amount)}))});
 }));
 workflowRouter.post("/identity",wrap(async(req,res)=>{
  const g=res.locals.group;await editable(req,g);
  let personId:string|undefined;const keys=billKeys(req),key=creatorKey(req);
+ if(g.accessType==="REGISTERED_ONLY"){
+ const user=getUserFromRequest(req);
+ if(!user)throw failure("Sign in to choose your participant.",401);
+ const {personId:requestedPersonId}=z.object({personId:z.string().min(1)}).strict().parse(req.body);
+ const person=await prisma.person.findFirst({where:{groupId:g.id,userId:user.id,inactive:false}});
+ if(!person||person.id!==requestedPersonId)throw failure("Choose the participant linked to your account.",403);
+ res.json({ok:true,personId:person.id});return;
+ }
  await prisma.$transaction(async tx=>{
  const live=await tx.group.findUniqueOrThrow({where:{id:g.id}});
  if(live.locked||live.archived)throw failure("Grupa je zaključana ili arhivirana.",423);

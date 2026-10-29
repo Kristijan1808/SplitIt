@@ -27,6 +27,17 @@ For Google registration and sign-in, create a Google OAuth 2.0 Web application c
 
 The uploaded image is limited to 10 MB and accepted formats are JPEG, PNG, WebP, and GIF.
 
+## Registered-only groups
+
+Creating a registered-only group requires a signed-in account. The creator is added as a participant using their account username, and each signed-in member who joins with the group code and password gets one account-linked participant automatically. Registered-only groups do not allow manually adding participants. Participant ownership is linked by account ID, not inferred from a matching name.
+
+Apply the API migrations before deploying the registered-only participant flow:
+
+```bash
+cd api
+npx prisma migrate deploy
+```
+
 ## Install
 
 API:
