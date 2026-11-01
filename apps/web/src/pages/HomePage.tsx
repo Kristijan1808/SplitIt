@@ -44,7 +44,7 @@ export function HomePage() {
         <Link to="/my-groups" className="secondaryButton homeActionButton">
           {t("myGroups")}
         </Link>
-        <Link to="/subscriptions" className="secondaryButton homeActionButton">
+        <Link to="/subscriptions" className="secondaryButton homeActionButton subscriptionsBtn">
           <CreditCard size={18} /> {t("subscriptions")}
         </Link>
         {username ? (

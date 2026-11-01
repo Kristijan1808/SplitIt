@@ -40,6 +40,48 @@ const sanitizeDecimalInput = (value: string): string => {
   );
 };
 
+type EqualSplitMode = "equal" | "amount" | "percent" | "weight";
+
+const decimalToCents = (value: string): number | null => {
+  if (!/^\d+(\.\d{1,2})?$/.test(value)) return null;
+  const [whole, fraction = ""] = value.split(".");
+  return Number(whole) * 100 + Number(fraction.padEnd(2, "0"));
+};
+
+const allocateEqualShares = (
+  totalCents: number,
+  participantIds: string[],
+  values: Record<string, string>,
+  mode: Exclude<EqualSplitMode, "equal">,
+): { shares: number[]; valid: boolean } => {
+  const numbers = participantIds.map((id) => decimalToCents(values[id] ?? ""));
+  if (numbers.some((value) => value === null)) return { shares: [], valid: false };
+  const amounts = numbers.filter((value): value is number => value !== null);
+
+  if (mode === "amount") {
+    return {
+      shares: amounts,
+      valid: amounts.reduce((sum, amount) => sum + amount, 0) === totalCents,
+    };
+  }
+  if (mode === "percent" && amounts.reduce((sum, amount) => sum + amount, 0) !== 10000) {
+    return { shares: [], valid: false };
+  }
+
+  const weightTotal = amounts.reduce((sum, amount) => sum + amount, 0);
+  if (weightTotal <= 0) return { shares: [], valid: false };
+  const rawAmounts = amounts.map((amount) => totalCents * amount / weightTotal);
+  const shares = rawAmounts.map(Math.floor);
+  const remainderOrder = rawAmounts
+    .map((amount, index) => ({ index, fraction: amount - shares[index] }))
+    .sort((left, right) => right.fraction - left.fraction || left.index - right.index);
+  const remainder = totalCents - shares.reduce((sum, amount) => sum + amount, 0);
+  for (let index = 0; index < remainder; index += 1) {
+    shares[remainderOrder[index % remainderOrder.length].index] += 1;
+  }
+  return { shares, valid: true };
+};
+
 export const GroupAddExpensePage = () => {
   const navigate = useNavigate();
   const { slug = "" } = useParams();
@@ -49,6 +91,11 @@ export const GroupAddExpensePage = () => {
 
   const [group, setGroup] = useState<Group | null>(null);
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
+  const [entryMode, setEntryMode] = useState<"equal" | "items">("equal");
+  const [equalAmount, setEqualAmount] = useState("");
+  const [equalParticipantIds, setEqualParticipantIds] = useState<string[]>([]);
+  const [equalSplitMode, setEqualSplitMode] = useState<EqualSplitMode>("equal");
+  const [equalSplitValues, setEqualSplitValues] = useState<Record<string, string>>({});
   const [assignNow,setAssignNow]=useState(false);
   const [requestId]=useState(()=>crypto.randomUUID());
   const [saved,setSaved]=useState(false);
@@ -69,6 +116,7 @@ export const GroupAddExpensePage = () => {
       try {
         const currentGroup = await api.getGroup(slug);
         setGroup(currentGroup);
+        setEqualParticipantIds(currentGroup.people.map((person) => person.id));
         const expense = editExpenseId
           ? currentGroup.expenses.find((entry) => entry.id === editExpenseId)
           : undefined;
@@ -124,13 +172,20 @@ export const GroupAddExpensePage = () => {
     void load();
   }, [slug, navigate, editExpenseId]);
 
+  const equalMode = !editingExpense && entryMode === "equal";
+
   const itemTotal = useMemo(
-    () =>
-      draftItems.reduce((sum, item) => {
+    () => {
+      if (equalMode) {
+        const amount = Number(equalAmount);
+        return Number.isFinite(amount) && amount >= 0 ? Math.round(amount * 100) / 100 : 0;
+      }
+      return draftItems.reduce((sum, item) => {
         const value = (Math.round(Number(item.price)*100)*Number(item.quantity??1)/100);
         return sum + (Number.isFinite(value) && value >= 0 ? value : 0);
-      }, 0),
-    [draftItems]
+      }, 0);
+    },
+    [draftItems, equalAmount, equalMode]
   );
 
   const payerTotal = useMemo(
@@ -145,22 +200,26 @@ export const GroupAddExpensePage = () => {
   const difference = Number((payerTotal - itemTotal).toFixed(2));
 
   const assignedTotal = useMemo(
-    () =>
-      draftItems.reduce((sum, item) => {
+    () => {
+      if (equalMode) return equalParticipantIds.length > 0 ? itemTotal : 0;
+      return draftItems.reduce((sum, item) => {
         if (!assignNow || item.assignedPersonIds.length === 0) return sum;
         const value = (Math.round(Number(item.price)*100)*Number(item.quantity??1)/100);
         return sum + (Number.isFinite(value) && value > 0 ? value : 0);
-      }, 0),
-    [draftItems,assignNow]
+      }, 0);
+    },
+    [draftItems, assignNow, equalMode, equalParticipantIds.length, itemTotal]
   );
 
-  const unassignedAmount = Number((itemTotal - (assignNow?assignedTotal:0)).toFixed(2));
+  const unassignedAmount = Number((itemTotal - (equalMode || assignNow ? assignedTotal : 0)).toFixed(2));
 
   const allItemsAssigned = useMemo(
     () =>
-      draftItems.length > 0 &&
-      draftItems.every((item) => item.assignedPersonIds.length > 0),
-    [draftItems]
+      equalMode
+        ? equalParticipantIds.length > 0
+        : draftItems.length > 0 &&
+          draftItems.every((item) => item.assignedPersonIds.length > 0),
+    [draftItems, equalMode, equalParticipantIds.length]
   );
 
   const assignmentAmountInvalid = assignedTotal - itemTotal > 0.009;
@@ -362,6 +421,7 @@ export const GroupAddExpensePage = () => {
           assignedPersonIds: group?.people.map((person) => person.id) ?? []
         }))
       );
+      setEntryMode("items");
     } catch (error) {
       setActionError(
         error instanceof Error
@@ -426,20 +486,31 @@ export const GroupAddExpensePage = () => {
     if(saved){navigate(`/g/${slug}`);return;}
     setActionError("");
     const errors: Record<string, string> = {};
-    if (draftItems.length === 0) errors.items = t("atLeastOneItem");
-    for (const item of draftItems) {
-      if (!item.name.trim()) {
-        errors[`item-${item.id}-name`] = t("fieldRequired");
-      } else if (item.name.trim().length > 120) {
-        errors[`item-${item.id}-name`] = t("fieldMaxLength").replace("{count}", "120");
+    if (equalMode) {
+      if (!equalAmount.trim()) {
+        errors.equalAmount = t("fieldRequired");
+      } else if (!/^\d+(\.\d{1,2})?$/.test(equalAmount) || Number(equalAmount) <= 0) {
+        errors.equalAmount = t("invalidPrice");
       }
-      if (!item.price.trim()) {
-        errors[`item-${item.id}-price`] = t("fieldRequired");
-      } else if (!/^\d+(\.\d{1,2})?$/.test(item.price)) {
-        errors[`item-${item.id}-price`] = t("invalidPrice");
+      if (equalParticipantIds.length === 0) {
+        errors.equalParticipants = t("selectAtLeastOneParticipant");
       }
-      if (!Number.isInteger(Number(item.quantity ?? 1)) || Number(item.quantity ?? 1) < 1 || Number(item.quantity ?? 1) > 999) {
-        errors[`item-${item.id}-quantity`] = t("invalidQuantity");
+    } else {
+      if (draftItems.length === 0) errors.items = t("atLeastOneItem");
+      for (const item of draftItems) {
+        if (!item.name.trim()) {
+          errors[`item-${item.id}-name`] = t("fieldRequired");
+        } else if (item.name.trim().length > 120) {
+          errors[`item-${item.id}-name`] = t("fieldMaxLength").replace("{count}", "120");
+        }
+        if (!item.price.trim()) {
+          errors[`item-${item.id}-price`] = t("fieldRequired");
+        } else if (!/^\d+(\.\d{1,2})?$/.test(item.price)) {
+          errors[`item-${item.id}-price`] = t("invalidPrice");
+        }
+        if (!Number.isInteger(Number(item.quantity ?? 1)) || Number(item.quantity ?? 1) < 1 || Number(item.quantity ?? 1) > 999) {
+          errors[`item-${item.id}-quantity`] = t("invalidQuantity");
+        }
       }
     }
     if (draftPayers.length === 0) errors.payers = t("atLeastOnePayer");
@@ -461,10 +532,30 @@ export const GroupAddExpensePage = () => {
         }
       }
     }
-    const totalForValidation = draftItems.reduce(
-      (sum, item) => sum + (Math.round(Number(item.price) * 100) * Number(item.quantity ?? 1) / 100),
-      0,
-    );
+    const totalForValidation = equalMode
+      ? Math.round(Number(equalAmount) * 100) / 100
+      : draftItems.reduce(
+          (sum, item) => sum + (Math.round(Number(item.price) * 100) * Number(item.quantity ?? 1) / 100),
+          0,
+        );
+    const equalShareAllocation = equalMode && equalSplitMode !== "equal"
+      ? allocateEqualShares(
+          Math.round(totalForValidation * 100),
+          equalParticipantIds,
+          equalSplitValues,
+          equalSplitMode,
+        )
+      : { shares: [], valid: true };
+    if (equalMode && equalSplitMode !== "equal" && !equalShareAllocation.valid) {
+      const inputsValid = equalParticipantIds.every((id) => decimalToCents(equalSplitValues[id] ?? "") !== null);
+      errors.equalSplit = !inputsValid
+        ? t("invalidAmount")
+        : equalSplitMode === "amount"
+          ? t("splitAmountTotalMustMatch")
+          : equalSplitMode === "percent"
+            ? t("splitPercentTotalMustBe100")
+            : t("invalidSplitValues");
+    }
     const paidForValidation = draftPayers.reduce((sum, payer) => sum + (Number(payer.amount) || 0), 0);
     if (draftPayers.length > 0 && Math.abs(paidForValidation - totalForValidation) >= 0.01) {
       errors.paymentTotal = t("paidTotalMustMatch");
@@ -477,27 +568,31 @@ export const GroupAddExpensePage = () => {
       return;
     }
 
-    const validItems = draftItems.filter(
-      (item) =>
-        item.name.trim().length > 0 &&
-        Number.isFinite((Math.round(Number(item.price)*100)*Number(item.quantity??1)/100)) &&
-        (Math.round(Number(item.price)*100)*Number(item.quantity??1)/100) >= 0
-    );
+    const validItems = equalMode
+      ? []
+      : draftItems.filter(
+          (item) =>
+            item.name.trim().length > 0 &&
+            Number.isFinite((Math.round(Number(item.price)*100)*Number(item.quantity??1)/100)) &&
+            (Math.round(Number(item.price)*100)*Number(item.quantity??1)/100) >= 0
+        );
 
-    if (validItems.length === 0) {
+    if (!equalMode && validItems.length === 0) {
       setActionError(t("atLeastOneItem"));
       showToast(t("formCorrectionToast"));
       return;
     }
 
-    const allValidItemsAssigned = validItems.every(
-      (item) => item.assignedPersonIds.length > 0
-    );
+    const allValidItemsAssigned = equalMode
+      ? equalParticipantIds.length > 0
+      : validItems.every((item) => item.assignedPersonIds.length > 0);
 
-    const validItemsTotal = validItems.reduce(
-      (sum, item) => sum + (Math.round(Number(item.price)*100)*Number(item.quantity??1)/100),
-      0
-    );
+    const validItemsTotal = equalMode
+      ? totalForValidation
+      : validItems.reduce(
+          (sum, item) => sum + (Math.round(Number(item.price)*100)*Number(item.quantity??1)/100),
+          0
+        );
 
     const validPayers = draftPayers.filter(
       (payer) =>
@@ -524,11 +619,13 @@ export const GroupAddExpensePage = () => {
       0
     );
 
-    const validAssignedTotal = validItems.reduce((sum, item) => {
-      if (item.assignedPersonIds.length === 0) return sum;
-      const value = (Math.round(Number(item.price)*100)*Number(item.quantity??1)/100);
-      return sum + (Number.isFinite(value) && value > 0 ? value : 0);
-    }, 0);
+    const validAssignedTotal = equalMode
+      ? validItemsTotal
+      : validItems.reduce((sum, item) => {
+          if (item.assignedPersonIds.length === 0) return sum;
+          const value = (Math.round(Number(item.price)*100)*Number(item.quantity??1)/100);
+          return sum + (Number.isFinite(value) && value > 0 ? value : 0);
+        }, 0);
     const finalUnassignedAmount = Number(
       (validItemsTotal - validAssignedTotal).toFixed(2)
     );
@@ -562,7 +659,19 @@ export const GroupAddExpensePage = () => {
           personId: payer.personId,
           amount: Number(payer.amount)
         })),
-        items: validItems.map((item, index) => ({
+        items: equalMode
+          ? [{
+              ordinalNumber: 1,
+              quantity: 1,
+              splitMode: "shared" as const,
+              name: note.trim() || t("expense"),
+              price: validItemsTotal,
+              shares: equalParticipantIds.map((personId, index) => ({
+                personId,
+                ...(equalSplitMode === "equal" ? {} : { amount: equalShareAllocation.shares[index] / 100 }),
+              })),
+            }]
+          : validItems.map((item, index) => ({
           ordinalNumber: index + 1,
           quantity:Number(item.quantity??1),
           splitMode: item.splitMode ?? (!assignNow && Number(item.quantity??1)>1 ? "units" : "shared"),
@@ -625,11 +734,11 @@ export const GroupAddExpensePage = () => {
         <div className="sectionHeaderWithButton">
           <div>
             <p className="eyebrow">{editingExpense ? t("editExpense") : t("newExpense")}</p>
-            <h2>{editingExpense ? t("editExpense") : t("addItems")} · {group?.currency||"EUR"}</h2>
+            <h2>{editingExpense ? t("editExpense") : t("newExpense")} · {group?.currency||"EUR"}</h2>
           </div>
           <div className="randomSplitHeaderAction">
             <strong>{itemTotal.toFixed(2)}</strong>
-            <button
+            {(editingExpense || entryMode === "items") && <button
               type="button"
               className="spinTriggerButton"
               onClick={() => setRandomSplitTarget("global")}
@@ -638,13 +747,38 @@ export const GroupAddExpensePage = () => {
             >
               <Dices size={17} />
               <span>SPIN</span>
-            </button>
+            </button>}
           </div>
         </div>
 
         {/* ITEMS */}
         <div className="form">
-          {!editingExpense && <div className="billImageActions">
+          {!editingExpense && <div className="expenseModeSelector" role="radiogroup" aria-label={t("newExpense")}>
+            <button
+              type="button"
+              role="radio"
+              aria-checked={entryMode === "equal"}
+              className={`expenseModeOption${entryMode === "equal" ? " selected" : ""}`}
+              disabled={group.locked}
+              onClick={() => setEntryMode("equal")}
+            >
+              <strong>{t("withoutItems")}</strong>
+              <span>{t("oneAmountForAll")}</span>
+            </button>
+            <button
+              type="button"
+              role="radio"
+              aria-checked={entryMode === "items"}
+              className={`expenseModeOption${entryMode === "items" ? " selected" : ""}`}
+              disabled={group.locked}
+              onClick={() => setEntryMode("items")}
+            >
+              <strong>{t("byItems")}</strong>
+              <span>{t("everyonePicksItems")}</span>
+            </button>
+          </div>}
+
+          {!editingExpense && entryMode === "items" && <div className="billImageActions">
             {/* Camera */}
             <input
               id="bill-camera"
@@ -694,9 +828,128 @@ export const GroupAddExpensePage = () => {
               </button>
             )}
           </div>}
-          {!editingExpense && billParseRetryUsed && <p className="billImageHint">{t("billRetryGuidance")}</p>}
+          {!editingExpense && entryMode === "items" && billParseRetryUsed && <p className="billImageHint">{t("billRetryGuidance")}</p>}
 
-          <div>
+          <label>
+            {t("note")}
+            <input
+              value={note}
+              onChange={(event) => setNote(event.target.value)}
+              placeholder={t("billNote")}
+              maxLength={200}
+              disabled={group.locked}
+            />
+          </label>
+
+          {!editingExpense && entryMode === "equal" ? (
+            <div className="equalExpenseSection">
+              <label>
+                <span>{t("amount")} ({group.currency || "EUR"})</span>
+                <input
+                  className="equalExpenseAmount"
+                  type="text"
+                  inputMode="decimal"
+                  value={equalAmount}
+                  onChange={(event) => {
+                    setEqualAmount(sanitizeDecimalInput(event.target.value));
+                    setFieldErrors((current) => ({ ...current, equalAmount: "" }));
+                  }}
+                  placeholder="0.00"
+                  disabled={group.locked}
+                  aria-invalid={Boolean(fieldErrors.equalAmount)}
+                />
+                {fieldErrors.equalAmount && <span className="validationMessage">{fieldErrors.equalAmount}</span>}
+              </label>
+              <div className="equalExpenseParticipants">
+                <strong>{t("selectedParticipants")}</strong>
+                <p className="muted">{t("chooseParticipantsHint")}</p>
+                <div className="sharePicker">
+                  {group.people.map((person) => {
+                    const selected = equalParticipantIds.includes(person.id);
+                    return (
+                      <button
+                        key={person.id}
+                        type="button"
+                        className={`expenseModeParticipant${selected ? " selected" : ""}`}
+                        aria-pressed={selected}
+                        disabled={group.locked}
+                        onClick={() => {
+                          setEqualParticipantIds((current) =>
+                            current.includes(person.id)
+                              ? current.filter((id) => id !== person.id)
+                              : [...current, person.id],
+                          );
+                          setFieldErrors((current) => ({ ...current, equalParticipants: "" }));
+                        }}
+                      >
+                        {person.name}
+                      </button>
+                    );
+                  })}
+                </div>
+                {fieldErrors.equalParticipants && <p className="validationMessage">{fieldErrors.equalParticipants}</p>}
+                <div className="equalSplitModes" role="group" aria-label={t("split")}>
+                  {([
+                    ["equal", t("splitEqually")],
+                    ["amount", t("splitModeAmounts")],
+                    ["percent", t("splitModePercent")],
+                    ["weight", t("splitModeWeights")],
+                  ] as const).map(([mode, label]) => (
+                    <button
+                      key={mode}
+                      type="button"
+                      className={`expenseModeParticipant${equalSplitMode === mode ? " selected" : ""}`}
+                      aria-pressed={equalSplitMode === mode}
+                      disabled={group.locked}
+                      onClick={() => {
+                        setEqualSplitMode(mode);
+                        setFieldErrors((current) => ({ ...current, equalSplit: "" }));
+                      }}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                {equalSplitMode !== "equal" && (
+                  <div className="equalSplitValues">
+                    <p className="muted">
+                      {t(
+                        equalSplitMode === "amount"
+                          ? "splitAmountHint"
+                          : equalSplitMode === "percent"
+                            ? "splitPercentHint"
+                            : "splitWeightHint",
+                      )}
+                    </p>
+                    {group.people.filter((person) => equalParticipantIds.includes(person.id)).map((person) => (
+                      <label key={person.id}>
+                        <span>
+                          {person.name} ({equalSplitMode === "amount"
+                            ? group.currency || "EUR"
+                            : equalSplitMode === "percent" ? "%" : t("splitModeWeights")})
+                        </span>
+                        <input
+                          type="text"
+                          inputMode="decimal"
+                          value={equalSplitValues[person.id] ?? ""}
+                          onChange={(event) => {
+                            setEqualSplitValues((current) => ({
+                              ...current,
+                              [person.id]: sanitizeDecimalInput(event.target.value),
+                            }));
+                            setFieldErrors((current) => ({ ...current, equalSplit: "" }));
+                          }}
+                          disabled={group.locked}
+                        />
+                      </label>
+                    ))}
+                    {fieldErrors.equalSplit && <p className="validationMessage">{fieldErrors.equalSplit}</p>}
+                  </div>
+                )}
+              </div>
+            </div>
+          ) : (
+          <div hidden={!editingExpense && entryMode !== "items"}>
             <div className="sectionHeaderWithButton sectionHeaderMargin">
               <div>
                 <strong>{t("billItems")}</strong>
@@ -878,7 +1131,7 @@ export const GroupAddExpensePage = () => {
               ))}
             </div>
             {fieldErrors.items && <p className="validationMessage">{fieldErrors.items}</p>}
-          </div>
+          </div>)}
 
           {/* PAYERS */}
           <div
@@ -983,17 +1236,6 @@ export const GroupAddExpensePage = () => {
           </div>
           {fieldErrors.paymentTotal && <p className="validationMessage">{fieldErrors.paymentTotal}</p>}
           {fieldErrors.assignmentTotal && <p className="validationMessage">{fieldErrors.assignmentTotal}</p>}
-
-          <label>
-            {t("note")}
-            <input
-              value={note}
-              onChange={(event) => setNote(event.target.value)}
-              placeholder={t("billNote")}
-              maxLength={200}
-              disabled={group.locked}
-            />
-          </label>
 
           {(paymentOverpaid || assignmentAmountInvalid) && (
             <div className="toastError" role="alert">

@@ -1914,6 +1914,107 @@ fieldset.accessOptions {
   animation: toastIn 0.22s ease;
 }
 
+.subscriptionsBtn{
+  margin-top: 12px;
+}
+.expenseModeSelector {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.expenseModeOption {
+  display: grid;
+  align-content: start;
+  gap: 4px;
+  min-width: 0;
+  min-height: 72px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--panel-bg);
+  color: var(--black);
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+
+.expenseModeOption span {
+  color: var(--gray);
+  font-size: 0.8rem;
+}
+
+.expenseModeOption.selected {
+  border-color: var(--accent);
+  background: var(--tint);
+}
+
+.expenseModeOption:disabled,
+.expenseModeParticipant:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.equalExpenseSection {
+  display: grid;
+  gap: 18px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--panel-bg);
+}
+
+.equalExpenseAmount {
+  min-height: 60px;
+  font-size: clamp(1.8rem, 8vw, 2.5rem) !important;
+  font-weight: 700;
+}
+
+.equalExpenseParticipants > strong {
+  display: block;
+  margin-bottom: 4px;
+}
+
+.equalExpenseParticipants > p {
+  margin: 0 0 10px;
+}
+
+.equalSplitModes,
+.equalSplitValues {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.equalSplitValues {
+  display: grid;
+}
+
+.equalSplitValues > p {
+  margin: 0;
+}
+
+.expenseModeParticipant {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 40px;
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--panel-bg);
+  color: var(--black);
+  font: inherit;
+  cursor: pointer;
+}
+
+.expenseModeParticipant.selected {
+  border-color: var(--accent);
+  background: var(--tint);
+  color: var(--accent);
+  font-weight: 700;
+}
 .subscriptionsPage {
   width: min(1080px, 100%);
   padding-bottom: 40px;
