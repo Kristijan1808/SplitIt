@@ -61,6 +61,8 @@ export function JoinGroupPage() {
         </Link>
       </div>
 
+      <header className="editorHeading">        <h1>{t("joinTitle")}</h1>
+        <p className="muted">{t("joinHint")}</p></header>
       <section className="card">
         {/^[A-Z0-9]{6}$/.test(code) && (
           <a
@@ -72,8 +74,7 @@ export function JoinGroupPage() {
               : "Open in the mobile app"}
           </a>
         )}
-        <h1>{t("joinTitle")}</h1>
-        <p className="muted">{t("joinHint")}</p>
+
 
         <form className="form" onSubmit={handleSubmit} noValidate>
           <label>

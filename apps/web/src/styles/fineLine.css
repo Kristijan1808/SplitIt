@@ -20,3 +20,47 @@
 .fl .expenseBalanceSummary,.fl .equalExpenseSection{background:var(--tint);border-radius:13px;color:var(--black)}
 @media(min-width:1024px){.fl{padding-left:240px;padding-bottom:0}.flNav{width:240px;top:0;right:auto;border:0;border-right:1px solid var(--line);align-items:stretch;justify-content:flex-start;flex-direction:column;gap:5px;padding:24px 14px}.flNav small{display:block;letter-spacing:1.4px;font-size:11px;margin:0 12px 9px;color:var(--gray)}.flNav a,.flNav a:last-child{display:flex;flex-direction:row;border-radius:11px;padding:13px;gap:10px;font-size:15px}.flNav a.on{background:var(--tint)}.flNav a:last-child{margin-top:12px;border-top:1px solid var(--line)}.flActions{bottom:12px}}
 @media(max-width:520px){.fl .groupTab{padding:8px 3px;min-width:0}.fl .groupTab svg{display:none}.fl .draftItemEditor,.fl .draftPayerEditor{min-width:0}.flItem header{align-items:start}}
+
+/* A checkbox has a small glyph; its label provides the larger tap target. */
+.fl .formCard input[type="checkbox"] {
+  width: 19px; height: 19px; min-height: 19px; min-width: 19px;
+  padding: 0; margin: 0; flex: 0 0 19px; accent-color: var(--accent);
+}
+.fl .formCard input[type="checkbox"]:focus-visible {
+  outline: 2px solid var(--accent); outline-offset: 3px;
+}
+.fl .formCard .list > label:has(> input[type="checkbox"]) {
+  display: flex; align-items: center; justify-content: flex-start;
+  gap: 9px; min-height: 44px; width: fit-content; cursor: pointer; font-weight: 650;
+}
+.fl .formCard .list > label:has(> input[type="checkbox"]) + p {
+  margin: -4px 0 4px; max-width: 68ch; color: var(--gray); font-size: 13px; line-height: 1.45;
+}
+.fl .formCard .draftItemOrdinalNumber { text-align: start; justify-self: start; }
+
+/* Native-screen layout expressed in the existing web components. */
+.fl .editorHeading {margin:0 0 12px}.fl .editorHeading h1{margin:0;font-size:24px}.fl .editorHeading p{color:var(--gray);margin:4px 0 0}
+.fl .mobileEditor{padding:0;background:transparent;border:0;box-shadow:none}.fl .editorLayout,.editorColumn,.fl .editorBasics,.editorItems{display:grid;gap:12px;min-width:0;align-content:start}
+.fl .editorBasics .billImageActions,.directoryActions,.itemsHeading,.itemHeader,.fl .titleLine,.fl .amountLine,.scanPreview>div{display:flex;align-items:center;gap:8px}
+.fl .billImageActions{margin:0;flex-wrap:wrap}.fl .billImageActionButton,.directoryActions>a{flex:1}
+.fl .expenseModeSelector{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:0}
+.fl .expenseModeOption{padding:12px;min-height:60px;border-radius:16px;display:grid;gap:4px;text-align:start;align-content:center}.fl .expenseModeOption span{font-size:12px;color:var(--gray)}
+.fl .entryIcon{flex:none;display:grid;place-items:center;width:44px;height:44px;border-radius:50%;color:var(--accent);background:var(--tint)}
+.fl .titleLine input{height:52px;flex:1;font-size:20px}.fl .currencyBadge{display:grid;place-items:center;min-width:48px;height:48px;border:1px solid var(--line);border-radius:10px;color:var(--black)}
+.fl .amountLine input.equalExpenseAmount{flex:1;min-height:60px;font-size:32px;font-weight:600;background:var(--tint);border:0}
+.visuallyHidden{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+.fl summary{cursor:pointer}.fl .splitDetails summary,.fl .billFilters summary{color:var(--accent);font-weight:700;padding:10px 2px}
+.fl .splitDetails .equalExpenseParticipants{padding-top:8px}.fl .assignmentCard{display:grid;justify-items:start;gap:8px;background:var(--tint);border-color:var(--accent)}.fl .assignmentCard p{font-size:13px;line-height:1.45;margin:0}
+.fl .assignmentChip,.fl .qtyStepper button,.fl .itemHeader button{min-height:44px;cursor:pointer;font:inherit;color:var(--accent);background:var(--panel-bg);border-radius:10px;border:1px solid var(--line);padding:6px 12px}
+.fl .assignmentChip[aria-pressed=true]{border-color:var(--accent);font-weight:700}.fl .itemsHeading{justify-content:space-between;margin:14px 0 8px}.fl .itemsHeading h2{margin:0}
+.fl .itemHeader{grid-column:1/-1;justify-content:space-between}.fl .itemHeader b{text-transform:uppercase;font-size:13px}.fl .itemHeader button{width:44px;color:var(--danger);background:none;border:0}
+.fl .draftItemEditor{display:grid;grid-template-columns:minmax(0,1fr) minmax(80px,.5fr) 138px;align-items:start;gap:8px}
+.fl .draftItemEditor>label,.fl .qtyField{min-width:0;display:grid;gap:6px;margin:0;font-size:13px;font-weight:650}.fl .draftItemEditor>label input{width:100%;height:48px}.fl .draftItemShares{grid-column:1/-1}.fl [hidden]{display:none!important}
+.fl .qtyStepper{display:grid;grid-template-columns:44px minmax(0,1fr) 44px;border:1px solid var(--line);overflow:hidden;border-radius:12px;height:48px}
+.fl .qtyStepper button{min-height:46px;border:0;border-radius:0;background:var(--tint);padding:0;font-size:21px}.fl .qtyStepper input[type=text]{min-height:0;padding:0;border:0;border-radius:0;text-align:center;width:100%}
+.fl .editorReview .payersSection{margin:0;padding:12px}.fl .editorReview .sectionHeaderMargin{margin-top:0}.fl .editorReview .sectionHeaderWithButton{flex-wrap:wrap}.fl .editorReview .draftPayerEditor{display:grid;grid-template-columns:minmax(0,1fr) minmax(64px,.7fr) auto;align-items:end;gap:6px}.fl .editorReview .totalsCard{display:grid;gap:4px;margin:0}.fl .editorReview .settlement{padding:8px 0}.fl .scanPreview>div{border-bottom:1px solid var(--line);padding:10px 0}.scanPreview b{flex:1}.fl .scanPreview button{margin-top:8px}
+.fl #expenses-container{display:grid;grid-template-columns:1fr;gap:12px}.fl #expenses-container>.grid{display:block;min-width:0}.fl .groupSummary{align-self:start;display:grid;gap:8px}.groupSummary>div:first-child,.groupSummary .balanceLine{display:flex;align-items:center;justify-content:space-between;gap:8px}.groupSummary>div:first-child strong{font-size:24px}.groupSummary .balanceLine{border-top:1px solid var(--line);padding-top:8px;flex-wrap:wrap}.balanceLine strong{font-size:18px}
+.fl .billFilters{margin-bottom:8px}.fl .expenseCard.awaitsSplit{background:var(--danger-tint)}.fl .expenseSummary{display:flex;align-items:center;gap:8px;min-width:0}.fl .billGlyph{box-sizing:content-box;flex:none;color:var(--accent);background:var(--tint);border-radius:9px;padding:7px}.fl .billDate{flex:none;display:grid;text-align:center;color:var(--gray);min-width:24px}.fl .billDate small{font-size:10px}.fl .expenseSummaryMain{flex:1;min-width:0}
+.fl .directoryActions{margin:0 0 12px}.fl .savedGroupRow{border:1px solid var(--line);border-radius:13px;background:var(--panel-bg);padding:6px 10px}.fl .groupRowLink{display:flex;align-items:center;gap:10px}.fl .savedGroupInfo{flex:1;min-width:0}
+@media(min-width:1024px){.fl .editorLayout{grid-template-columns:minmax(0,1fr) 300px;align-items:start;gap:14px}.fl #expenses-container{grid-template-columns:280px minmax(0,1fr);align-items:start}}
+@media(max-width:650px){.fl .draftItemEditor{grid-template-columns:minmax(0,1fr) 138px}.fl .draftItemEditor>label:first-of-type{grid-column:1/-1}.fl .editorReview{width:100%}.fl .expenseSummaryRow{gap:3px}}

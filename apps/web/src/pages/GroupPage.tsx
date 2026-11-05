@@ -1079,7 +1079,12 @@ export const GroupPage = () => {
       )}
 
       {activeTab === "expenses" && (
-        <section id="expenses-container">
+        <section id="expenses-container"><aside className="card groupSummary"><div><span>{t("totalSpent")}</span><strong>{group.expenses.reduce((n,e)=>n+Number(e.totalAmount),0).toFixed(2)} {group.currency||"EUR"}</strong></div>              <div className="balanceLine">
+                <span>{currentParticipant ? `${t("myBalance")} · ${currentParticipant.name}` : t("selectYourParticipant")}</span>
+                <strong>{currentBalance ? `${currentBalance.balance > 0 ? "+" : ""}${currentBalance.balance.toFixed(2)} ${group.currency || "EUR"}` : "—"}</strong>
+                <button type="button" className="textButton" onClick={() => setActiveTab("debts")}>{t("groupTabDebts")}</button>
+              </div>
+</aside>
           <div className="grid">
             <section className="card">
               <div className="sectionHeaderWithButton">
@@ -1088,12 +1093,7 @@ export const GroupPage = () => {
                   <p className="muted">{group.expenses.length} · {group.expenses.reduce((sum, expense) => sum + Number(expense.totalAmount), 0).toFixed(2)} {group.currency || "EUR"}</p>
                 </div>
               </div>
-              <div className="expenseBalanceSummary">
-                <span>{currentParticipant ? `${t("myBalance")} · ${currentParticipant.name}` : t("selectYourParticipant")}</span>
-                <strong>{currentBalance ? `${currentBalance.balance > 0 ? "+" : ""}${currentBalance.balance.toFixed(2)} ${group.currency || "EUR"}` : "—"}</strong>
-                <button type="button" className="textButton" onClick={() => setActiveTab("debts")}>{t("groupTabDebts")}</button>
-              </div>
-              <div className="expenseFilters">
+              <details className="billFilters"><summary>{t("filtersTitle")}</summary><div className="expenseFilters">
                 <input aria-label={t("searchExpenses")} placeholder={t("searchExpenses")} value={expenseSearch} onChange={(event) => setExpenseSearch(event.target.value)} />
                 <label>{t("monthFilter")}<input type="month" value={expenseMonth} onChange={(event) => setExpenseMonth(event.target.value)} /></label>
                 <label>{t("categoryFilter")}<select value={expenseCategory} onChange={(event) => setExpenseCategory(event.target.value)}><option value="">{t("allCategories")}</option><option value="other">{t("categoryOther")}</option><option value="food">{t("categoryFood")}</option><option value="travel">{t("categoryTravel")}</option><option value="home">{t("categoryHome")}</option><option value="fun">{t("categoryFun")}</option><option value="taxi">{t("categoryTaxi")}</option><option value="shopping">{t("categoryShopping")}</option><option value="health">{t("categoryHealth")}</option></select></label>
@@ -1101,7 +1101,7 @@ export const GroupPage = () => {
                 <button type="button" className={`secondaryButton compact${mineOnly ? " filterSelected" : ""}`} aria-pressed={mineOnly} onClick={() => setMineOnly((value) => !value)} disabled={!currentParticipantId}>{t("myExpenses")}</button>
                 {(expenseSearch || expenseMonth || expenseCategory || pendingOnly || mineOnly) && <button type="button" className="textButton" onClick={() => { setExpenseSearch(""); setExpenseMonth(""); setExpenseCategory(""); setPendingOnly(false); setMineOnly(false); }}>{t("clearFilters")}</button>}
               </div>
-              {(() => {
+              </details>{(() => {
                   const expenses = filteredExpenses;
                   if (group.expenses.length === 0)
                     return <p className="muted">{t("noExpensesYet")}</p>;
@@ -1120,7 +1120,7 @@ export const GroupPage = () => {
                         const currentNet = currentPayerTotal - Number(currentShare);
                         const currentInvolved = currentPayerTotal > 0 || Number(currentShare) > 0;
                         return (
-                          <div className="expenseCard" key={expense.id}>
+                          <div className={"expenseCard"+(expense.allocationComplete===false?" awaitsSplit":"")} key={expense.id}>
                             <div className="expenseSummaryRow">
                               <button
                                 type="button"
@@ -1136,7 +1136,7 @@ export const GroupPage = () => {
                                   })
                                 }
                               >
-                                <div className="expenseSummaryMain">
+                                <div className="billDate" aria-hidden="true"><small>{new Date(expense.billDate||expense.createdAt).toLocaleDateString(locale,{month:"short"})}</small><b>{new Date(expense.billDate||expense.createdAt).getDate()}</b></div><Receipt size={20} className="billGlyph"/><div className="expenseSummaryMain">
                                   <strong>{expense.note || t("expense")}</strong>
                                   {expense.allocationComplete === false && (
                                     <small className="expenseStatusPending">
@@ -1147,7 +1147,7 @@ export const GroupPage = () => {
                                     <small className="expenseStatusPending">{t("expenseCheckPayers")}</small>
                                   )}
                                   <small>
-                                    {formatLocalDateTime(expense.createdAt)} ·{" "}
+                                    {expense.payers.map(p=>p.person?.name||group.people.find(x=>x.id===p.personId)?.name).filter(Boolean).join(", ")} ·{" "}
                                     {expense.items?.length ?? 0} {t("itemsCount")}
                                   </small>
                                   {currentParticipant && (

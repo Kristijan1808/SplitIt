@@ -1,7 +1,7 @@
 
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { ArrowLeft, FolderOpen, LogOut, X } from "lucide-react";
+import { ArrowLeft, ChevronRight, Users, LogOut, X } from "lucide-react";
 import { api } from "../api";
 import { clearAuth, getAuthUser, isLoggedIn } from "../auth";
 import { ConfirmationModal } from "../components/ConfirmationModal";
@@ -90,8 +90,8 @@ export function MyGroupsPage() {
         <ArrowLeft size={18} /> {t("home")}
       </Link>
 
-      <section className="card">
-        <h1>{t("myGroups")}</h1>
+      <header className="editorHeading"><h1>{t("myGroups")}</h1></header><section className="groupDirectory">
+        <div className="directoryActions"><Link className="primaryButton" to="/new">{t("createShort")}</Link><Link className="secondaryButton" to="/join">{t("joinCode")}</Link></div>
         {error && <p className="error">{error}</p>}
 
         {groups.length === 0 ? (
@@ -105,7 +105,7 @@ export function MyGroupsPage() {
                   to={`/g/${group.slug}`}
                   aria-label={`${t("open")} ${group.name}`}
                 >
-                  <div className="savedGroupInfo">
+                  <i className="entryIcon"><Users size={21}/></i><div className="savedGroupInfo">
                     <strong>{group.name}</strong>
 
                     {group.code && (
@@ -122,7 +122,7 @@ export function MyGroupsPage() {
                   </div>
 
                   <small className="inlineFlex savedGroupOpen">
-                    <FolderOpen size={15} /> {t("open")}
+                    <ChevronRight size={18} />
                   </small>
                 </Link>
 

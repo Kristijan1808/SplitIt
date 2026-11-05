@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { ArrowLeft, Camera, ImagePlus, Plus, RefreshCw, Trash2, Dices } from "lucide-react";
+import { ArrowLeft, Camera, ReceiptText, ImagePlus, Plus, RefreshCw, Trash2, Dices } from "lucide-react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { api } from "../api";
 import { useLanguage } from "../i18n";
@@ -99,6 +99,7 @@ export const GroupAddExpensePage = () => {
   const [assignNow,setAssignNow]=useState(false);
   const [requestId]=useState(()=>crypto.randomUUID());
   const [saved,setSaved]=useState(false);
+  const [scanPreview,setScanPreview]=useState(false);
   const [note, setNote] = useState("");
   const [draftItems, setDraftItems] = useState<DraftItem[]>([]);
   const [draftPayers, setDraftPayers] = useState<DraftPayer[]>([]);
@@ -421,7 +422,7 @@ export const GroupAddExpensePage = () => {
           assignedPersonIds: group?.people.map((person) => person.id) ?? []
         }))
       );
-      setEntryMode("items");
+      setScanPreview(true);setEntryMode("items");
     } catch (error) {
       setActionError(
         error instanceof Error
@@ -716,7 +717,7 @@ export const GroupAddExpensePage = () => {
   if (!group) return null;
 
   return (
-    <main className="page wide">
+    <main className="page wide expensePage">
       {saving && (
         <div className="screenLoader">
           <div className="spinner large" />
@@ -730,29 +731,10 @@ export const GroupAddExpensePage = () => {
         {t("backToGroup")}
       </Link>
 
-      <section className="card formCard">
-        <div className="sectionHeaderWithButton">
-          <div>
-            <p className="eyebrow">{editingExpense ? t("editExpense") : t("newExpense")}</p>
-            <h2>{editingExpense ? t("editExpense") : t("newExpense")} · {group?.currency||"EUR"}</h2>
-          </div>
-          <div className="randomSplitHeaderAction">
-            <strong>{itemTotal.toFixed(2)}</strong>
-            {(editingExpense || entryMode === "items") && <button
-              type="button"
-              className="spinTriggerButton"
-              onClick={() => setRandomSplitTarget("global")}
-              disabled={group.locked || group.people.length === 0 || itemTotal <= 0}
-              title={t("randomSplitGlobal")}
-            >
-              <Dices size={17} />
-              <span>SPIN</span>
-            </button>}
-          </div>
-        </div>
-
+      <section className="formCard mobileEditor">
+        <header className="editorHeading"><h1>{editingExpense?t("editExpense"):t("newExpense")}</h1><p>{group.name}</p></header>
         {/* ITEMS */}
-        <div className="form">
+        <div className="form editorLayout"><div className="editorColumn">
           {!editingExpense && <div className="expenseModeSelector" role="radiogroup" aria-label={t("newExpense")}>
             <button
               type="button"
@@ -778,7 +760,7 @@ export const GroupAddExpensePage = () => {
             </button>
           </div>}
 
-          {!editingExpense && entryMode === "items" && <div className="billImageActions">
+          <section className="card editorBasics">{!editingExpense && entryMode === "items" && <div className="billImageActions">
             {/* Camera */}
             <input
               id="bill-camera"
@@ -830,8 +812,7 @@ export const GroupAddExpensePage = () => {
           </div>}
           {!editingExpense && entryMode === "items" && billParseRetryUsed && <p className="billImageHint">{t("billRetryGuidance")}</p>}
 
-          <label>
-            {t("note")}
+          <label className="titleLine"><span className="entryIcon"><ReceiptText aria-hidden="true"/></span><span className="visuallyHidden">{t("note")}</span>
             <input
               value={note}
               onChange={(event) => setNote(event.target.value)}
@@ -841,10 +822,10 @@ export const GroupAddExpensePage = () => {
             />
           </label>
 
-          {!editingExpense && entryMode === "equal" ? (
-            <div className="equalExpenseSection">
-              <label>
-                <span>{t("amount")} ({group.currency || "EUR"})</span>
+          {!editingExpense && entryMode === "equal" && (
+            <>
+              <label className="amountLine">
+                <span className="currencyBadge">{group.currency || "EUR"}</span>
                 <input
                   className="equalExpenseAmount"
                   type="text"
@@ -860,7 +841,9 @@ export const GroupAddExpensePage = () => {
                 />
                 {fieldErrors.equalAmount && <span className="validationMessage">{fieldErrors.equalAmount}</span>}
               </label>
-              <div className="equalExpenseParticipants">
+            </>)} </section>
+          {!editingExpense && entryMode === "equal" ? (
+            <details className="card splitDetails"><summary>{t("split")} · {t(({equal:"splitEqually",amount:"splitModeAmounts",percent:"splitModePercent",weight:"splitModeWeights"} as const)[equalSplitMode])} · {equalParticipantIds.length}</summary><div className="equalExpenseParticipants">
                 <strong>{t("selectedParticipants")}</strong>
                 <p className="muted">{t("chooseParticipantsHint")}</p>
                 <div className="sharePicker">
@@ -947,41 +930,24 @@ export const GroupAddExpensePage = () => {
                   </div>
                 )}
               </div>
-            </div>
+            </details>
           ) : (
           <div hidden={!editingExpense && entryMode !== "items"}>
-            <div className="sectionHeaderWithButton sectionHeaderMargin">
-              <div>
-                <strong>{t("billItems")}</strong>
-              </div>
-              <button
-                type="button"
-                className="secondaryButton"
-                onClick={addDraftItem}
-                disabled={group.locked}
-              >
-                <Plus size={18} />
-                {t("addItems")}
-              </button>
-            </div>
-
-            <div className="list">
-              <label><input type="checkbox" checked={assignNow} onChange={e=>{
-                setAssignNow(e.target.checked);
-                if (editingExpense) {
-                  setDraftItems(current => current.map(item => ({ ...item, originalShares: undefined })));
-                }
-              }}/>{t("assignNow")}</label>
-              <p>{t("assignNowHint")}</p>
+            <section className="card assignmentCard"><strong>{t("assignmentTitle")}</strong><p>{t("assignNowHint")}</p>
+              <button type="button" className="assignmentChip" aria-pressed={assignNow} disabled={group.locked} onClick={()=>{
+                setAssignNow(!assignNow);setScanPreview(false);
+                if(editingExpense)setDraftItems(current=>current.map(item=>({...item,originalShares:undefined})));
+              }}>{assignNow?"✓ ":""}{t("assignNow")}</button></section>
+            <div className="itemsHeading"><h2>{t("billItems")}</h2><span>{draftItems.length}</span></div>
+            {scanPreview ? <section className="card scanPreview">{draftItems.map(i=><div key={i.id}><b>{i.name}</b><small>{i.quantity||1} × {i.price}</small><strong>{(Number(i.quantity||1)*Number(i.price)).toFixed(2)} {group.currency||"EUR"}</strong></div>)}<button type="button" className="secondaryButton" onClick={()=>setScanPreview(false)}>{t("edit")}</button></section>:
+            <div className="list editorItems">
               {draftItems.map((item, index) => (
                 <div
                   key={item.id}
                   className="card draftEditorCard"
                 >
                   <div className="draftItemEditor">
-                    <div className="draftItemOrdinalNumber" aria-label={`Item ${item.ordinalNumber}`}>
-                      {item.ordinalNumber}.
-                    </div>
+                    <header className="itemHeader"><b>{t("itemNumber")} {index+1}</b>{draftItems.length>1&&<button type="button" aria-label={t("removeItem")+" "+(index+1)} disabled={group.locked} onClick={()=>removeDraftItem(item.id)}><Trash2 size={16}/></button>}</header>
                     <label>
                       <span>{t("itemName")}</span>
                       <input
@@ -1016,11 +982,11 @@ export const GroupAddExpensePage = () => {
                       {fieldErrors[`item-${item.id}-price`] && <span className="validationMessage">{fieldErrors[`item-${item.id}-price`]}</span>}
                     </label>
 
-                    <label>
-                      {t("quantity")}
-                      <input type="number" min="1" max="999" step="1" value={item.quantity??"1"} onChange={e=>updateDraftItem(item.id,"quantity",e.target.value)} aria-invalid={Boolean(fieldErrors[`item-${item.id}-quantity`])}/>
-                      {fieldErrors[`item-${item.id}-quantity`] && <span className="validationMessage">{fieldErrors[`item-${item.id}-quantity`]}</span>}
-                    </label>
+                    <div className="qtyField"><label htmlFor={'qty-'+item.id}>{t("quantity")}</label><div className="qtyStepper">
+                      <button type="button" aria-label={'− '+t("quantity")} disabled={group.locked||Number(item.quantity??1)<=1} onClick={()=>updateDraftItem(item.id,"quantity",String(Math.max(1,Number(item.quantity??1)-1)))}>−</button>
+                      <input id={'qty-'+item.id} type="text" inputMode="numeric" maxLength={3} value={item.quantity??"1"} disabled={group.locked} onChange={e=>updateDraftItem(item.id,"quantity",e.target.value.replace(/[^0-9]/g,""))} aria-invalid={Boolean(fieldErrors[`item-${item.id}-quantity`])}/>
+                      <button type="button" aria-label={'+ '+t("quantity")} disabled={group.locked||Number(item.quantity??1)>=999} onClick={()=>updateDraftItem(item.id,"quantity",String(Math.min(999,Number(item.quantity??1)+1)))}>+</button></div>
+                      {fieldErrors[`item-${item.id}-quantity`]&&<small className="validationMessage">{fieldErrors[`item-${item.id}-quantity`]}</small>}</div>
                     <div className="draftItemShares" hidden={!assignNow}>
                       <div className="draftItemSharesHeader">
                         <div className="draftItemSharesTitle">
@@ -1113,29 +1079,18 @@ export const GroupAddExpensePage = () => {
                       </div>
                     </div>
 
-                    <button
-                      type="button"
-                      className="iconButton"
-                      onClick={() => removeDraftItem(item.id)}
-                      disabled={group.locked || draftItems.length <= 1}
-                      title={t("removeItem")}
-                    >
-                      <Trash2 size={17} />
-                    </button>
                   </div>
-
-                  <small className="muted">
-                    {t("itemNumber")}: {index + 1}
-                  </small>
                 </div>
               ))}
-            </div>
+              <button className="secondaryButton" type="button" disabled={group.locked} onClick={addDraftItem}><Plus size={18}/>{t("addItems")}</button>
+            </div>}
             {fieldErrors.items && <p className="validationMessage">{fieldErrors.items}</p>}
           </div>)}
 
+          </div><aside className="editorColumn editorReview">
           {/* PAYERS */}
           <div
-            className="payersSection"
+            className="card payersSection"
           >
             <div className="sectionHeaderWithButton sectionHeaderMargin">
               <div>
@@ -1213,7 +1168,7 @@ export const GroupAddExpensePage = () => {
 
           {/* TOTALS */}
           <div
-            className="totalsCard"
+            className="card totalsCard"
           >
             <div className="settlement">
               <span>{t("itemsTotal")}</span>
@@ -1254,7 +1209,17 @@ export const GroupAddExpensePage = () => {
             <Plus size={18} />
             {editingExpense ? t("saveChanges") : t("createExpense")}
           </button>
-        </div>
+{(editingExpense || entryMode === "items") && <button
+              type="button"
+              className="spinTriggerButton"
+              onClick={() => setRandomSplitTarget("global")}
+              disabled={group.locked || group.people.length === 0 || itemTotal <= 0}
+              title={t("randomSplitGlobal")}
+            >
+              <Dices size={17} />
+              <span>SPIN</span>
+            </button>}
+          </aside></div>
       </section>
 
 

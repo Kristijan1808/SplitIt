@@ -86,9 +86,10 @@ export function CreateGroupPage() {
         <ArrowLeft size={18} /> {t("back")}
       </Link>
 
+      <header className="editorHeading">        <h1>{t("createGroupTitle")}</h1>
+        <p className="muted">{t("groupNamesRepeat")}</p></header>
       <section className="card">
-        <h1>{t("createGroupTitle")}</h1>
-        <p className="muted">{t("groupNamesRepeat")}</p>
+
 
         {!createdCode ? (
           <form onSubmit={submit} className="form" noValidate>
