@@ -11,6 +11,7 @@ export const languageOptions = [
 
 export const translations = {
   hr: {
+    assignmentTitle:"Unesi → kreiraj račun → ekipa bira", filtersTitle:"Filtri",
     teamSlogan: "Dobra ekipa\ndijeli fer.",
     yourGroups: "Tvoje grupe",
     groupsNav: "Grupe",
@@ -307,6 +308,7 @@ export const translations = {
     close: "Zatvori"
   },
   en: {
+    assignmentTitle:"Enter → create bill → everyone selects", filtersTitle:"Filters",
     teamSlogan: "Good company\nshares fairly.",
     yourGroups: "Your groups",
     groupsNav: "Groups",
@@ -602,6 +604,7 @@ export const translations = {
     close: "Close"
   },
   ja: {
+    assignmentTitle:"入力 → レシートを作成 → 各自で選択", filtersTitle:"絞り込み",
     teamSlogan: "みんなで楽しく、\n公平に割り勘。",
     yourGroups: "あなたのグループ",
     groupsNav: "グループ",
@@ -897,6 +900,7 @@ export const translations = {
     close: "閉じる"
   },
   de: {
+    assignmentTitle:"Eintragen → Beleg erstellen → gemeinsam aufteilen", filtersTitle:"Filter",
     teamSlogan: "Gute Gesellschaft\nteilt fair.",
     yourGroups: "Deine Gruppen",
     groupsNav: "Gruppen",
