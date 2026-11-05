@@ -49,7 +49,7 @@ export const ownItem =
       if (!group) throw fail("Group not found", 404);
       if (!billKeys(req).length) throw fail("Ponovno otvori aplikaciju.", 401);
       // Guest groups intentionally use a self-selected participant, as in the existing group identity flow.
-      const participant = await actorPerson(req,group.id);
+      const participant = await actorPerson(req,group.id,group.accessType);
       const personId = participant.id;
       const actor = await expenseActor(req, group.id, participant);
       const result = await prisma.$transaction(

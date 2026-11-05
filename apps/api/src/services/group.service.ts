@@ -106,7 +106,7 @@ export class GroupService {
     if (group.accessType === "REGISTERED_ONLY" && !user) {
       throw Object.assign(new Error("Sign in to join this group"), { status: 401 });
     }
-    if (group.accessType === "ANONYMOUS_ONLY" && user?.id !== group.ownerUserId) {
+    if (group.accessType === "ANONYMOUS_ONLY" && user && user.id !== group.ownerUserId) {
       throw Object.assign(new Error("This group only allows anonymous access"), { status: 403 });
     }
 

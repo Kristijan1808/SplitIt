@@ -220,8 +220,8 @@ export function Chip({
 export function Page({
   children,
   refresh,
-  refreshing = false,
-}: React.PropsWithChildren<{ refresh?: () => void; refreshing?: boolean }>) {
+  refreshing = false,wide=false,
+}: React.PropsWithChildren<{ refresh?: () => void; refreshing?: boolean;wide?:boolean }>) {
   const { c } = useUI();
   return (
     <ScrollView
@@ -237,7 +237,7 @@ export function Page({
           />
         ) : undefined
       }
-      contentContainerStyle={s.page}
+      contentContainerStyle={[s.page,wide&&{maxWidth:1160}]}
     >
       {children}
     </ScrollView>

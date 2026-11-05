@@ -1,3 +1,4 @@
+import {participantIdentity} from "./participant-identity.js";
 import {identityTarget} from "./identity-target.js";
 import {listCurrencies} from "./fx-provider.js";
 import {currencySchema} from "./currency.service.js";
@@ -10,13 +11,11 @@ import {getUserFromRequest,prisma} from "../core.js";
 import {billKeys,creatorKey,canManageBill} from "./bill-permissions.js";
 import {ensureCanViewGroup,ensureCanEditGroup} from "./access.service.js";
 export const failure=(message:string,status=400)=>Object.assign(new Error(message),{status});
-export async function actorPerson(req:Request,groupId:string){
+export async function actorPerson(req:Request,groupId:string,access:string){
  const id=req.get("X-SplitIt-Participant-Id");
  const person=id?await prisma.person.findFirst({where:{id,groupId,inactive:false}}):null;
  const user=getUserFromRequest(req);
- const ownsPerson=!!person?.userId&&person.userId===user?.id;
- const ownsDevice=!!person?.identityKey&&billKeys(req).includes(person.identityKey);
- if(!person || (!ownsPerson && !ownsDevice))throw failure("Odaberi i poveži svoje ime u Sudionicima.",403);
+ if(!person || !participantIdentity(person,access,user?.id,billKeys(req)).mine)throw failure("Odaberi i poveži svoje ime u Sudionicima.",403);
  return person;
 }
 export const groupGate:RequestHandler=async(req,res,next)=>{try{
@@ -45,7 +44,7 @@ workflowRouter.get("/",wrap(async(req,res)=>{
  prisma.settlementTransfer.findMany({where:{groupId:g.id},orderBy:{createdAt:"desc"}}),
  prisma.groupSession.findMany({where:{groupId:g.id}})]);
  res.json({avatar:g.avatar,archived:g.archived,canAdmin:res.locals.admin,canOwn:res.locals.owner,
- people:people.map(p=>({id:p.id,name:p.name,role:sessions.find(s=>s.key===p.identityKey)?.role||"MEMBER",inactive:p.inactive,claimed:!!p.identityKey||!!p.userId,mine:(!!p.userId&&p.userId===user?.id)||!!p.identityKey&&keys.includes(p.identityKey)})),selections,
+ people:people.map(p=>({id:p.id,name:p.name,role:sessions.find(s=>s.key===p.identityKey)?.role||"MEMBER",inactive:p.inactive,...participantIdentity(p,g.accessType,user?.id,keys)})),selections,
  transfers:transfers.map(p=>({...p,amount:Number(p.amount)}))});
 }));
 workflowRouter.post("/identity",wrap(async(req,res)=>{
@@ -98,7 +97,7 @@ workflowRouter.post("/rotate-invite",adminGate,wrap(async(req,res)=>{
  await prisma.history.create({data:{groupId:res.locals.group.id,action:"UPDATE",entity:"GROUP",message:"Promijenjeni su kod i lozinka pozivnice."}});res.json({code});
 }));
 workflowRouter.post("/drafts/:id/response",wrap(async(req,res)=>{
- const g=res.locals.group;await editable(req,g);const me=await actorPerson(req,g.id);
+ const g=res.locals.group;await editable(req,g);const me=await actorPerson(req,g.id,g.accessType);
  const {status}=z.object({status:z.enum(["DONE","SKIP","PENDING"])}).strict().parse(req.body);
  await prisma.$transaction(async tx=>{
  const draft=await tx.expenseDraft.findFirst({where:{id:req.params.id as string,groupId:g.id,confirmedExpenseId:null},include:{items:{include:{shares:true}}}});
@@ -115,7 +114,7 @@ workflowRouter.delete("/drafts/:id",wrap(async(req,res)=>{
  await prisma.$transaction(async tx=>{await tx.expenseDraft.delete({where:{id:d.id,confirmedExpenseId:null}});await tx.history.create({data:{groupId:d.groupId,action:"DELETE",entity:"DRAFT",entityId:d.id,message:`Obrisan račun u pripremi: ${d.note||'Račun'}`}})});res.json({ok:true});
 }));
 workflowRouter.post("/transfers",wrap(async(req,res)=>{
- const g=res.locals.group;await editable(req,g);const me=await actorPerson(req,g.id);
+ const g=res.locals.group;await editable(req,g);const me=await actorPerson(req,g.id,g.accessType);
  const b=z.object({requestId:z.string().uuid(),fromId:z.string(),toId:z.string(),amount:z.number().positive().max(1000000).refine(v=>Math.abs(v*100-Math.round(v*100))<1e-7),note:z.string().max(200).optional(),occurredAt:z.string().datetime()}).strict().parse(req.body);
  if(b.fromId===b.toId)throw failure("Odaberi dvije različite osobe.");
  if(![b.fromId,b.toId].includes(me.id))throw failure("Možeš evidentirati samo uplatu u kojoj sudjeluješ.",403);

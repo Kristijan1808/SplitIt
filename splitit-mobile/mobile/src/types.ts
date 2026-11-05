@@ -1,4 +1,4 @@
-export type AccessType = "ANONYMOUS_ONLY";
+export type AccessType = "ANONYMOUS_ONLY"|"REGISTERED_ONLY"|"MIXED";
 export type GroupRole = "OWNER" | "MEMBER";
 
 export type CreateGroupRequest = {

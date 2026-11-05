@@ -1,7 +1,7 @@
 import {categoryIcon} from "./catalog";
 import React from "react";
-import { Pressable, View } from "react-native";
-import { Icon, Txt, useUI, s } from "./ui";
+import { Pressable, View, Modal, ScrollView, useWindowDimensions } from "react-native";
+import { Icon, Txt, useUI, s, Button } from "./ui";
 import { expenseNet } from "./domain.mjs";
 import type { Expense, Person } from "./types";
 export function ExpenseCard({
@@ -21,6 +21,7 @@ export function ExpenseCard({
   onPress: () => void;
 }>) {
   const { c, t, busy } = useUI();
+  const desktop=useWindowDimensions().width>=1024;
   const pending=e.allocationComplete===false;
   const net = e.paymentIncomplete?null:expenseNet(e, personId);
   const names = e.payers
@@ -106,7 +107,8 @@ export function ExpenseCard({
           </Txt>
         </View>
       </Pressable>
-      {expanded && (
+      {expanded&&desktop&&<Modal visible transparent animationType="fade" onRequestClose={onPress}><View style={{flex:1,backgroundColor:"#0007",alignItems:"flex-end"}}><View accessibilityViewIsModal style={{flex:1,width:520,maxWidth:"100%",backgroundColor:c.card,padding:20,gap:12}}><View style={s.between}><Txt bold size={21}>{e.note||t("Račun","Bill")}</Txt><Button secondary compact label={t("Zatvori","Close")} onPress={onPress}/></View><Txt bold size={24}>{Number(e.totalAmount).toFixed(2)} {currency}</Txt><ScrollView contentContainerStyle={{gap:10,paddingBottom:24}}>{children}</ScrollView></View></View></Modal>}
+      {expanded && !desktop && (
         <View style={{ paddingBottom: 10, paddingTop:4, gap: 7 }}>{children}</View>
       )}
     </View>

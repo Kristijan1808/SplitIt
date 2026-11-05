@@ -1,6 +1,12 @@
-import {syncOutbox} from "./src/outbox";
-import {IdentityScreen} from "./src/IdentityScreen";
-import {ask} from "./src/WorkflowPanels";
+import { DesktopSidebar } from "./src/DesktopSidebar";
+import translations from "./src/translations.json";
+import { Account, Plans } from "./src/Account";
+import { request } from "./src/api";
+import type { Session } from "./src/storage";
+import { useWindowDimensions } from "react-native";
+import { syncOutbox } from "./src/outbox";
+import { IdentityScreen } from "./src/IdentityScreen";
+import { ask } from "./src/WorkflowPanels";
 import { invitationCode } from "./src/domain.mjs";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -20,7 +26,13 @@ import {
   useSafeAreaInsets,
 } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
-import { api, setLegacyCredential, setParticipant, API_URL, WEB_URL } from "./src/api";
+import {
+  api,
+  setLegacyCredential,
+  setParticipant,
+  API_URL,
+  WEB_URL,
+} from "./src/api";
 import { storage, SavedGroup } from "./src/storage";
 import type { Group, Expense } from "./src/types";
 import {
@@ -47,7 +59,9 @@ type Screen =
   | "create"
   | "join"
   | "group"
-  | "expense";
+  | "expense"
+  | "account"
+  | "plans";
 export default function App() {
   return (
     <SafeAreaProvider>
@@ -57,14 +71,28 @@ export default function App() {
 }
 function Main() {
   const insets = useSafeAreaInsets();
-  const [locale, setLocale] = useState<"hr" | "en">("hr");
+  const width = useWindowDimensions().width,
+    desktop = width >= 1024,
+    grid = width >= 768;
+  const [session, setSession] = useState<Session | null>(null),
+    scope = useRef("guest");
+  const [notice, notify] = useState(""),
+    [changed, markChanged] = useState(false);
+  const [routed, setRouted] = useState(false),
+    readingRoute = useRef(false);
+  useEffect(() => {
+    if (!notice) return;
+    const timer = setTimeout(() => notify(""), 4000);
+    return () => clearTimeout(timer);
+  }, [notice]);
+  const [locale, setLocale] = useState<"hr" | "en" | "de" | "ja">("hr");
   const [isDark, setDark] = useState(false);
   const [ready, setReady] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [screen, setScreen] = useState<Screen>("home");
-  const [groupSearch,setGroupSearch]=useState("");
-  const [showArchived,setShowArchived]=useState(false);
+  const [groupSearch, setGroupSearch] = useState("");
+  const [showArchived, setShowArchived] = useState(false);
   const [groups, setGroups] = useState<SavedGroup[]>([]);
   const [deviceScope, setDeviceScope] = useState("guest");
   const [data, setData] = useState<Snapshot | null>(null);
@@ -77,9 +105,17 @@ function Main() {
   const groupLoads = useRef(new Map<string, Promise<void>>());
   const groupsRef = useRef(groups);
   const c = isDark ? dark : light;
-  const t = (hr: string, en: string) => (locale === "hr" ? hr : en);
+  const t = (hr: string, en: string) =>
+    locale === "hr"
+      ? hr
+      : locale === "en"
+        ? en
+        : (translations[locale] as Record<string, string>)[en] || en;
   const persistGroups = async (next: SavedGroup[]) => {
-    await storage.write("groups", next);
+    await storage.write(
+      scope.current === "guest" ? "groups" : "groups." + scope.current,
+      next,
+    );
     groupsRef.current = next;
     setGroups(next);
   };
@@ -90,7 +126,9 @@ function Main() {
     await persistGroups([
       {
         ...prior,
-        archived:g.archived,avatar:g.avatar,memberCount:g.people.filter(p=>!p.inactive).length,
+        archived: g.archived,
+        avatar: g.avatar,
+        memberCount: g.people.filter((p) => !p.inactive).length,
         slug: g.slug,
         name: g.name,
         code: g.code,
@@ -131,20 +169,56 @@ function Main() {
     let request: Promise<void>;
     request = (async () => {
       try {
-        const { group, drafts, settlements, history, workflow } = await api.snapshot(slug);
+        const { group, drafts, settlements, history, workflow } =
+          await api.snapshot(slug);
         await saveGroup(group);
-        const snapshot={group,drafts,settlements,history,workflow};
-        await storage.write(`snapshot.${deviceScope}.${slug}`,snapshot);
-        const mine=workflow.people.find(p=>p.mine&&!p.inactive);
-        await persistGroups(groupsRef.current.map(x=>x.slug===slug?{...x,participantId:mine?.id,participantName:mine?.name,currency:group.currency||"EUR",balance:settlements.balances.find(p=>p.id===mine?.id)?.balance,draftCount:group.expenses.filter(e=>e.allocationComplete===false||e.paymentIncomplete).length}:x));
+        const snapshot = { group, drafts, settlements, history, workflow };
+        await storage.write(`snapshot.${deviceScope}.${slug}`, snapshot);
+        const mine = workflow.people.find((p) => p.mine && !p.inactive);
+        await persistGroups(
+          groupsRef.current.map((x) =>
+            x.slug === slug
+              ? {
+                  ...x,
+                  participantId: mine?.id,
+                  participantName: mine?.name,
+                  currency: group.currency || "EUR",
+                  balance: settlements.balances.find((p) => p.id === mine?.id)
+                    ?.balance,
+                  draftCount: group.expenses.filter(
+                    (e) =>
+                      e.allocationComplete === false || e.paymentIncomplete,
+                  ).length,
+                }
+              : x,
+          ),
+        );
         setParticipant(mine?.id);
         setData(snapshot);
-      } catch(error) {
-        if(error instanceof Error && /network|fetch|timeout|veza|isteklo/i.test(error.message) && !(error as any).status){const cached=await storage.read<Snapshot|null>(`snapshot.${deviceScope}.${slug}`,null);if(cached){setParticipant(cached.workflow.people.find(p=>p.mine&&!p.inactive)?.id);setData({...cached,offline:true});return;}}
+        markChanged(false);
+      } catch (error) {
+        if (
+          error instanceof Error &&
+          /network|fetch|timeout|veza|isteklo/i.test(error.message) &&
+          !(error as any).status
+        ) {
+          const cached = await storage.read<Snapshot | null>(
+            `snapshot.${deviceScope}.${slug}`,
+            null,
+          );
+          if (cached) {
+            setParticipant(
+              cached.workflow.people.find((p) => p.mine && !p.inactive)?.id,
+            );
+            setData({ ...cached, offline: true });
+            return;
+          }
+        }
         throw error;
       }
     })().finally(() => {
-      if (groupLoads.current.get(slug) === request) groupLoads.current.delete(slug);
+      if (groupLoads.current.get(slug) === request)
+        groupLoads.current.delete(slug);
     });
     groupLoads.current.set(slug, request);
     await request;
@@ -176,10 +250,19 @@ function Main() {
       ]);
       setDeviceScope(a?.user.id || "guest");
       setLegacyCredential(a?.token);
-      groupsRef.current = gs;
-      setGroups(gs);
+      scope.current = a?.user.id || "guest";
+      setSession(a);
+      const entries = a
+        ? await storage.read<SavedGroup[]>("groups." + a.user.id, gs)
+        : gs;
+      groupsRef.current = entries;
+      setGroups(entries);
       // Keep the initial Home screen; invitation links are handled separately.
-      setLocale(prefs.locale === "en" ? "en" : "hr");
+      setLocale(
+        ["de", "ja", "en"].includes(prefs.locale)
+          ? (prefs.locale as "de" | "ja" | "en")
+          : "hr",
+      );
       setDark(!!prefs.dark);
     }).then(() => setReady(true));
   }, [run]);
@@ -220,12 +303,155 @@ function Main() {
     () => setParticipant(current?.participantId),
     [current?.participantId],
   );
-  const preferences = (language: "hr" | "en", darkMode: boolean) =>
+  const preferences = (
+    language: "hr" | "en" | "de" | "ja",
+    darkMode: boolean,
+  ) =>
     void run(async () => {
       await storage.write("prefs", { locale: language, dark: darkMode });
       setLocale(language);
       setDark(darkMode);
     });
+  async function changeSession(next: Session | null) {
+    await storage.setSession(next);
+    setLegacyCredential(next?.token);
+    scope.current = next?.user.id || "guest";
+    setDeviceScope(scope.current);
+    setParticipant(undefined);
+    setData(null);
+    setSession(next);
+    const list = await storage.read<SavedGroup[]>(
+      next ? "groups." + next.user.id : "groups",
+      [],
+    );
+    groupsRef.current = list;
+    setGroups(list);
+    notify(
+      next
+        ? t("Prijava je uspjela.", "Signed in.")
+        : t("Odjavljen/a si.", "Signed out."),
+    );
+  }
+  useEffect(() => {
+    if (!ready || !session || screen !== "groups") return;
+    let active = true;
+    void request<SavedGroup[]>("/groups/mine")
+      .then(async (list) => {
+        if (!active) return;
+        const local = groupsRef.current;
+        await persistGroups([
+          ...list.map((g) => ({
+            ...local.find((x) => x.slug === g.slug),
+            ...g,
+          })),
+          ...local.filter((x) => !list.some((g) => g.slug === x.slug)),
+        ]);
+      })
+      .catch((e) => {
+        if (active) setError(e.message);
+      });
+    return () => {
+      active = false;
+    };
+  }, [ready, screen, session?.user.id]);
+  const routeLoad = useRef(load);
+  routeLoad.current = load;
+  useEffect(() => {
+    if (Platform.OS !== "web" || !ready) return;
+    const read = async () => {
+      readingRoute.current = true;
+      setRouted(false);
+      try {
+        const path = window.location.pathname.replace(/\/$/, "") || "/",
+          match = path.match(/^\/g\/([^/]+)(\/add-expense)?$/);
+        if (match) {
+          const ok = await run(() =>
+            routeLoad.current(decodeURIComponent(match[1])),
+          );
+          setEditingExpense(undefined);
+          setStartCamera(false);
+          setScreen(ok ? (match[2] ? "expense" : "group") : "groups");
+        } else {
+          const routes: Record<string, Screen> = {
+            "/": "home",
+            "/my-groups": "groups",
+            "/settings": "settings",
+            "/join": "join",
+            "/new": "create",
+            "/login": "account",
+            "/subscriptions": "plans",
+          };
+          setScreen(routes[path] || "home");
+          if (path === "/join")
+            setInitialCode(
+              new URLSearchParams(window.location.search).get("code") || "",
+            );
+        }
+      } finally {
+        readingRoute.current = false;
+        setRouted(true);
+      }
+    };
+    void read();
+    window.addEventListener("popstate", read);
+    return () => window.removeEventListener("popstate", read);
+  }, [ready]);
+  useEffect(() => {
+    if (Platform.OS !== "web" || !routed || readingRoute.current) return;
+    const paths: Record<string, string> = {
+      home: "/",
+      create: "/new",
+      join: "/join",
+      groups: "/my-groups",
+      account: "/login",
+      plans: "/subscriptions",
+      settings: "/settings",
+    };
+    const path =
+      paths[screen] ||
+      (data
+        ? "/g/" +
+          encodeURIComponent(data.group.slug) +
+          (screen === "expense" ? "/add-expense" : "")
+        : "/");
+    if (window.location.pathname !== path)
+      window.history.pushState(
+        null,
+        "",
+        path +
+          (screen === "join" && initialCode
+            ? "?code=" + encodeURIComponent(initialCode)
+            : ""),
+      );
+  }, [routed, screen, data?.group.slug, initialCode]);
+  useEffect(() => {
+    if (!data || data.offline || screen !== "group") return;
+    let alive = true,
+      busy = false,
+      last: string | undefined;
+    const poll = async () => {
+      if (busy || AppState.currentState !== "active") return;
+      busy = true;
+      try {
+        const r = await request<{ lastChangedAt: string }>(
+          "/groups/" + encodeURIComponent(data.group.slug) + "/last-changed-at",
+        );
+        if (alive) {
+          if (last && last !== r.lastChangedAt) markChanged(true);
+          last = r.lastChangedAt;
+        }
+      } catch {
+      } finally {
+        busy = false;
+      }
+    };
+    void poll();
+    const timer = setInterval(poll, 15000);
+    return () => {
+      alive = false;
+      clearInterval(timer);
+    };
+  }, [screen, data]);
   const remove = (g: SavedGroup) =>
     ask(
       t("Ukloniti iz mojih grupa?", "Remove from my groups?"),
@@ -233,49 +459,122 @@ function Main() {
         "Uklanja se samo prečac na ovom uređaju. Grupa i računi ostaju sačuvani.",
         "Only this device shortcut is removed. The group and bills are kept.",
       ),
-      () => void run(() =>
-        persistGroups(groupsRef.current.filter((x) => x.slug !== g.slug)),
-      ),
+      () =>
+        void run(() =>
+          persistGroups(groupsRef.current.filter((x) => x.slug !== g.slug)),
+        ),
     );
-  useEffect(()=>{
-    if(!ready)return;
-    let active=true;
-    const tick=async()=>{if(AppState.currentState!=="active")return;try{const sent=await syncOutbox();if(active&&sent&&screen==="group"&&data)await load(data.group.slug);}catch{/* Queue remains stored; panel displays permanent errors. */}};
-    void tick();const timer=setInterval(tick,20000);
-    const subscription=AppState.addEventListener("change",state=>{if(state==="active")void tick();});
-    return()=>{active=false;clearInterval(timer);subscription.remove();};
-  },[ready,deviceScope,screen,data?.group.slug]);
-  const needsIdentity=screen==="group"&&!!data&&!data.offline&&!data.workflow.people.some(p=>p.mine&&!p.inactive);
+  useEffect(() => {
+    if (!ready) return;
+    let active = true;
+    const tick = async () => {
+      if (AppState.currentState !== "active") return;
+      try {
+        const sent = await syncOutbox();
+        if (active && sent && screen === "group" && data)
+          await load(data.group.slug);
+      } catch {
+        /* Queue remains stored; panel displays permanent errors. */
+      }
+    };
+    void tick();
+    const timer = setInterval(tick, 20000);
+    const subscription = AppState.addEventListener("change", (state) => {
+      if (state === "active") void tick();
+    });
+    return () => {
+      active = false;
+      clearInterval(timer);
+      subscription.remove();
+    };
+  }, [ready, deviceScope, screen, data?.group.slug]);
+  const needsIdentity =
+    (screen === "group" || screen === "expense") &&
+    !!data &&
+    !data.offline &&
+    !data.workflow.people.some((p) => p.mine && !p.inactive);
   const groupList = (limit?: number) =>
-    (limit ? groups.filter(g=>!g.archived).slice(0,limit) : groups.filter(g=>!!g.archived===showArchived && g.name.toLowerCase().includes(groupSearch.toLowerCase())).sort((a,b)=>Number(!!b.pinned)-Number(!!a.pinned))).map((g, i) => (
-      <Card key={g.slug}>
-        <Pressable accessibilityRole="button" accessibilityLabel={`${t("Otvori grupu","Open group")} ${g.name}`} disabled={busy} onPress={()=>void run(async()=>{await load(g.slug);setTab("overview");nav("group")})} style={{gap:10,minHeight:72}}>
-        <View style={s.row}>
-          <View
-            style={{
-              width: 44,
-              height: 44,
-              borderRadius: 14,
-              backgroundColor: c.tint,
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
-            <Txt size={24}>{g.avatar||"👥"}</Txt>
+    (limit
+      ? groups.filter((g) => !g.archived).slice(0, limit)
+      : groups
+          .filter(
+            (g) =>
+              !!g.archived === showArchived &&
+              g.name.toLowerCase().includes(groupSearch.toLowerCase()),
+          )
+          .sort((a, b) => Number(!!b.pinned) - Number(!!a.pinned))
+    ).map((g, i) => (
+      <Card key={g.slug} style={{ width: grid && !limit ? "48%" : "100%" }}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`${t("Otvori grupu", "Open group")} ${g.name}`}
+          disabled={busy}
+          onPress={() =>
+            void run(async () => {
+              await load(g.slug);
+              setTab("overview");
+              nav("group");
+            })
+          }
+          style={{ gap: 10, minHeight: 72 }}
+        >
+          <View style={s.row}>
+            <View
+              style={{
+                width: 44,
+                height: 44,
+                borderRadius: 14,
+                backgroundColor: c.tint,
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <Txt size={24}>{g.avatar || "👥"}</Txt>
+            </View>
+            <View style={{ flex: 1 }}>
+              <Txt bold size={18}>
+                {g.name}
+              </Txt>
+              <Txt muted size={12}>
+                {g.code}
+                {g.participantName ? ` · ${g.participantName}` : ""}
+              </Txt>
+            </View>
           </View>
-          <View style={{ flex: 1 }}>
-            <Txt bold size={18}>
-              {g.name}
-            </Txt>
+          <View style={s.between}>
             <Txt muted size={12}>
-              {g.code}
-              {g.participantName ? ` · ${g.participantName}` : ""}
+              {g.memberCount ?? "—"} {t("članova", "members")} ·{" "}
+              {g.draftCount ?? 0} {t("čeka podjelu", "awaiting split")}
+            </Txt>
+            <Txt
+              bold
+              style={{ color: (g.balance ?? 0) < 0 ? c.debt : c.accent }}
+            >
+              {g.balance === undefined
+                ? "—"
+                : `${g.balance > 0 ? "+" : ""}${g.balance.toFixed(2)} ${g.currency || "EUR"}`}
             </Txt>
           </View>
-        </View>
-        <View style={s.between}><Txt muted size={12}>{g.memberCount??"—"} {t("članova", "members")} · {g.draftCount??0} {t("čeka podjelu", "awaiting split")}</Txt><Txt bold style={{color:(g.balance??0)<0?c.debt:c.accent}}>{g.balance===undefined?"—":`${g.balance>0?"+":""}${g.balance.toFixed(2)} ${g.currency||"EUR"}`}</Txt></View>
         </Pressable>
-        {!limit&&<Button secondary label={g.pinned?t("Makni iz omiljenih", "Unpin"):t("Prikvači grupu", "Pin group")} onPress={()=>void run(()=>persistGroups(groupsRef.current.map(x=>x.slug===g.slug?{...x,pinned:!x.pinned}:x)))}/>}
+        {!limit && (
+          <Button
+            secondary
+            label={
+              g.pinned
+                ? t("Makni iz omiljenih", "Unpin")
+                : t("Prikvači grupu", "Pin group")
+            }
+            onPress={() =>
+              void run(() =>
+                persistGroups(
+                  groupsRef.current.map((x) =>
+                    x.slug === g.slug ? { ...x, pinned: !x.pinned } : x,
+                  ),
+                ),
+              )
+            }
+          />
+        )}
         {!limit && (
           <Pressable
             accessibilityRole="button"
@@ -301,7 +600,7 @@ function Main() {
           flex: 1,
           backgroundColor: c.bg,
           paddingTop: insets.top,
-          paddingLeft: insets.left,
+          paddingLeft: desktop ? 240 : insets.left,
           paddingRight: insets.right,
         }}
       >
@@ -309,7 +608,7 @@ function Main() {
         <View
           style={{
             height: 52,
-            paddingHorizontal: 12,
+            paddingHorizontal: 40,
             flexDirection: "row",
             alignItems: "center",
             justifyContent: "space-between",
@@ -347,7 +646,7 @@ function Main() {
               </Txt>
             </Txt>
           </View>
-          {(
+          {
             <Pressable
               accessibilityRole="button"
               accessibilityLabel={t("Postavke", "Settings")}
@@ -362,8 +661,34 @@ function Main() {
             >
               <Icon name="settings" color={c.accent} />
             </Pressable>
-          )}
+          }
         </View>
+        {!!notice && (
+          <View
+            accessibilityLiveRegion="polite"
+            style={{
+              padding: 10,
+              marginHorizontal: 12,
+              backgroundColor: c.tint,
+              borderRadius: 12,
+            }}
+          >
+            <Txt>{notice}</Txt>
+          </View>
+        )}
+        {changed && screen === "group" && (
+          <Card>
+            <Txt>
+              {t("Netko je ažurirao grupu.", "Someone updated this group.")}
+            </Txt>
+            <Button
+              compact
+              secondary
+              label={t("Učitaj promjene", "Load changes")}
+              onPress={() => void run(refresh)}
+            />
+          </Card>
+        )}
         {error !== "" && (
           <View
             accessibilityRole="alert"
@@ -393,6 +718,10 @@ function Main() {
             <View style={{ flex: 1 }} />
           ) : (
             <>
+              {screen === "account" && (
+                <Account session={session} change={changeSession} run={run} />
+              )}
+              {screen === "plans" && <Plans onHome={() => nav("home")} />}
               {screen === "home" && (
                 <Page>
                   <Heading
@@ -400,7 +729,10 @@ function Main() {
                       "Manje računanja.\nViše druženja.",
                       "Less maths.\nMore good times.",
                     )}
-                    subtitle={t("Izradi grupu ili se pridruži kodom. Bez registracije.", "Create a group or join with a code. No registration.")}
+                    subtitle={t(
+                      "Izradi grupu ili se pridruži kodom. Bez registracije.",
+                      "Create a group or join with a code. No registration.",
+                    )}
                   />
                   <View
                     style={[
@@ -462,7 +794,7 @@ function Main() {
                 </Page>
               )}
               {screen === "groups" && (
-                <Page>
+                <Page wide>
                   <Heading
                     title={t("Moje grupe", "My groups")}
                     subtitle={t(
@@ -486,10 +818,33 @@ function Main() {
                       />
                     </View>
                   </View>
-                  <Field label={t("Pretraži grupe", "Search groups")} value={groupSearch} onChange={setGroupSearch}/>
-                  <View style={s.wrap}><Chip label={t("Aktivne", "Active")} selected={!showArchived} onPress={()=>setShowArchived(false)}/><Chip label={t("Arhivirane", "Archived")} selected={showArchived} onPress={()=>setShowArchived(true)}/></View>
+                  <Field
+                    label={t("Pretraži grupe", "Search groups")}
+                    value={groupSearch}
+                    onChange={setGroupSearch}
+                  />
+                  <View style={s.wrap}>
+                    <Chip
+                      label={t("Aktivne", "Active")}
+                      selected={!showArchived}
+                      onPress={() => setShowArchived(false)}
+                    />
+                    <Chip
+                      label={t("Arhivirane", "Archived")}
+                      selected={showArchived}
+                      onPress={() => setShowArchived(true)}
+                    />
+                  </View>
                   {groups.length ? (
-                    groupList()
+                    <View
+                      style={{
+                        flexDirection: grid ? "row" : "column",
+                        flexWrap: "wrap",
+                        gap: 12,
+                      }}
+                    >
+                      {groupList()}
+                    </View>
                   ) : (
                     <Card>
                       <Txt muted>
@@ -506,6 +861,26 @@ function Main() {
                 <Page>
                   <Heading title={t("Postavke", "Settings")} />
                   <Card>
+                    <Txt bold>
+                      {session?.user.username ||
+                        t("Pristup bez računa", "Guest access")}
+                    </Txt>
+                    <Button
+                      secondary
+                      label={
+                        session
+                          ? t("Moj račun", "My account")
+                          : t("Prijava ili registracija", "Sign in or register")
+                      }
+                      onPress={() => nav("account")}
+                    />
+                    <Button
+                      secondary
+                      label={t("Planovi", "Plans")}
+                      onPress={() => nav("plans")}
+                    />
+                  </Card>
+                  <Card>
                     <Txt bold>{t("Izgled", "Appearance")}</Txt>
                     <View style={s.wrap}>
                       <Chip
@@ -521,6 +896,16 @@ function Main() {
                     </View>
                     <Txt bold>{t("Jezik", "Language")}</Txt>
                     <View style={s.wrap}>
+                      <Chip
+                        label="Deutsch"
+                        selected={locale === "de"}
+                        onPress={() => preferences("de", isDark)}
+                      />
+                      <Chip
+                        label="日本語"
+                        selected={locale === "ja"}
+                        onPress={() => preferences("ja", isDark)}
+                      />
                       <Chip
                         label="Hrvatski"
                         selected={locale === "hr"}
@@ -557,13 +942,53 @@ function Main() {
               {(screen === "create" || screen === "join") && (
                 <GroupForm
                   key={`${screen}-${initialCode}`}
+                  signedIn={!!session}
                   create={screen === "create"}
                   initialCode={screen === "join" ? initialCode : ""}
                   run={run}
                   open={openGroup}
                 />
               )}
-              {needsIdentity&&data&&<IdentityScreen key={data.group.slug} group={data.group} workflow={data.workflow} run={run} leave={()=>nav("groups")} done={async id=>{setParticipant(id);await refresh();setTab("overview")}}/>}
+              {needsIdentity &&
+                data?.group.accessType === "REGISTERED_ONLY" && (
+                  <Page>
+                    <Card>
+                      <Txt bold>
+                        {t(
+                          "Sudionik povezan s tvojim računom nije aktivan.",
+                          "The participant linked to your account is unavailable.",
+                        )}
+                      </Txt>
+                      <Txt>
+                        {t(
+                          "Ako je članstvo deaktivirano, obrati se administratoru grupe.",
+                          "If your membership is inactive, contact the group administrator.",
+                        )}
+                      </Txt>
+                      <Button
+                        secondary
+                        label={t("Moje grupe", "My groups")}
+                        onPress={() => nav("groups")}
+                      />
+                    </Card>
+                  </Page>
+                )}
+              {needsIdentity &&
+                data &&
+                data.group.accessType !== "REGISTERED_ONLY" && (
+                  <IdentityScreen
+                    key={data.group.slug}
+                    group={data.group}
+                    workflow={data.workflow}
+                    run={run}
+                    leave={() => nav("groups")}
+                    done={async (id) => {
+                      setParticipant(id);
+                      await refresh();
+                      setTab("overview");
+                    }}
+                  />
+                )}
               {screen === "group" && data && !needsIdentity && (
                 <GroupScreen
                   key={data.group.slug}
@@ -574,7 +999,7 @@ function Main() {
                   refresh={refresh}
                   participantId={current?.participantId}
                   choose={async (id) => {
-                    await api.claim(data.group.slug,id);
+                    await api.claim(data.group.slug, id);
                     setParticipant(id);
                     const person = data.group.people.find((x) => x.id === id);
                     await persistGroups(
@@ -604,17 +1029,31 @@ function Main() {
                   }}
                 />
               )}
-              {screen === "expense" && data && (
+              {screen === "expense" && data && !needsIdentity && (
                 <ExpenseEditor
                   key={editorKey}
                   expense={editingExpense}
                   participantId={current?.participantId}
                   offline={!!data.offline}
                   startCamera={startCamera}
-                  group={{...data.group,people:editingExpense?data.group.people:data.group.people.filter(p=>!p.inactive),locked:data.group.locked||!!data.group.archived||(!!editingExpense&&!!data.offline)}}
+                  group={{
+                    ...data.group,
+                    people: editingExpense
+                      ? data.group.people
+                      : data.group.people.filter((p) => !p.inactive),
+                    locked:
+                      data.group.locked ||
+                      !!data.group.archived ||
+                      (!!editingExpense && !!data.offline),
+                  }}
                   run={run}
                   done={async (queued) => {
-                    if(!queued)await refresh();
+                    if (!queued) await refresh();
+                    notify(
+                      queued
+                        ? t("Račun čeka slanje.", "Expense queued.")
+                        : t("Račun je spremljen.", "Expense saved."),
+                    );
                     setTab("overview");
                     nav("group");
                   }}
@@ -623,10 +1062,25 @@ function Main() {
             </>
           )}
         </KeyboardAvoidingView>
-        {screen !== "expense" && !needsIdentity && (
+        {desktop && !needsIdentity && (
+          <DesktopSidebar screen={screen} navigate={nav} />
+        )}
+        {!desktop && screen !== "expense" && !needsIdentity && (
           <View
             style={{
-              flexDirection: "row",
+              flexDirection: desktop ? "column" : "row",
+              ...(desktop
+                ? {
+                    position: "absolute" as const,
+                    left: 0,
+                    top: 0,
+                    bottom: 0,
+                    width: 188,
+                    borderRightWidth: 1,
+                    paddingHorizontal: 10,
+                    gap: 10,
+                  }
+                : {}),
               backgroundColor: c.card,
               borderTopWidth: 1,
               borderColor: c.line,
@@ -648,7 +1102,8 @@ function Main() {
                 disabled={busy}
                 onPress={() => nav(id)}
                 style={{
-                  flex: 1,
+                  flex: desktop ? undefined : 1,
+                  flexDirection: desktop ? "row" : "column",
                   minHeight: 50,
                   alignItems: "center",
                   justifyContent: "center",
@@ -656,19 +1111,59 @@ function Main() {
                 }}
               >
                 <Icon name={icon} color={screen === id ? c.accent : c.muted} />
-                <Txt size={11} bold={screen === id} muted={screen !== id}>
+                <Txt
+                  size={desktop ? 15 : 11}
+                  bold={screen === id}
+                  muted={screen !== id}
+                >
                   {label}
                 </Txt>
               </Pressable>
             ))}
           </View>
         )}
-        {(screen === "expense" || needsIdentity) && <View style={{ height: insets.bottom }} />}
-        <Modal visible={busy || !ready} transparent animationType="fade" statusBarTranslucent onRequestClose={()=>{}}>
-          <View style={{flex:1,alignItems:"center",justifyContent:"center",backgroundColor:"rgba(0,0,0,0.18)",padding:24}}>
-            <View accessible accessibilityRole="progressbar" accessibilityLabel={t("Učitavanje…","Loading…")} accessibilityState={{busy:true}} accessibilityLiveRegion="polite" style={{alignItems:"center",justifyContent:"center",gap:14,minWidth:180,paddingHorizontal:28,paddingVertical:24,borderRadius:20,backgroundColor:c.card,borderWidth:1,borderColor:c.line}}>
-              <ActivityIndicator size="large" color={c.accent}/>
-              <Txt bold size={16}>{t("Učitavanje…","Loading…")}</Txt>
+        {(screen === "expense" || needsIdentity) && (
+          <View style={{ height: insets.bottom }} />
+        )}
+        <Modal
+          visible={busy || !ready}
+          transparent
+          animationType="fade"
+          statusBarTranslucent
+          onRequestClose={() => {}}
+        >
+          <View
+            style={{
+              flex: 1,
+              alignItems: "center",
+              justifyContent: "center",
+              backgroundColor: "rgba(0,0,0,0.18)",
+              padding: 24,
+            }}
+          >
+            <View
+              accessible
+              accessibilityRole="progressbar"
+              accessibilityLabel={t("Učitavanje…", "Loading…")}
+              accessibilityState={{ busy: true }}
+              accessibilityLiveRegion="polite"
+              style={{
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 14,
+                minWidth: 180,
+                paddingHorizontal: 28,
+                paddingVertical: 24,
+                borderRadius: 20,
+                backgroundColor: c.card,
+                borderWidth: 1,
+                borderColor: c.line,
+              }}
+            >
+              <ActivityIndicator size="large" color={c.accent} />
+              <Txt bold size={16}>
+                {t("Učitavanje…", "Loading…")}
+              </Txt>
             </View>
           </View>
         </Modal>

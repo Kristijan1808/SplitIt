@@ -1,3 +1,4 @@
+import { Platform } from "react-native";
 import { storage } from "./storage";
 import type {
   CreateGroupRequest,
@@ -14,7 +15,7 @@ export const API_URL = (process.env.EXPO_PUBLIC_API_URL ?? "").replace(
   /\/+$/,
   "",
 );
-export const WEB_URL = (process.env.EXPO_PUBLIC_WEB_URL ?? "").replace(
+export const WEB_URL = (process.env.EXPO_PUBLIC_WEB_URL || (Platform.OS==="web"?window.location.origin:"")).replace(
   /\/+$/,
   "",
 );
@@ -217,11 +218,11 @@ export const api = {
   ) => currencyRequest<Expense>(`${base(slug)}/expenses/${id}`, "PATCH", body),
   deleteExpense: (slug: string, id: string) =>
     request(`${base(slug)}/expenses/${id}`, "DELETE"),
-  parse: (imageBase64: string) => {
+  parse: (imageBase64: string, attempt=1) => {
     if (!imageBase64 || imageBase64.length > 4 * Math.ceil(10 * 1024 * 1024 / 3))
       throw new Error("Slika je prazna ili prevelika. Najveća veličina je 10 MB.");
     return request<{ items: { name: string; price: number; quantity?: number; unitPrice?: number }[] }>(
-      "/ai/parse-bill", "POST", { imageBase64 },
+      "/ai/parse-bill", "POST", { imageBase64, attempt },
     );
   },
 };

@@ -1,10 +1,10 @@
 import {OutboxPanel} from "./OutboxPanel";
 import {categories} from "./catalog";
 import {TransferPanel,GroupUtilities,ask} from "./WorkflowPanels";
-import {AppState} from "react-native";
+import {AppState,useWindowDimensions} from "react-native";
 import { ItemCheck } from "./ItemCheck";
 import React, { useState, useEffect } from "react";
-import { Alert, View, Share, Pressable } from "react-native";
+import { Alert, View, Share, Pressable, Platform } from "react-native";
 import * as Clipboard from "expo-clipboard";
 import { api, WEB_URL } from "./api";
 import {
@@ -60,8 +60,11 @@ export function GroupScreen({
   onEdit: (expense: Expense) => void;
 }) {
   const { c, t, busy } = useUI();
+  const desktop=useWindowDimensions().width>=1024;
   const { group: rawGroup, drafts, settlements, history, workflow } = data;
   const g = {...rawGroup, locked: rawGroup.locked || workflow.archived || !!data.offline};
+  const [copied,setCopied]=useState(false);
+  useEffect(()=>{if(!copied)return;const timer=setTimeout(()=>setCopied(false),3500);return()=>clearTimeout(timer)},[copied]);
   const [receiptFilter,setReceiptFilter]=useState("all");
   const pending=g.expenses.filter(e=>e.allocationComplete===false||e.paymentIncomplete);
   const [allDebts,setAllDebts]=useState(false);
@@ -78,7 +81,6 @@ export function GroupScreen({
   const [rename, setRename] = useState(g.name);
   const [editPerson, setEditPerson] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<string[]>([]);
-  useEffect(()=>{if(tab!=="overview"||busy||data.offline)return;let running=false;const timer=setInterval(()=>{if(AppState.currentState!=="active"||running)return;running=true;refresh().catch(()=>{}).finally(()=>{running=false})},15000);return()=>clearInterval(timer)},[tab,busy,data.offline,refresh]);
   const outgoing = settlements.settlements.filter(
     (x) => x.from === participantId,
   );
@@ -102,13 +104,15 @@ export function GroupScreen({
 
   }
   async function share() {
+    if(Platform.OS==="web"&&!navigator.share){await Clipboard.setStringAsync(WEB_URL+"/join?code="+g.code);setCopied(true);return}
     await Share.share({
       message: `${g.name}\n${t("Kod grupe", "Group code")}: ${g.code}${WEB_URL && !WEB_URL.includes("YOUR-") ? `\n${WEB_URL}/join?code=${g.code}` : ""}\nsplitit://join?code=${g.code}`,
     });
   }
   return (
     <View style={{ flex: 1 }}>
-      <Page refresh={() => void run(refresh)}>
+      <Page wide refresh={() => void run(refresh)}>
+        {copied&&<Txt style={{color:c.accent}}>{t("Kopirano.","Copied.")}</Txt>}
         <OutboxPanel slug={g.slug} refresh={refresh} offline={!!data.offline}/>
         
 
@@ -198,8 +202,7 @@ export function GroupScreen({
           ))}
         </View>
         {tab === "overview" && (
-          <>
-            <Card style={{ gap: 6 }}>
+          <View style={{flexDirection:desktop?"row":"column",gap:14,alignItems:desktop?"flex-start":"stretch"}}><Card style={{gap:6,width:desktop?280:undefined}}>
               <View style={s.between}>
                 <Txt muted size={13}>
                   {t("Ukupni troškovi grupe", "Total group expenses")}
@@ -262,7 +265,7 @@ export function GroupScreen({
                 />
               )}
             </Card>
-            <View style={s.between}>
+            <View style={{flex:1,minWidth:0,gap:12}}><View style={s.between}>
               <Txt size={21} bold>
                 {t("Troškovi grupe", "Group expenses")}
               </Txt>
@@ -397,7 +400,7 @@ export function GroupScreen({
               </ExpenseCard>
             ))}
             {visibleExpenses.length>limit&&<Button secondary label={t("Prikaži više računa", "Show more bills")} onPress={()=>setLimit(n=>n+30)}/>}
-          </>
+          </View></View>
         )}
         {tab === "debts" && <>
           <Card>
@@ -454,14 +457,14 @@ export function GroupScreen({
                     onPress={() =>
                       void run(async () => {
                         await Clipboard.setStringAsync(g.code);
-                        Alert.alert(t("Kod kopiran", "Code copied"));
+                        setCopied(true);
                       })
                     }
                   />
                 </View>
               </View>
             </Card>
-            <Card>
+            {g.accessType==="REGISTERED_ONLY"?<Card><Txt muted>{t("Prijavljeni sudionik","Signed-in participant")}</Txt><Txt bold>{me?.name||"—"}</Txt></Card>:<Card>
               <Txt bold size={18}>
                 {t("Tko si ti?", "Who are you?")}
               </Txt>
@@ -476,7 +479,7 @@ export function GroupScreen({
                   />
                 ))}
               </View>
-            </Card>
+            </Card>}
             <Card>
               <Field
                 label={

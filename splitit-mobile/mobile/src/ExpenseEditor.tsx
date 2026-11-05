@@ -1,3 +1,4 @@
+import {ask} from "./WorkflowPanels";
 import {queueExpense} from "./outbox";
 import { Platform, useWindowDimensions } from "react-native";
 import {CurrencyPicker} from "./CurrencyPicker";
@@ -46,7 +47,8 @@ export function ExpenseEditor({
   const source=expense;
   const { t, c, busy: useBusy } = useUI();
   const [mode, setMode] = useState<"equal" | "items">(source || startCamera ? "items" : "equal");
-  const narrow=useWindowDimensions().width<370;
+  const width=useWindowDimensions().width,narrow=width<370,desktop=width>=1024;
+  const [photo,setPhoto]=useState("");
   const [splitMode,setSplitMode]=useState("equal");
   const [splitValues,setSplitValues]=useState<Record<string,string>>({});
   const [picker,setPicker]=useState<"category"|"currency"|null>(null);
@@ -156,7 +158,7 @@ export function ExpenseEditor({
           : x,
       ),
     );
-  async function scan(camera: boolean) {
+  async function scan(camera: boolean,retry?:string) {
     if(offline){await run(async()=>{throw new Error(t("Nema internetske veze. Nije moguće slikati ili učitati račun. Račun možeš unijeti ručno.","No internet connection. Taking or uploading a receipt is unavailable. Enter the bill manually."));});return;}
     await run(async () => {
       const noConnection=()=>new Error(t("Nema internetske veze. Nije moguće slikati ili učitati račun. Račun možeš unijeti ručno.","No internet connection. Taking or uploading a receipt is unavailable. Enter the bill manually."));
@@ -166,6 +168,8 @@ export function ExpenseEditor({
       catch{if(controller.signal.aborted)throw new Error(t("Poslužitelj ne odgovara. Pokušaj ponovno učitati račun.","The server is not responding. Try uploading again."));throw noConnection();}
       finally{clearTimeout(timer);}
       if(!response.ok)throw new Error(t("Usluga učitavanja računa trenutačno nije dostupna. Pokušaj ponovno kasnije.","Receipt upload service is unavailable. Try again later."));
+      let imageBase64=retry;
+      if(!imageBase64){
       if (camera) {
         const perm = await ImagePicker.requestCameraPermissionsAsync();
         if (!perm.granted)
@@ -193,7 +197,9 @@ export function ExpenseEditor({
         { compress: 0.85, format: ImageManipulator.SaveFormat.JPEG, base64: true },
       );
       if (!converted.base64) throw new Error(t("Slika se nije mogla pripremiti. Ponovno je odaberi.", "Could not prepare image. Please select it again."));
-      const bill = await api.parse(converted.base64).catch(error=>{
+      imageBase64=converted.base64;setPhoto(imageBase64);
+      }
+      const bill = await api.parse(imageBase64,retry?2:1).catch(error=>{
         if(!error?.status && /network|fetch|timeout|istekao|isteklo|abort|veza/i.test(error?.message||""))throw noConnection();
         throw error;
       });
@@ -259,7 +265,7 @@ export function ExpenseEditor({
     });
   }
   return (
-    <Page>
+    <Page wide>
       <Heading
         title={
           expense
@@ -269,7 +275,7 @@ export function ExpenseEditor({
         subtitle={group.name}
       />
       {createdId || confirmed ? (<Card><Txt>{t("Račun je spremljen.","Bill saved.")}</Txt><Button label={t("Otvori grupu","Open group")} onPress={()=>void run(()=>done())}/></Card>) : (
-        <>
+        <View style={{flexDirection:desktop?"row":"column",alignItems:desktop?"flex-start":"stretch",gap:14}}><View style={{flex:1,minWidth:0,gap:12}}>
           {!expense && <View style={s.row}>
             {(["equal", "items"] as const).map(value => <Pressable key={value}
               accessibilityRole="radio" aria-checked={mode === value} accessibilityState={{ checked: mode === value }}
@@ -299,6 +305,7 @@ export function ExpenseEditor({
                 />
               </View>
             </View>}
+            {mode==="items"&&!!photo&&<Button secondary label={t("Ponovno pročitaj fotografiju","Read photo again")} onPress={()=>ask(t("Ponoviti učitavanje?","Read again?"),t("Zamijenit će se unesene stavke.","This will replace the entered items."),()=>void scan(false,photo))}/>}
             <View style={s.row}>
               <Pressable accessibilityRole="button" accessibilityLabel={t("Odaberi kategoriju","Choose category")} disabled={useBusy} onPress={()=>setPicker("category")} style={{width:48,height:48,borderRadius:24,backgroundColor:c.tint,alignItems:"center",justifyContent:"center"}}><Icon name={categoryIcon(category)} color={c.accent} size={26}/></Pressable>
               <TextInput accessibilityLabel={t("Naslov računa","Bill title")} placeholder={t("Za što je račun?","What is it for?")} placeholderTextColor={c.muted} value={note} onChangeText={value=>{setNote(value);if(!manualCategory)setCategory(inferCategory(value))}} maxLength={200} editable={!useBusy} style={{flex:1,minWidth:0,minHeight:52,borderWidth:0,backgroundColor:c.bg,borderRadius:14,color:c.ink,fontSize:20,padding:12}}/>
@@ -485,7 +492,7 @@ export function ExpenseEditor({
           />
           </>}
           </>}
-          <Button secondary label={`${t("Platio/la", "Paid by")}: ${multiplePayers?t("više osoba", "multiple people"):group.people.find(p=>p.id===singlePayer)?.name||t("odaberi osobu", "choose person")}`} onPress={()=>setShowPayers(!showPayers)}/>
+          </View><View style={{width:desktop?300:undefined,gap:12}}><Button secondary label={`${t("Platio/la", "Paid by")}: ${multiplePayers?t("više osoba", "multiple people"):group.people.find(p=>p.id===singlePayer)?.name||t("odaberi osobu", "choose person")}`} onPress={()=>setShowPayers(!showPayers)}/>
           {(showPayers)&&<>
           <Card>
             <View style={s.wrap}>
@@ -584,8 +591,7 @@ export function ExpenseEditor({
             )}
             <Button label={expense?t("Spremi izmjene","Save changes"):t("Kreiraj račun","Create bill")}
               disabled={group.locked||(!!expense&&currency!==baseCurrency&&(rateLoading||!quote||!!rateError))||Math.round(total*100)!==Math.round(paid*100)||total<=0||effectiveItems.some(i=>!i.name.trim())||(mode==="equal"&&!equalIds.length)} onPress={()=>void save()}/>
-          </Card>
-        </>
+          </Card></View></View>
       )}
       <Modal visible={picker==="category"} transparent animationType="slide" onRequestClose={()=>setPicker(null)}>
         <View style={{flex:1,backgroundColor:"#00000066",justifyContent:"center",padding:16}}>

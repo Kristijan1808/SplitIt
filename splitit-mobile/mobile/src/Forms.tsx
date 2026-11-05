@@ -8,14 +8,15 @@ export function GroupForm({
   create,
   run,
   open,
-  initialCode = "",
+  initialCode = "",signedIn=false,
 }: {
-  initialCode?: string;
+  initialCode?: string;signedIn?:boolean;
   create: boolean;
   run: Run;
   open: (g: Group) => Promise<void>;
 }) {
-  const { t } = useUI();
+  const { t,c } = useUI();const [tried,setTried]=useState(false);
+  const [access,setAccess]=useState<"ANONYMOUS_ONLY"|"MIXED"|"REGISTERED_ONLY">("ANONYMOUS_ONLY");
   const [name, setName] = useState(initialCode);
   const [password, setPassword] = useState("");
   const [people, setPeople] = useState<string[]>([""]);
@@ -26,7 +27,12 @@ export function GroupForm({
     }
   }, [initialCode, create]);
   const [created, setCreated] = useState<Group | null>(null);
+  const names=people.map(n=>n.trim().toLowerCase());
+  const badName=create?name.trim().length<3:!(/^[A-Z0-9]{6}$/i.test(name.trim()));
+  const badPass=create?password.trim().length<4:!password;
+  const badPerson=(i:number)=>!names[i]||names.indexOf(names[i])!==i;
   async function submit() {
+    setTried(true);if(!created&&(badName||badPass||(create&&access!=="REGISTERED_ONLY"&&names.some((_,i)=>badPerson(i)))))return;
     await run(async () => {
       if (created) {
         await open(created);
@@ -34,18 +40,11 @@ export function GroupForm({
       }
       if (create) {
         const list = [...new Set(people.map((x) => x.trim()).filter(Boolean))];
-        if (!name.trim() || !password || !list.length)
-          throw new Error(
-            t(
-              "Unesi naziv, lozinku i barem jednog sudionika.",
-              "Enter a name, password and at least one participant.",
-            ),
-          );
         const result = await api.create({
           name: name.trim(),
           password,
-          people: list,
-          accessType: "ANONYMOUS_ONLY",
+          people: access==="REGISTERED_ONLY"?[]:list,
+          accessType:access,
         });
         setCreated(result);
         await open(result);
@@ -87,6 +86,7 @@ export function GroupForm({
           onChange={(value) => setName(create ? value : value.toUpperCase())}
           maxLength={!create ? 6 : 80}
         />
+        {tried&&badName&&<Txt style={{color:c.danger}}>{create?t("Naziv treba imati najmanje 3 znaka.","Use at least 3 characters."):t("Unesi kod od 6 slova ili brojeva.","Enter the 6-character code.")}</Txt>}
         <Field
           label={t("Lozinka grupe", "Group password")}
           value={password}
@@ -94,7 +94,9 @@ export function GroupForm({
           secure
           maxLength={80}
         />
-        {create && (
+        {tried&&badPass&&<Txt style={{color:c.danger}}>{create?t("Lozinka treba imati najmanje 4 znaka.","Use at least 4 characters."):t("Unesi lozinku.","Enter the password.")}</Txt>}
+        {create&&<View style={{gap:8}}><Txt bold>{t("Pristup grupi","Group access")}</Txt><View style={s.wrap}>{([["ANONYMOUS_ONLY",t("Bez računa","Guests")],["MIXED",t("Svi","Everyone")],["REGISTERED_ONLY",t("Samo registrirani","Registered only")]] as const).map(([id,label])=><Chip key={id} label={label} selected={access===id} disabled={id==="REGISTERED_ONLY"&&!signedIn} onPress={()=>setAccess(id)}/>)}</View></View>}
+        {create && access!=="REGISTERED_ONLY" && (
           <>
             <Txt bold>{t("Sudionici", "Participants")}</Txt>
             {people.map((value, index) => (
@@ -108,8 +110,9 @@ export function GroupForm({
                         xs.map((x, i) => (i === index ? name : x)),
                       )
                     }
-                    maxLength={80}
+                    maxLength={60}
                   />
+                  {tried&&badPerson(index)&&<Txt size={12} style={{color:c.danger}}>{t("Unesi različito ime za svakog sudionika.","Enter a distinct name for each participant.")}</Txt>}
                 </View>
                 {people.length > 1 && (
                   <Button
