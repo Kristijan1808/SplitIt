@@ -45,6 +45,7 @@ export function ExpenseCard({
             : pending?t("Privremeni saldo", "Provisional balance"):t("Poravnato", "Settled");
   const color = net && net.net < 0 ? c.debt : c.accent;
   const date = new Date(e.billDate||e.createdAt);
+  const detailHeader=<View style={{backgroundColor:c.hero,paddingHorizontal:14,paddingVertical:11,borderRadius:10,gap:2}}><View style={s.between}><Txt bold size={21} style={{color:"#FFFDF2",flex:1}}>{e.note||t("Račun","Bill")}</Txt><Txt bold size={19} style={{color:"#FFFDF2"}}>{Number(e.totalAmount).toFixed(2)} {currency}</Txt></View><Txt size={13} style={{color:"#E4EFDF"}}>{t("Platili","Paid by")}: {names||"—"}</Txt></View>;
   return (
     <View style={{ borderWidth:1,borderColor:c.line,backgroundColor:pending?c.dangerTint:c.card,borderRadius:18,paddingHorizontal:10,overflow:"hidden",marginVertical:2 }}>
       <Pressable
@@ -107,9 +108,9 @@ export function ExpenseCard({
           </Txt>
         </View>
       </Pressable>
-      {expanded&&desktop&&<Modal visible transparent animationType="fade" onRequestClose={onPress}><View style={{flex:1,backgroundColor:"#0007",alignItems:"flex-end"}}><View accessibilityViewIsModal style={{flex:1,width:520,maxWidth:"100%",backgroundColor:c.card,padding:20,gap:12}}><View style={s.between}><Txt bold size={21}>{e.note||t("Račun","Bill")}</Txt><Button secondary compact label={t("Zatvori","Close")} onPress={onPress}/></View><Txt bold size={24}>{Number(e.totalAmount).toFixed(2)} {currency}</Txt><ScrollView contentContainerStyle={{gap:10,paddingBottom:24}}>{children}</ScrollView></View></View></Modal>}
+      {expanded&&desktop&&<Modal visible transparent animationType="fade" onRequestClose={onPress}><View style={{flex:1,backgroundColor:"#0007",alignItems:"flex-end"}}><View accessibilityViewIsModal style={{flex:1,width:520,maxWidth:"100%",backgroundColor:c.card,padding:20,gap:12}}>{detailHeader}<Button secondary compact label={t("Zatvori","Close")} onPress={onPress}/><ScrollView contentContainerStyle={{gap:10,paddingBottom:24}}>{children}</ScrollView></View></View></Modal>}
       {expanded && !desktop && (
-        <View style={{ paddingBottom: 10, paddingTop:4, gap: 7 }}>{children}</View>
+        <View style={{ paddingBottom: 10, paddingTop:4, gap: 7 }}>{detailHeader}{children}</View>
       )}
     </View>
   );

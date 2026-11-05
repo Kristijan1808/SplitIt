@@ -1,3 +1,4 @@
+import {ReceiptMark} from "./src/FineLine";
 import { DesktopSidebar } from "./src/DesktopSidebar";
 import translations from "./src/translations.json";
 import { Account, Plans } from "./src/Account";
@@ -504,7 +505,7 @@ function Main() {
           )
           .sort((a, b) => Number(!!b.pinned) - Number(!!a.pinned))
     ).map((g, i) => (
-      <Card key={g.slug} style={{ width: grid && !limit ? "48%" : "100%" }}>
+      <Card key={g.slug} style={{ width: grid && !limit ? "48%" : "100%", ...(limit?{paddingHorizontal:10,paddingVertical:4}:{}) }}>
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={`${t("Otvori grupu", "Open group")} ${g.name}`}
@@ -516,7 +517,7 @@ function Main() {
               nav("group");
             })
           }
-          style={{ gap: 10, minHeight: 72 }}
+          style={{ gap: 6, minHeight: limit?48:72,justifyContent:"center" }}
         >
           <View style={s.row}>
             <View
@@ -529,19 +530,20 @@ function Main() {
                 justifyContent: "center",
               }}
             >
-              <Txt size={24}>{g.avatar || "👥"}</Txt>
+              {g.avatar?<Txt size={23}>{g.avatar}</Txt>:<Icon name="groups" size={22} color={c.accent}/>}
             </View>
             <View style={{ flex: 1 }}>
               <Txt bold size={18}>
                 {g.name}
               </Txt>
               <Txt muted size={12}>
-                {g.code}
-                {g.participantName ? ` · ${g.participantName}` : ""}
+                {limit ? (g.memberCount ?? "—")+" "+t("članova","members") : g.code}
+                {!limit && g.participantName ? ` · ${g.participantName}` : ""}
               </Txt>
             </View>
+            {!!limit&&<Txt size={24} muted>›</Txt>}
           </View>
-          <View style={s.between}>
+          {!limit&&<View style={s.between}>
             <Txt muted size={12}>
               {g.memberCount ?? "—"} {t("članova", "members")} ·{" "}
               {g.draftCount ?? 0} {t("čeka podjelu", "awaiting split")}
@@ -554,7 +556,7 @@ function Main() {
                 ? "—"
                 : `${g.balance > 0 ? "+" : ""}${g.balance.toFixed(2)} ${g.currency || "EUR"}`}
             </Txt>
-          </View>
+          </View>}
         </Pressable>
         {!limit && (
           <Button
@@ -724,55 +726,12 @@ function Main() {
               {screen === "plans" && <Plans onHome={() => nav("home")} />}
               {screen === "home" && (
                 <Page>
-                  <Heading
-                    title={t(
-                      "Manje računanja.\nViše druženja.",
-                      "Less maths.\nMore good times.",
-                    )}
-                    subtitle={t(
-                      "Izradi grupu ili se pridruži kodom. Bez registracije.",
-                      "Create a group or join with a code. No registration.",
-                    )}
-                  />
-                  <View
-                    style={[
-                      s.card,
-                      {
-                        backgroundColor: c.hero,
-                        borderColor: c.hero,
-                        padding: 18,
-                      },
-                    ]}
-                  >
-                    <Txt style={{ color: "#BADEC9" }} size={12} bold>
-                      SPLIT IT. ENJOY IT.
-                    </Txt>
-                    <Txt size={25} bold style={{ color: "white" }}>
-                      {t(
-                        "Svaki račun\nima svoju ekipu.",
-                        "Every bill\nhas its people.",
-                      )}
-                    </Txt>
-                    <Txt style={{ color: "#DAEAE2" }}>
-                      {t(
-                        "Putovanje, večera ili svakodnevica.\nSvi troškovi na jednom mjestu.",
-                        "A trip, dinner or the everyday.\nAll expenses in one place.",
-                      )}
-                    </Txt>
-                    <Button
-                      icon="plus"
-                      label={t("Izradi novu grupu", "Create a group")}
-                      onPress={() => nav("create")}
-                    />
+                  <Txt bold size={15}>{t("Početna","Home")}</Txt>
+                  <View style={[s.between,{paddingVertical:6}]}>
+                    <Txt bold size={31} style={{flex:1,letterSpacing:-1,lineHeight:35}}>{t("Dobra ekipa\ndijeli fer.","Good company\nshares fairly.")}</Txt><ReceiptMark/>
                   </View>
-                  <Button
-                    secondary
-                    label={t(
-                      "Imam kod · Pridruži se grupi",
-                      "I have a code · Join a group",
-                    )}
-                    onPress={() => nav("join")}
-                  />
+                  <Button label={t("Izradi grupu","Create group")} onPress={()=>nav("create")}/>
+                  <Button secondary label={t("Pridruži se kodom","Join with a code")} onPress={()=>nav("join")}/>
                   <View style={s.between}>
                     <Txt bold size={21}>
                       {t("Tvoje grupe", "Your groups")}

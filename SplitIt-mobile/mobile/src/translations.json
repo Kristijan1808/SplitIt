@@ -264,7 +264,10 @@
     "Who participates?": "Wer nimmt teil?",
     "Choose who participates in this expense. Only selected participants will be included in the wheel.": "Wähle die Personen für diese Ausgabe. Nur ausgewählte Personen nehmen am Rad teil.",
     "Check all": "Alle auswählen",
-    "Close": "Schließen"
+    "Close": "Schließen",
+    "Good company\nshares fairly.": "Gute Gesellschaft\nteilt fair.",
+    "Join with a code": "Mit Code beitreten",
+    "My selection": "Meine Auswahl"
   },
   "ja": {
     "SplitIt": "SplitIt",
@@ -531,6 +534,9 @@
     "Who participates?": "参加者を選択",
     "Choose who participates in this expense. Only selected participants will be included in the wheel.": "この費用に参加する人を選択してください。選択した参加者だけがホイールに含まれます。",
     "Check all": "すべて選択",
-    "Close": "閉じる"
+    "Close": "閉じる",
+    "Good company\nshares fairly.": "みんなで楽しく、\n公平に割り勘。",
+    "Join with a code": "コードで参加",
+    "My selection": "自分の選択"
   }
 }

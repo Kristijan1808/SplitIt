@@ -1,3 +1,4 @@
+import {ClaimPawns} from "./FineLine";
 import {OutboxPanel} from "./OutboxPanel";
 import {categories} from "./catalog";
 import {TransferPanel,GroupUtilities,ask} from "./WorkflowPanels";
@@ -333,7 +334,7 @@ export function GroupScreen({
                     const blocked=busy||g.locked||!me;
                     const change=(delta:number)=>void act(()=>api.ownItem(g.slug,e.id,item.id,byUnits?selected+delta:delta>0,true));
                     const incomplete=byUnits?remaining>0:item.shares.length===0;
-                    return <View key={item.id} style={{gap:7,padding:10,borderWidth:1,borderColor:incomplete?c.debt:c.line,borderRadius:12,backgroundColor:c.card}}>
+                    return <View key={item.id} style={{gap:6,paddingHorizontal:2,paddingVertical:10,borderTopWidth:1,borderColor:c.line,backgroundColor:c.card}}>
                       <View style={[s.between,{gap:8,alignItems:"flex-start"}]}>
                         <View style={{flex:1,minWidth:0,gap:3}}>
                           <Txt bold size={14}>{item.name}</Txt>
@@ -341,14 +342,20 @@ export function GroupScreen({
                         </View>
                         <View style={{alignItems:"flex-end",gap:2}}><Txt muted size={10}>{t("UKUPNO","TOTAL")}</Txt><Txt bold size={15}>{money(item.price)}</Txt></View>
                       </View>
-                      <View style={{flexDirection:"row",flexWrap:"wrap",alignItems:"center",justifyContent:"space-between",gap:6}}>
-                        <View style={{borderRadius:7,paddingHorizontal:7,paddingVertical:4,backgroundColor:incomplete?c.debtTint:c.tint,flexShrink:1}}>
-                          <Txt bold size={11} style={{color:incomplete?c.debt:c.accent}}>{byUnits
+                      <ClaimPawns shares={item.shares.map(x=>({id:x.personId,name:person(x.personId),count:byUnits?(x.units||0):1}))} remaining={byUnits?remaining:(incomplete?1:0)} mine={me?.id}/>
+                      {!!item.shares.length&&<View style={{flexDirection:"row",flexWrap:"wrap",columnGap:9,rowGap:2}}>
+                        {item.shares.map(x=><View key={x.personId} style={{maxWidth:"100%",paddingVertical:1}}>
+                          <Txt size={12}><Txt bold size={12}>{person(x.personId)}{x.personId===me?.id?` (${t("ti","you")})`:""}</Txt>{byUnits?` · ${x.units||0} ${t("kom","pcs")}`:""} · {money(x.amount)}</Txt>
+                        </View>)}
+                      </View>}
+                      <View style={{gap:6}}>
+                        <View style={{alignSelf:"flex-start",borderRadius:7,paddingHorizontal:7,paddingVertical:4,backgroundColor:incomplete?c.peach:c.tint,flexShrink:1}}>
+                          <Txt bold size={11} style={{color:incomplete?c.peachInk:c.accent}}>{byUnits
                             ?remaining>0?`${t("Još za podijeliti","Still unassigned")}: ${remaining} ${t("kom","pcs")}`:t("✓ Sve podijeljeno","✓ Fully assigned")
                             :item.shares.length?`${t("Zajedničko · dijeli","Shared by")} ${item.shares.length} ${t("os.","people")}`:t("Zajedničko · nitko nije odabrao","Shared · no selections")}</Txt>
                         </View>
-                        {byUnits?<View style={{flexDirection:"row",alignItems:"center",gap:5}}>
-                          <Txt muted size={11}>{t("Moji komadi","My quantity")}</Txt>
+                        {byUnits?<View style={{flexDirection:"row",alignItems:"center",justifyContent:"space-between",paddingHorizontal:8,borderRadius:9,backgroundColor:c.tint}}>
+                          <Txt bold size={13}>{t("Moj odabir","My selection")}</Txt>
                           <View style={{flexDirection:"row",alignItems:"center",borderRadius:10,backgroundColor:c.tint}}>
                             <Pressable accessibilityRole="button" accessibilityLabel={`${t("Smanji moju količinu","Decrease my quantity")}: ${item.name}`} accessibilityState={{disabled:blocked||selected===0}} disabled={blocked||selected===0} onPress={()=>change(-1)} style={{width:44,minHeight:44,alignItems:"center",justifyContent:"center",opacity:blocked||selected===0?.35:1}}><Txt size={20} bold style={{color:c.accent}}>−</Txt></Pressable>
                             <Txt bold size={14} style={{minWidth:20,textAlign:"center"}}>{selected}</Txt>
@@ -358,11 +365,6 @@ export function GroupScreen({
                           <Txt bold size={12} style={{color:c.accent}}>{selected?"✓ ":"+ "}{t("Sudjelujem","I shared this")}</Txt>
                         </Pressable>}
                       </View>
-                      {!!item.shares.length&&<View style={{flexDirection:"row",flexWrap:"wrap",gap:5,borderTopWidth:1,borderTopColor:c.line,paddingTop:7}}>
-                        {item.shares.map(x=><View key={x.personId} style={{maxWidth:"100%",borderRadius:7,backgroundColor:x.personId===me?.id?c.tint:c.bg,paddingHorizontal:7,paddingVertical:5}}>
-                          <Txt size={12}><Txt bold size={12}>{person(x.personId)}{x.personId===me?.id?` (${t("ti","you")})`:""}</Txt>{byUnits?` · ${x.units||0} ${t("kom","pcs")}`:""} · {money(x.amount)}</Txt>
-                        </View>)}
-                      </View>}
                     </View>;
                   })}
                 <Txt bold>{t("Platili", "Paid by")}</Txt>

@@ -12,17 +12,17 @@ import {
 import Svg, { Path, Circle } from "react-native-svg";
 // 60% quiet background, 30% layered surfaces, 10% semantic accents.
 export const light = {
-  bg: "#F4F6FA", card: "#FFFFFF", ink: "#182C3C", muted: "#54677A",
-  line: "#DCE4EC", accent: "#086C58", tint: "#E1F2EB", danger: "#B33442",
+  peach:"#FBE3C6", peachInk:"#834219", bg: "#FCF8EF", card: "#FFFBF4", ink: "#12342E", muted: "#53665C",
+  line: "#D6DCCB", accent: "#005642", tint: "#EAF0DC", danger: "#B33442",
   dangerTint: "#FBECEE",
-  hero: "#174B48", info: "#285AB0", infoTint: "#EAF0FD",
+  hero: "#064F40", info: "#32655C", infoTint: "#E4EFE7",
   debt: "#B33442", debtTint: "#FBECEE",
 };
 export const dark = {
-  bg: "#101923", card: "#1C2A36", ink: "#EDF3FA", muted: "#ABBCCD",
-  line: "#354756", accent: "#79DABA", tint: "#233F3C", danger: "#FFA4AD",
+  peach:"#48382A", peachInk:"#FFCD9B", bg: "#111C19", card: "#1B2924", ink: "#F5F3E8", muted: "#B9C7B9",
+  line: "#394A40", accent: "#91DBC2", tint: "#2B4033", danger: "#FFA4AD",
   dangerTint: "#35252E",
-  hero: "#234F50", info: "#9DBEFF", infoTint: "#24354F",
+  hero: "#124D40", info: "#A7CFBC", infoTint: "#283D33",
   debt: "#E39AA3", debtTint: "#35252E",
 };
 export const UI = createContext({
@@ -111,6 +111,7 @@ export function Button({
         },
       ]}
     >
+      {!secondary&&!danger&&!info&&<View pointerEvents="none" style={{position:"absolute",right:0,top:0,borderTopWidth:15,borderLeftWidth:15,borderTopColor:c.muted,borderLeftColor:"transparent",opacity:.4}}/>}
       {icon && <Icon name={icon} color={info ? c.info : secondary ? c.accent : c.bg} />}
       <Text
         style={{
@@ -321,10 +322,11 @@ export const s = StyleSheet.create({
     maxWidth: 680,
     alignSelf: "center",
   },
-  card: { padding: 12, borderWidth: 1, borderRadius: 18, gap: 10 },
+  card: { padding: 12, borderWidth: 1, borderRadius: 13, gap: 10 },
   button: {
     minHeight: 48,
-    borderRadius: 14,
+    overflow:"hidden",
+    borderRadius: 11,
     paddingHorizontal: 16,
     paddingVertical: 12,
     flexDirection: "row",
