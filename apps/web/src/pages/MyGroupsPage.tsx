@@ -4,7 +4,6 @@ import { Link } from "react-router-dom";
 import { ArrowLeft, FolderOpen, LogOut, X } from "lucide-react";
 import { api } from "../api";
 import { clearAuth, getAuthUser, isLoggedIn } from "../auth";
-import { ThemeToggle } from "../components/ThemeToggle";
 import { ConfirmationModal } from "../components/ConfirmationModal";
 import { useLanguage } from "../i18n";
 import {
@@ -83,7 +82,7 @@ export function MyGroupsPage() {
               <LogOut size={16} /> {t("signOut")}
             </button>
           )}
-          <ThemeToggle />
+          
         </div>
       </div>
 

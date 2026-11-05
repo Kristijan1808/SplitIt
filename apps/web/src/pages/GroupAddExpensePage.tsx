@@ -91,7 +91,7 @@ export const GroupAddExpensePage = () => {
 
   const [group, setGroup] = useState<Group | null>(null);
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
-  const [entryMode, setEntryMode] = useState<"equal" | "items">("equal");
+  const [entryMode, setEntryMode] = useState<"equal" | "items">(searchParams.get("scan")==="1"?"items":"equal");
   const [equalAmount, setEqualAmount] = useState("");
   const [equalParticipantIds, setEqualParticipantIds] = useState<string[]>([]);
   const [equalSplitMode, setEqualSplitMode] = useState<EqualSplitMode>("equal");

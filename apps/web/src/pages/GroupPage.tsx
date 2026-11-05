@@ -1,3 +1,4 @@
+import {ReceiptItem} from "../components/ReceiptItem";
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
@@ -6,13 +7,12 @@ import {
   useParams,
   useSearchParams,
 } from "react-router-dom";
-import { ArrowLeft, Copy, Lock, Plus, Users, X, Dices, Pencil, Clock3, Receipt, ArrowLeftRight } from "lucide-react";
-import { ThemeToggle } from "../components/ThemeToggle";
+import { Camera, ArrowLeft, Copy, Lock, Plus, Users, X, Dices, Pencil, Clock3, Receipt, ArrowLeftRight } from "lucide-react";
 import { api } from "../api";
 import { useLanguage } from "../i18n";
 import type {
   ExpenseItem,
-  ExpenseItemShare,
+
   ExpensePayer,
   Group,
   SettlementResult,
@@ -717,9 +717,7 @@ export const GroupPage = () => {
         </div>
       )}
 
-      <div className="topBar">
-        <ThemeToggle />
-      </div>
+      
 
       <Link className="backLink" to="/">
         <ArrowLeft size={18} /> {t("home")}
@@ -833,12 +831,13 @@ export const GroupPage = () => {
             <span>{label}</span>
           </button>
         ))}
-        {activeTab === "expenses" && !group.locked && !workflow.archived && group.people.length > 0 && currentParticipantId && (
-          <Link className="primaryButton compactButton groupAddExpense" to={`/g/${slug}/add-expense`}>
-            <Plus size={18} /> {t("addExpense")}
-          </Link>
-        )}
       </nav>
+        {activeTab === "expenses" && !group.locked && !workflow.archived && group.people.length > 0 && currentParticipantId && (
+          <div className="flActions"><Link className="secondaryButton" to={`/g/${slug}/add-expense?scan=1`}><Camera size={18}/>{t("scanBill")}</Link><Link className="primaryButton" to={`/g/${slug}/add-expense`}>
+            <Plus size={18} /> {t("addExpense")}
+          </Link></div>
+        )}
+      
 
       {activeTab === "debts" && (
         <section className="groupTabContent">
@@ -1182,7 +1181,7 @@ export const GroupPage = () => {
                             </div>
 
                             {expanded && (
-                              <div className="expenseDetails">
+                              <div className="expenseDetails"><div className="flReceipt"><div><b>{expense.note || t("expense")}</b><small>{t("billPayers")}: {expense.payers.map(p=>p.person?.name||group.people.find(x=>x.id===p.personId)?.name).filter(Boolean).join(", ")}</small></div><strong>{Number(expense.totalAmount).toFixed(2)} {group.currency||"EUR"}</strong></div>
                                 <div className="expenseDetailsBlock expense-payers">
                                   <strong>{t("billPayers")}</strong>
                                   {(expense.payers ?? []).map(
@@ -1208,90 +1207,9 @@ export const GroupPage = () => {
                                 <div className="expenseDetailsBlock expense-items">
                                   <strong>{t("billItems")}</strong>
                                   {(expense.items ?? []).map(
-                                    (item: ExpenseItem) => (
-                                      <div
-                                        className="expenseDetailItem"
-                                        key={item.id}
-                                      >
-                                        {item.splitMode === "units" ? <label>{t("myUnits")}
-                                          <select aria-label={`Moja količina: ${item.name}`} disabled={group.locked||saving||!currentParticipantId}
-                                            value={item.shares.find(s=>s.personId===currentParticipantId)?.units||0}
-                                            onChange={async event=>{const units=Number(event.target.value);setSaving(true);setActionError("");try{await api.ownItem(slug,expense.id,item.id,units,true);await refreshSnapshot();}catch(e){setActionError(e instanceof Error?e.message:"Error");}finally{setSaving(false);}}}>
-                                            {Array.from({length:Math.max(0,(item.quantity||1)-item.shares.filter(s=>s.personId!==currentParticipantId).reduce((n,s)=>n+(s.units||0),0))+1},(_,n)=><option key={n} value={n}>{n}</option>)}
-                                          </select>
-                                          <span> {t("remainingUnits")}: {Math.max(0,(item.quantity||1)-item.shares.reduce((n,s)=>n+(s.units||0),0))}</span>
-                                        </label> : <>
-                                        <label>
-                                          <input
-                                            className="expenseSelectionCheckbox"
-                                            type="checkbox"
-                                            checked={item.shares.some(
-                                              (s) =>
-                                                s.personId ===
-                                                currentParticipantId,
-                                            )}
-                                            disabled={
-                                              group.locked ||
-                                              saving ||
-                                              !currentParticipantId
-                                            }
-                                            onChange={async (event) => {
-                                              const selected =
-                                                event.target.checked;
-                                              setSaving(true);
-                                              setActionError("");
-                                              try {
-                                                await api.ownItem(
-                                                  slug,
-                                                  expense.id,
-                                                  item.id,
-                                                  selected,
-                                                  true,
-                                                );
-                                                await refreshSnapshot();
-                                              } catch (error) {
-                                                setActionError(
-                                                  error instanceof Error
-                                                    ? error.message
-                                                    : "Error",
-                                                );
-                                              } finally {
-                                                setSaving(false);
-                                              }
-                                            }}
-                                          />
-                                          {t("myItem")}
-                                        </label>
-                                        </>}
-                                        <div className="expenseDetailItemTop">
-                                          <strong>
-                                            {item.ordinalNumber}. {item.name} · {item.quantity||1} × {(Number(item.price)/(item.quantity||1)).toFixed(2)} {group?.currency||"EUR"}
-                                          </strong>
-                                          <strong>
-                                            {Number(item.price).toFixed(2)} {group?.currency||"EUR"}
-                                          </strong>
-                                        </div>
-                                        <div className="shareNames">
-                                          {(item.shares ?? []).length === 0
-                                            ? t("noItemAssigned")
-                                            : item.shares
-                                                .map(
-                                                  (share: ExpenseItemShare) => {
-                                                    const name =
-                                                      share.person?.name ??
-                                                      group.people.find(
-                                                        (p) =>
-                                                          p.id ===
-                                                          share.personId,
-                                                      )?.name ??
-                                                      share.personId;
-                                                    return `${name}${item.splitMode==="units"?` · ${share.units} kom.`:""} (${Number(share.amount).toFixed(2)} ${group?.currency||"EUR"})`;
-                                                  },
-                                                )
-                                                .join(", ")}
-                                        </div>
-                                      </div>
-                                    ),
+                                    (item: ExpenseItem) => <ReceiptItem key={item.id} item={item} currency={group.currency||"EUR"} people={group.people} mine={currentParticipantId} disabled={group.locked||saving||!currentParticipantId} onChange={async value=>{
+                                      setSaving(true);setActionError("");try{await api.ownItem(slug,expense.id,item.id,value,true);await refreshSnapshot()}catch(err){setActionError(err instanceof Error?err.message:t("somethingWentWrong"))}finally{setSaving(false)}
+                                    }}/>
                                   )}
                                 </div>
 

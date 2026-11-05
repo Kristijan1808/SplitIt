@@ -1,69 +1,7 @@
-import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
-import { CreditCard, LogOut, Plus, UserRoundPlus, WalletCards } from "lucide-react";
-import { clearAuth, getAuthUser } from "../auth";
-import { ThemeToggle } from "../components/ThemeToggle";
-import { LanguageToggle } from "../components/LanguageToggle";
-import { useLanguage } from "../i18n";
-
-export function HomePage() {
-  const [username, setUsername] = useState(getAuthUser()?.username ?? "");
-  const { t } = useLanguage();
-
-  return (
-    <main className="page">
-      <div className="topBar">
-        <div className="topBarControls">
-          <LanguageToggle />
-          <ThemeToggle />
-        </div>
-      </div>
-      <section className="hero homeHero">
-        <div className="brand homeBrand">
-          <div className="logo">
-            <WalletCards size={28} />
-          </div>
-          <div>
-            <p className="eyebrow">{t("moneyMadeSimple")}</p>
-            <h1>{t("appName")}</h1>
-          </div>
-        </div>
-      </section>
-
-      <div className="homeActions">
-        <Link to="/new" className="primaryButton homeActionButton">
-          <Plus size={18} /> {t("createGroup")}
-        </Link>
-
-        <Link to="/join" className="primaryButton homeActionButton">
-          <UserRoundPlus size={18} /> {t("joinGroup")}
-        </Link>
-      </div>
-
-      <div className="homeActionsSecondary">
-        <Link to="/my-groups" className="secondaryButton homeActionButton">
-          {t("myGroups")}
-        </Link>
-        <Link to="/subscriptions" className="secondaryButton homeActionButton subscriptionsBtn">
-          <CreditCard size={18} /> {t("subscriptions")}
-        </Link>
-        {username ? (
-          <button
-            type="button"
-            className="secondaryButton homeActionButton"
-            onClick={() => {
-              clearAuth();
-              setUsername("");
-            }}
-          >
-            <LogOut size={18} /> {username} · {t("signOut")}
-          </button>
-        ) : (
-          <Link to="/login" className="secondaryButton homeActionButton loginBtn">
-            {t("login")}
-          </Link>
-        )}
-      </div>
-    </main>
-  );
-}
+import {Link} from 'react-router-dom';
+import {ChevronRight,Users} from 'lucide-react';
+import {getSavedGroups} from '../storage';
+import {useLanguage} from '../i18n';
+export function HomePage(){const{t}=useLanguage(),groups=getSavedGroups();return <main className="page flHome"><b>{t('home')}</b><div className="flHero"><h1>{t('teamSlogan')}</h1><svg width="83" height="76" viewBox="0 0 83 76" aria-hidden="true"><ellipse cx="43" cy="57" rx="31" ry="9" fill="var(--tint)"/><path d="M25 12 Q25 10 28 11 L66 17 L54 65 L49 61 L45 64 L40 59 L35 62 L30 57 L25 60 L21 55 L15 58 Z" fill="var(--panel-bg)" stroke="var(--accent)" strokeWidth="2.2" strokeLinejoin="round"/><g fill="var(--black)"><circle cx="36" cy="27" r="1.7"/><circle cx="52" cy="29" r="1.7"/></g><path d="M38 33 Q43 39 48 34 M28 45l22 4 M27 50l14 3 M66 9l3-6 M71 13l7-4" fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round"/></svg></div>
+<Link className="primaryButton" to="/new">{t('createShort')}</Link><Link className="secondaryButton" to="/join">{t('joinCode')}</Link><div className="flHeading"><h2>{t('yourGroups')}</h2><span>{groups.length}</span></div>
+{groups.slice(0,3).map(g=><Link className="flGroup" key={g.slug} to={'/g/'+encodeURIComponent(g.slug)}><i><Users size={22}/></i><div><strong>{g.name}</strong><small>{g.memberCount!==undefined?g.memberCount+' '+t('membersShort'):[g.code,g.participantName].filter(Boolean).join(' · ')}</small></div><ChevronRight size={18}/></Link>)}{!groups.length&&<section className="card muted">{t('emptyHome')}</section>}</main>}

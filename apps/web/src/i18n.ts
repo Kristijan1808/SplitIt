@@ -11,6 +11,18 @@ export const languageOptions = [
 
 export const translations = {
   hr: {
+    teamSlogan: "Dobra ekipa\ndijeli fer.",
+    yourGroups: "Tvoje grupe",
+    groupsNav: "Grupe",
+    settingsNav: "Postavke",
+    myChoice: "Moj odabir",
+    fullyAssigned: "Sve podijeljeno",
+    createShort: "Izradi grupu",
+    joinCode: "Pridruži se kodom",
+    emptyHome: "Ovdje će se pojaviti grupe koje izradiš ili kojima se pridružiš.",
+    navMenu: "IZBORNIK",
+    membersShort: "članova",
+
     appName: "SplitIt",
     moneyMadeSimple: "Novac ostaje jednostavan",
     home: "Početna",
@@ -295,6 +307,18 @@ export const translations = {
     close: "Zatvori"
   },
   en: {
+    teamSlogan: "Good company\nshares fairly.",
+    yourGroups: "Your groups",
+    groupsNav: "Groups",
+    settingsNav: "Settings",
+    myChoice: "My selection",
+    fullyAssigned: "Fully assigned",
+    createShort: "Create group",
+    joinCode: "Join with a code",
+    emptyHome: "Groups you create or join will appear here.",
+    navMenu: "MENU",
+    membersShort: "members",
+
     appName: "SplitIt",
     moneyMadeSimple: "Money made simple",
     home: "Home",
@@ -578,6 +602,18 @@ export const translations = {
     close: "Close"
   },
   ja: {
+    teamSlogan: "みんなで楽しく、\n公平に割り勘。",
+    yourGroups: "あなたのグループ",
+    groupsNav: "グループ",
+    settingsNav: "設定",
+    myChoice: "自分の選択",
+    fullyAssigned: "割り当て完了",
+    createShort: "グループを作成",
+    joinCode: "コードで参加",
+    emptyHome: "作成または参加したグループがここに表示されます。",
+    navMenu: "メニュー",
+    membersShort: "人",
+
     appName: "SplitIt",
     moneyMadeSimple: "簡単に分ける",
     home: "ホーム",
@@ -861,6 +897,18 @@ export const translations = {
     close: "閉じる"
   },
   de: {
+    teamSlogan: "Gute Gesellschaft\nteilt fair.",
+    yourGroups: "Deine Gruppen",
+    groupsNav: "Gruppen",
+    settingsNav: "Einstellungen",
+    myChoice: "Meine Auswahl",
+    fullyAssigned: "Alles aufgeteilt",
+    createShort: "Gruppe erstellen",
+    joinCode: "Mit Code beitreten",
+    emptyHome: "Hier erscheinen Gruppen, die du erstellst oder denen du beitrittst.",
+    navMenu: "MENÜ",
+    membersShort: "Mitglieder",
+
     appName: "SplitIt",
     moneyMadeSimple: "Geld einfach teilen",
     home: "Startseite",

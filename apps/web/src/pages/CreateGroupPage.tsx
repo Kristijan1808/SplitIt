@@ -1,7 +1,6 @@
 import { FormEvent, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { ArrowLeft, Copy, Plus } from "lucide-react";
-import { ThemeToggle } from "../components/ThemeToggle";
 import { useLanguage } from "../i18n";
 import { api } from "../api";
 import type { AccessType } from "../types";
@@ -82,9 +81,7 @@ export function CreateGroupPage() {
 
   return (
     <main className="page">
-      <div className="topBar">
-        <ThemeToggle />
-      </div>
+      
       <Link className="backLink" to="/">
         <ArrowLeft size={18} /> {t("back")}
       </Link>

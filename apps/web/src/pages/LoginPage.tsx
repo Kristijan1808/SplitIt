@@ -4,7 +4,6 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { ArrowLeft, LogIn, UserPlus } from "lucide-react";
 import { api } from "../api";
 import { saveAuth } from "../auth";
-import { ThemeToggle } from "../components/ThemeToggle";
 import { GoogleSignInButton } from "../components/GoogleSignInButton";
 import { useLanguage } from "../i18n";
 import { showToast } from "../notifications";
@@ -95,9 +94,7 @@ export function LoginPage() {
 
   return (
     <main className="page">
-      <div className="topBar">
-        <ThemeToggle />
-      </div>
+      
 
       <Link className="backLink" to="/">
         <ArrowLeft size={18} /> {t("home")}

@@ -4,6 +4,7 @@ export type SavedGroup = {
   code?: string;
   participantId?: string | null;
   participantName?: string | null;
+  memberCount?: number;
   savedAt: string;
 };
 
@@ -48,6 +49,7 @@ export function saveGroupToLocalStorage(group: {
   slug: string;
   name: string;
   code?: string | null;
+  people?: readonly {id:string}[];
 }) {
   const groups = readSavedGroups();
   const existing = groups.find((entry) => entry.slug === group.slug);
@@ -56,6 +58,7 @@ export function saveGroupToLocalStorage(group: {
     slug: group.slug,
     name: group.name,
     code: group.code ?? existing?.code,
+    memberCount: group.people?.length ?? existing?.memberCount,
     participantId: existing?.participantId ?? null,
     participantName: existing?.participantName ?? null,
     savedAt: existing?.savedAt ?? new Date().toISOString()
@@ -75,6 +78,7 @@ export function syncSavedGroupToLocalStorage(group: {
   slug: string;
   name: string;
   code?: string | null;
+  people?: readonly {id:string}[];
 }) {
   const groups = readSavedGroups();
   const existing = groups.find((entry) => entry.slug === group.slug);
@@ -83,6 +87,7 @@ export function syncSavedGroupToLocalStorage(group: {
   const updated: SavedGroup = {
     ...existing,
     name: group.name,
+    memberCount: group.people?.length ?? existing.memberCount,
     code: group.code ?? existing.code
   };
 

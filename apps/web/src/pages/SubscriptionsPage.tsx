@@ -1,7 +1,5 @@
 import { ArrowLeft, Check, Sparkles, Users, UserRound } from "lucide-react";
 import { Link } from "react-router-dom";
-import { LanguageToggle } from "../components/LanguageToggle";
-import { ThemeToggle } from "../components/ThemeToggle";
 import { useLanguage } from "../i18n";
 
 export function SubscriptionsPage() {
@@ -40,12 +38,7 @@ export function SubscriptionsPage() {
 
   return (
     <main className="page subscriptionsPage">
-      <div className="topBar">
-        <div className="topBarControls">
-          <LanguageToggle />
-          <ThemeToggle />
-        </div>
-      </div>
+      
 
       <Link className="backLink" to="/">
         <ArrowLeft size={18} /> {t("home")}
