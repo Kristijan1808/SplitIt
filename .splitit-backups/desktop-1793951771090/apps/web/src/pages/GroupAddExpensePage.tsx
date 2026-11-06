@@ -1,0 +1,1180 @@
+import {queueBill,snapshotForEditor,syncBills} from "../offlineBills";
+import {CategoryIcon,inferCategory,labels,type Category} from "../components/ExpenseCategory";
+import {getWhoAmI,saveWhoAmI} from "../storage";
+import "../styles/receiptParity.css";
+import { useEffect, useMemo, useState } from "react";
+import { ArrowLeft, Camera, ImagePlus, Plus, RefreshCw, Trash2, Dices } from "lucide-react";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { api,type FxQuote } from "../api";
+import { useLanguage } from "../i18n";
+import type { Expense, Group } from "../types";
+import { RandomSplitWheel } from "../components/RandomSplitWheel";
+import { showToast } from "../notifications";
+//push comment
+type DraftItem = {
+  quantity?:string;
+  id: string;
+  ordinalNumber: number;
+  name: string;
+  price: string;
+  assignedPersonIds: string[];
+  splitMode?: "shared" | "units";
+  assignedUnits?: Record<string, number>;
+  originalLineTotal?:number;
+  originalShares?: Array<{ personId: string; amount: number; units?: number | null }>;
+};
+
+const lineTotal=(item:DraftItem)=>item.originalLineTotal??Math.round(Number(item.price)*100)*Number(item.quantity||1)/100;
+const units=(item:DraftItem)=>(item.splitMode??(Number(item.quantity||1)>1?"units":"shared"))==="units";
+type DraftPayer = {
+  id: string;
+  personId: string;
+  amount: string;
+};
+
+
+const sanitizeDecimalInput = (value: string): string => {
+  const sanitized = value.replace(",", ".").replace(/[^0-9.]/g, "");
+  const firstDotIndex = sanitized.indexOf(".");
+
+  if (firstDotIndex === -1) {
+    return sanitized;
+  }
+
+  return (
+    sanitized.slice(0, firstDotIndex + 1) +
+    sanitized.slice(firstDotIndex + 1).replace(/\./g, "")
+  );
+};
+
+type EqualSplitMode = "equal" | "amount" | "percent" | "weight";
+
+const decimalToCents = (value: string): number | null => {
+  if (!/^\d+(\.\d{1,2})?$/.test(value)) return null;
+  const [whole, fraction = ""] = value.split(".");
+  return Number(whole) * 100 + Number(fraction.padEnd(2, "0"));
+};
+
+const allocateEqualShares = (
+  totalCents: number,
+  participantIds: string[],
+  values: Record<string, string>,
+  mode: Exclude<EqualSplitMode, "equal">,
+): { shares: number[]; valid: boolean } => {
+  const numbers = participantIds.map((id) => decimalToCents(values[id] ?? ""));
+  if (numbers.some((value) => value === null)) return { shares: [], valid: false };
+  const amounts = numbers.filter((value): value is number => value !== null);
+
+  if (mode === "amount") {
+    return {
+      shares: amounts,
+      valid: amounts.reduce((sum, amount) => sum + amount, 0) === totalCents,
+    };
+  }
+  if (mode === "percent" && amounts.reduce((sum, amount) => sum + amount, 0) !== 10000) {
+    return { shares: [], valid: false };
+  }
+
+  const weightTotal = amounts.reduce((sum, amount) => sum + amount, 0);
+  if (weightTotal <= 0) return { shares: [], valid: false };
+  const rawAmounts = amounts.map((amount) => totalCents * amount / weightTotal);
+  const shares = rawAmounts.map(Math.floor);
+  const remainderOrder = rawAmounts
+    .map((amount, index) => ({ index, fraction: amount - shares[index] }))
+    .sort((left, right) => right.fraction - left.fraction || left.index - right.index);
+  const remainder = totalCents - shares.reduce((sum, amount) => sum + amount, 0);
+  for (let index = 0; index < remainder; index += 1) {
+    shares[remainderOrder[index % remainderOrder.length].index] += 1;
+  }
+  return { shares, valid: true };
+};
+
+export const GroupAddExpensePage = () => {
+  const navigate = useNavigate();
+  const { slug = "" } = useParams();
+  const [searchParams] = useSearchParams();
+  const { t } = useLanguage();
+  const editExpenseId = searchParams.get("edit");
+
+  const [group, setGroup] = useState<Group | null>(null);
+  const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
+  const [entryMode, setEntryMode] = useState<"equal" | "items">(searchParams.get("scan")==="1"?"items":"equal");
+  const [equalAmount, setEqualAmount] = useState("");
+  const [equalParticipantIds, setEqualParticipantIds] = useState<string[]>([]);
+  const [equalSplitMode, setEqualSplitMode] = useState<EqualSplitMode>("equal");
+  const [equalSplitValues, setEqualSplitValues] = useState<Record<string, string>>({});
+  const [assignNow,setAssignNow]=useState(false);
+  const [requestId]=useState(()=>crypto.randomUUID());
+  const [saved,setSaved]=useState(false);
+  const [note, setNote] = useState("");
+  const [draftItems, setDraftItems] = useState<DraftItem[]>([]);
+  const [amounts,setAmounts]=useState<Record<string,string>>({});
+  const [single,setSingle]=useState("");
+  const [multiple,setMultiple]=useState(false);
+  const [payerOpen,setPayerOpen]=useState(false);
+  const [override,setOverride]=useState<Category|null>(null);
+  const category=override??inferCategory(note);
+  const baseCurrency=group?.currency||"EUR";
+  const [overrideCurrency,setCurrency]=useState("");
+  const currency=overrideCurrency||baseCurrency;
+  const [currencies,setCurrencies]=useState<{code:string;name:string}[]>([]);
+  const [quote,setQuote]=useState<FxQuote|null>(null);
+  const [quoteError,setQuoteError]=useState("");
+  useEffect(()=>{let active=true;api.currencies().then(v=>{if(active)setCurrencies(v)}).catch(()=>{});return()=>{active=false}},[]);
+  useEffect(()=>{let active=true;setQuote(null);setQuoteError("");if(currency===baseCurrency)return;const load=()=>api.fxQuote(slug,currency).then(v=>{if(active){setQuote(v);setQuoteError("")}}).catch(e=>{if(active)setQuoteError(e.message)});void load();const id=setInterval(load,300000);return()=>{active=false;clearInterval(id)}},[slug,currency,baseCurrency]);
+  const [scanPreview,setScanPreview]=useState(false);
+  const [actor,setActor]=useState("");
+  const [date,setDate]=useState(()=>new Date().toISOString().slice(0,10));
+  const [actionError, setActionError] = useState("");
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [saving, setSaving] = useState(false);
+  const [parsingBill, setParsingBill] = useState(false);
+  const [billImageFile, setBillImageFile] = useState<File | null>(null);
+  const [billParseRetryAvailable, setBillParseRetryAvailable] = useState(false);
+  const [billParseRetryUsed, setBillParseRetryUsed] = useState(false);
+  const [randomSplitTarget, setRandomSplitTarget] = useState<"global" | string | null>(null);
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const {group:currentGroup,workflow}=await snapshotForEditor(slug);
+        setGroup(currentGroup);
+        setEqualParticipantIds(currentGroup.people.map((person) => person.id));
+        const expense = editExpenseId
+          ? currentGroup.expenses.find((entry) => entry.id === editExpenseId)
+          : undefined;
+        if (editExpenseId && !expense) {
+          navigate(`/g/${slug}`);
+          return;
+        }
+        if (expense) {
+          setEditingExpense(expense);
+          setNote(expense.note ?? "");
+          setAssignNow(true);
+          setDraftItems(expense.items.map((item, index) => ({
+            id: item.id,
+            ordinalNumber: index + 1,
+            name: item.name,
+            quantity: String(item.quantity ?? 1),
+            price: (Number(item.price) / (item.quantity || 1)).toFixed(2),
+            splitMode: item.splitMode ?? "shared",
+            assignedPersonIds: item.shares.map((share) => share.personId),
+            assignedUnits: Object.fromEntries(
+              item.shares.map((share) => [share.personId, share.units ?? 1]),
+            ),
+            originalLineTotal:Number(item.price),
+            originalShares: item.shares.map((share) => ({
+              personId: share.personId,
+              amount: Number(share.amount),
+              units: share.units,
+            })),
+          })));
+          setMultiple(expense.payers.length>1);
+          setSingle(expense.payers[0]?.personId||"");
+          setAmounts(Object.fromEntries(expense.payers.map(p=>[p.personId,String(p.amount)])));
+          setOverride(expense.category??null);
+          if(expense.billDate)setDate(expense.billDate.slice(0,10));
+          return;
+        }
+
+        setDraftItems([
+          {
+            id: crypto.randomUUID(),
+            ordinalNumber: 1,
+            name: "",
+            price: "",
+            assignedPersonIds: currentGroup.people.map((person) => person.id)
+          }
+        ]);
+
+        const me=workflow.people.find(p=>p.mine&&!p.inactive)?.id??getWhoAmI(slug)?.participantId;const id=currentGroup.people.find(p=>p.id===me)?.id||"";if(id)saveWhoAmI(slug,id,currentGroup.people.find(p=>p.id===id)?.name);setSingle(id);setActor(id);setPayerOpen(!id);
+      } catch {
+        navigate(`/g/${slug}`);
+      }
+    };
+
+    void load();
+  }, [slug, navigate, editExpenseId]);
+
+  const equalMode = !editingExpense && entryMode === "equal";
+
+  const itemTotal = useMemo(
+    () => {
+      if (equalMode) {
+        const amount = Number(equalAmount);
+        return Number.isFinite(amount) && amount >= 0 ? Math.round(amount * 100) / 100 : 0;
+      }
+      return draftItems.reduce((sum, item) => {
+        const value = lineTotal(item);
+        return sum + (Number.isFinite(value) && value >= 0 ? value : 0);
+      }, 0);
+    },
+    [draftItems, equalAmount, equalMode]
+  );
+
+  const draftPayers:DraftPayer[]=useMemo(()=>multiple
+    ? Object.entries(amounts).filter(([,v])=>v!==""&&Number(v)!==0).map(([personId,amount])=>({id:personId,personId,amount}))
+    : single?[{id:single,personId:single,amount:itemTotal.toFixed(2)}]:[],[amounts,multiple,single,itemTotal]);
+  const payerTotal = useMemo(
+    () =>
+      draftPayers.reduce((sum, payer) => {
+        const value = Number(payer.amount);
+        return sum + (Number.isFinite(value) && value > 0 ? value : 0);
+      }, 0),
+    [draftPayers]
+  );
+
+  const difference = Number((payerTotal - itemTotal).toFixed(2));
+
+  const assignedTotal = useMemo(
+    () => {
+      if (equalMode) return equalParticipantIds.length > 0 ? itemTotal : 0;
+      return draftItems.reduce((sum, item) => {
+        if (!assignNow || item.assignedPersonIds.length === 0) return sum;
+        const value = units(item)?Math.round(lineTotal(item)*100*Object.values(item.assignedUnits??{}).reduce((a,b)=>a+b,0)/Number(item.quantity||1))/100:lineTotal(item);
+        return sum + (Number.isFinite(value) && value > 0 ? value : 0);
+      }, 0);
+    },
+    [draftItems, assignNow, equalMode, equalParticipantIds.length, itemTotal]
+  );
+
+  const unassignedAmount = Number((itemTotal - (equalMode || assignNow ? assignedTotal : 0)).toFixed(2));
+
+  const allItemsAssigned = useMemo(
+    () =>
+      equalMode
+        ? equalParticipantIds.length > 0
+        : draftItems.length > 0 &&
+          draftItems.every((item) => item.assignedPersonIds.length > 0),
+    [draftItems, equalMode, equalParticipantIds.length]
+  );
+
+  const assignmentAmountInvalid = assignedTotal - itemTotal > 0.009;
+  const paymentOverpaid = payerTotal - itemTotal > 0.009;
+  const allAmountsPaid = Math.abs(difference) < 0.01;
+  const canAddExpense =
+    allItemsAssigned &&
+    !assignmentAmountInvalid &&
+    !paymentOverpaid &&
+    Math.abs(unassignedAmount) < 0.01 &&
+    allAmountsPaid;
+
+  const updateDraftItem = (
+    id: string,
+    field: keyof Omit<DraftItem, "id" | "ordinalNumber">,
+    value: string | string[]
+  ) => {
+    setFieldErrors((current) => ({ ...current, [`item-${id}-${field}`]: "" }));
+    setDraftItems((current) =>
+      current.map((item) => {
+        if (item.id !== id) return item;
+        const updated = { ...item, [field]: value, originalLineTotal: field==="price"||field==="quantity"?undefined:item.originalLineTotal };
+        if (field !== "quantity" || typeof value !== "string" || !/^\d+$/.test(value)) {
+          return field === "price" || field === "assignedPersonIds"
+            ? { ...updated, originalShares: undefined }
+            : updated;
+        }
+        const quantity = Number(value);
+        let left=quantity;
+        const assignedUnits=Object.fromEntries(Object.entries(item.assignedUnits??{}).map(([id,n])=>{const take=Math.min(n,left);left-=take;return [id,take]}));
+        return {...updated,originalShares:undefined,splitMode:quantity>1?"units":"shared",assignedUnits,assignedPersonIds:quantity>1?Object.keys(assignedUnits).filter(id=>assignedUnits[id]>0):item.assignedPersonIds};
+      })
+    );
+  };
+
+  const addDraftItem = () => {
+    if (!group) return;
+    const personIds = group.people.map((person) => person.id);
+    setDraftItems((current) => [
+      ...current,
+      {
+        id: crypto.randomUUID(),
+        ordinalNumber: current.length + 1,
+        name: "",
+        price: "",
+        assignedPersonIds: personIds
+      }
+    ]);
+  };
+
+  const removeDraftItem = (id: string) => {
+    setDraftItems((current) => {
+      if (current.length <= 1) return current;
+      return current
+        .filter((item) => item.id !== id)
+        .map((item, index) => ({
+          ...item,
+          ordinalNumber: index + 1
+        }));
+    });
+  };
+
+  const resizeImageForUpload = (
+  file: File,
+  maxWidth = 1600,
+  maxHeight = 1600,
+  quality = 0.85
+): Promise<File> => {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const objectUrl = URL.createObjectURL(file);
+
+    img.onload = () => {
+      URL.revokeObjectURL(objectUrl);
+
+      let { width, height } = img;
+
+      const scale = Math.min(
+        maxWidth / width,
+        maxHeight / height,
+        1
+      );
+
+      width = Math.round(width * scale);
+      height = Math.round(height * scale);
+
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+
+      const ctx = canvas.getContext("2d");
+
+      if (!ctx) {
+        reject(new Error("Could not create canvas context"));
+        return;
+      }
+
+      ctx.drawImage(img, 0, 0, width, height);
+
+      canvas.toBlob(
+        (blob) => {
+          if (!blob) {
+            reject(new Error("Could not convert image"));
+            return;
+          }
+
+          resolve(
+            new File(
+              [blob],
+              "bill.jpg",
+              {
+                type: "image/jpeg",
+                lastModified: Date.now()
+              }
+            )
+          );
+        },
+        "image/jpeg",
+        quality
+      );
+    };
+
+    img.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      reject(new Error("Could not load image"));
+    };
+
+    img.src = objectUrl;
+  });
+};
+
+  const parseBillImage = async (file: File, attempt: number) => {
+    try {
+      setParsingBill(true);
+      setActionError("");
+
+      const result = await api.parseBillImage(file, attempt);
+
+      if (result.items.length === 0) {
+        setActionError(t("billNoItemsRecognized"));
+        return;
+      }
+
+      setDraftItems(
+        result.items.map((item, index) => ({
+          id: crypto.randomUUID(),
+          ordinalNumber: index + 1,
+          name: item.name,
+          originalLineTotal:Number(item.price),
+          price: (item.unitPrice ?? item.price / (item.quantity ?? 1)).toFixed(2),
+          quantity: String(item.quantity ?? 1),
+          assignedPersonIds: group?.people.map((person) => person.id) ?? []
+        }))
+      );
+      setEntryMode("items");setScanPreview(true);
+    } catch (error) {
+      setActionError(
+        error instanceof Error
+          ? error.message
+          : t("billParseFailed")
+      );
+    } finally {
+      setParsingBill(false);
+      if (attempt === 1) {
+        setBillParseRetryAvailable(true);
+      } else {
+        setBillParseRetryAvailable(false);
+        setBillParseRetryUsed(true);
+      }
+    }
+  };
+
+  const handleBillAsImage = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setBillImageFile(file);
+    setBillParseRetryAvailable(false);
+    setBillParseRetryUsed(false);
+    try {
+      const resizedFile = await resizeImageForUpload(
+      file,
+      1600,
+      1600,
+      0.85
+    );
+
+    setBillImageFile(resizedFile);
+      await parseBillImage(resizedFile, 1);
+    } finally {
+      event.target.value = "";
+    }
+  };
+
+  const handleRetryBillParse = () => {
+    if (!billImageFile || parsingBill || billParseRetryUsed) return;
+    void parseBillImage(billImageFile, 2);
+  };
+
+  const applyRandomSplit = (personIds: string[]) => {
+    if(equalMode){setEqualParticipantIds(personIds)}else{
+      setAssignNow(true);
+      setDraftItems(current=>current.map(i=>{
+        if(randomSplitTarget!=="global"&&i.id!==randomSplitTarget)return i;
+        const qty=Number(i.quantity||1),assignedUnits=Object.fromEntries(personIds.map((id,n)=>[id,Math.floor(qty/personIds.length)+(n<qty%personIds.length?1:0)]));
+        return {...i,originalShares:undefined,assignedUnits,assignedPersonIds:personIds.filter(id=>!units(i)||assignedUnits[id]>0)};
+      }));
+    }
+    setRandomSplitTarget(null);
+  };
+
+  const saveDraftBill = async () => {
+    if (!group || group.locked || saving) return;
+    if(saved){navigate(`/g/${slug}`);return;}
+    setActionError("");
+    const errors: Record<string, string> = {};
+    if (equalMode) {
+      if (!equalAmount.trim()) {
+        errors.equalAmount = t("fieldRequired");
+      } else if (!/^\d+(\.\d{1,2})?$/.test(equalAmount) || Number(equalAmount) <= 0) {
+        errors.equalAmount = t("invalidPrice");
+      }
+      if (equalParticipantIds.length === 0) {
+        errors.equalParticipants = t("selectAtLeastOneParticipant");
+      }
+    } else {
+      if (draftItems.length === 0) errors.items = t("atLeastOneItem");
+      for (const item of draftItems) {
+        if (!item.name.trim()) {
+          errors[`item-${item.id}-name`] = t("fieldRequired");
+        } else if (item.name.trim().length > 120) {
+          errors[`item-${item.id}-name`] = t("fieldMaxLength").replace("{count}", "120");
+        }
+        if (!item.price.trim()) {
+          errors[`item-${item.id}-price`] = t("fieldRequired");
+        } else if (!/^\d+(\.\d{1,2})?$/.test(item.price)) {
+          errors[`item-${item.id}-price`] = t("invalidPrice");
+        }
+        if (!Number.isInteger(Number(item.quantity ?? 1)) || Number(item.quantity ?? 1) < 1 || Number(item.quantity ?? 1) > 999) {
+          errors[`item-${item.id}-quantity`] = t("invalidQuantity");
+        }
+      }
+    }
+    if (draftPayers.length === 0) errors.payers = t("atLeastOnePayer");
+    for (const payer of draftPayers) {
+      const amount = Number(payer.amount);
+      if (!payer.personId) errors[`payer-${payer.id}-personId`] = t("fieldRequired");
+      if (!payer.amount || !Number.isFinite(amount) || amount <= 0 || !/^\d+(\.\d{1,2})?$/.test(payer.amount)) {
+        errors[`payer-${payer.id}-amount`] = payer.amount ? t("invalidAmount") : t("fieldRequired");
+      }
+    }
+    const payerIdsForValidation = draftPayers.map((payer) => payer.personId);
+    const duplicatePayerIds = new Set(
+      payerIdsForValidation.filter((personId, index) => payerIdsForValidation.indexOf(personId) !== index),
+    );
+    if (duplicatePayerIds.size > 0) {
+      for (const payer of draftPayers) {
+        if (duplicatePayerIds.has(payer.personId)) {
+          errors[`payer-${payer.id}-personId`] = t("duplicatePayer");
+        }
+      }
+    }
+    const totalForValidation = equalMode
+      ? Math.round(Number(equalAmount) * 100) / 100
+      : draftItems.reduce(
+          (sum, item) => sum + lineTotal(item),
+          0,
+        );
+    const equalShareAllocation = equalMode && equalSplitMode !== "equal"
+      ? allocateEqualShares(
+          Math.round(totalForValidation * 100),
+          equalParticipantIds,
+          equalSplitValues,
+          equalSplitMode,
+        )
+      : { shares: [], valid: true };
+    if (equalMode && equalSplitMode !== "equal" && !equalShareAllocation.valid) {
+      const inputsValid = equalParticipantIds.every((id) => decimalToCents(equalSplitValues[id] ?? "") !== null);
+      errors.equalSplit = !inputsValid
+        ? t("invalidAmount")
+        : equalSplitMode === "amount"
+          ? t("splitAmountTotalMustMatch")
+          : equalSplitMode === "percent"
+            ? t("splitPercentTotalMustBe100")
+            : t("invalidSplitValues");
+    }
+    const paidForValidation = draftPayers.reduce((sum, payer) => sum + (Number(payer.amount) || 0), 0);
+    if (draftPayers.length > 0 && Math.abs(paidForValidation - totalForValidation) >= 0.01) {
+      errors.paymentTotal = t("paidTotalMustMatch");
+    }
+    if (paymentOverpaid) errors.paymentTotal = t("paidTotalMustMatch");
+    if (assignmentAmountInvalid) errors.assignmentTotal = t("invalidAmount");
+    if(multiple&&draftPayers.length<2)errors.payers=t("twoPayers");
+    setFieldErrors(errors);
+    if (Object.keys(errors).length > 0) {
+      showToast(t("formCorrectionToast"));
+      return;
+    }
+
+    const validItems = equalMode
+      ? []
+      : draftItems.filter(
+          (item) =>
+            item.name.trim().length > 0 &&
+            Number.isFinite(lineTotal(item)) &&
+            lineTotal(item) >= 0
+        );
+
+    if (!equalMode && validItems.length === 0) {
+      setActionError(t("atLeastOneItem"));
+      showToast(t("formCorrectionToast"));
+      return;
+    }
+
+    const allValidItemsAssigned = equalMode
+      ? equalParticipantIds.length > 0
+      : validItems.every((item) => item.assignedPersonIds.length > 0);
+
+    const validItemsTotal = equalMode
+      ? totalForValidation
+      : validItems.reduce(
+          (sum, item) => sum + lineTotal(item),
+          0
+        );
+
+    const validPayers = draftPayers.filter(
+      (payer) =>
+        payer.personId &&
+        Number.isFinite(Number(payer.amount)) &&
+        Number(payer.amount) > 0
+    );
+
+    if (validPayers.length === 0) {
+      setActionError(t("atLeastOnePayer"));
+      showToast(t("formCorrectionToast"));
+      return;
+    }
+
+    const payerIds = validPayers.map((payer) => payer.personId);
+    if (new Set(payerIds).size !== payerIds.length) {
+      setActionError(t("duplicatePayer"));
+      showToast(t("formCorrectionToast"));
+      return;
+    }
+
+    const validPayersTotal = validPayers.reduce(
+      (sum, payer) => sum + Number(payer.amount),
+      0
+    );
+
+    const validAssignedTotal = equalMode
+      ? validItemsTotal
+      : validItems.reduce((sum, item) => {
+          if (item.assignedPersonIds.length === 0) return sum;
+          const value = lineTotal(item);
+          return sum + (Number.isFinite(value) && value > 0 ? value : 0);
+        }, 0);
+    const finalUnassignedAmount = Number(
+      (validItemsTotal - validAssignedTotal).toFixed(2)
+    );
+    const finalPaymentDifference = Number(
+      (validPayersTotal - validItemsTotal).toFixed(2)
+    );
+
+    // A draft may be saved while items are still unassigned or the payer
+    // total is incomplete. It can only become a real expense when every
+    // item is assigned, no assignment amount is over the item total, and
+    // the full item total has been paid.
+    {
+      if (Math.abs(finalPaymentDifference) >= 0.01) {
+        setActionError(
+          t("paidTotalMustMatch")
+        );
+        showToast(t("formCorrectionToast"));
+        return;
+      }
+    }
+
+    try {
+      setSaving(true);
+      setActionError("");
+
+      const currentQuote=currency===baseCurrency||(!editingExpense&&!navigator.onLine)?null:quote?.base===currency&&Date.parse(quote.expiresAt)>Date.now()?quote:await api.fxQuote(slug,currency);
+      const body = {
+        currency,quoteId:currentQuote?.id,
+        note: note.trim() || undefined,
+        billDate:editingExpense?.billDate?.slice(0,10)===date ? editingExpense.billDate : new Date(date+"T12:00:00Z").toISOString(),
+        category,
+        payers: validPayers.map((payer) => ({
+          personId: payer.personId,
+          amount: Number(payer.amount)
+        })),
+        items: equalMode
+          ? [{
+              ordinalNumber: 1,
+              quantity: 1,
+              splitMode: "shared" as const,
+              name: note.trim() || t("expense"),
+              price: validItemsTotal,
+              shares: equalParticipantIds.map((personId, index) => ({
+                personId,
+                ...(equalSplitMode === "equal" ? {} : { amount: equalShareAllocation.shares[index] / 100 }),
+              })),
+            }]
+          : validItems.map((item, index) => ({
+          ordinalNumber: index + 1,
+          quantity:Number(item.quantity??1),
+          splitMode: item.splitMode ?? (Number(item.quantity??1)>1 ? "units" : "shared"),
+          name: item.name.trim(),
+          price: lineTotal(item),
+          shares: (assignNow ? units(item)?Object.keys(item.assignedUnits??{}).filter(id=>item.assignedUnits![id]>0):item.assignedPersonIds : []).map((personId) => {
+            const originalShare = item.originalShares?.find(
+              (share) => share.personId === personId,
+            );
+            return {
+              personId,
+              ...(units(item)
+                ? { units: item.assignedUnits?.[personId] ?? 1 }
+                : originalShare
+                  ? { amount: originalShare.amount }
+                  : {}),
+            };
+          })
+        }))
+      };
+
+      if (editingExpense) {
+        await api.updateExpense(slug, editingExpense.id, {
+          ...body,
+          expectedUpdatedAt: editingExpense.updatedAt,
+        });
+      } else {
+        const createBody={...body,requestId};
+        try{
+          if(!navigator.onLine)throw new TypeError("offline");
+          await api.createExpense(slug,createBody);
+        }catch(e){
+          if(!(e instanceof TypeError))throw e;
+          await queueBill(slug,actor,baseCurrency,createBody);
+          void syncBills().catch(()=>{});
+        }
+      }
+
+      setSaved(true);
+      navigate(`/g/${slug}`);
+    } catch (error) {
+      setActionError(
+        error instanceof Error ? error.message : t("somethingWentWrong")
+      );
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (!group) return null;
+
+  return (
+    <main className="page wide">
+      {saving && (
+        <div className="screenLoader">
+          <div className="spinner large" />
+        </div>
+      )}
+
+      {actionError && <div className="toastError">{actionError}</div>}
+
+      <Link className="backLink" to={`/g/${slug}`}>
+        <ArrowLeft size={18} />
+        {t("backToGroup")}
+      </Link>
+
+      <section className="card formCard">
+        <div className="sectionHeaderWithButton">
+          <div>
+            <p className="eyebrow">{editingExpense ? t("editExpense") : t("newExpense")}</p>
+            <h2>{editingExpense ? t("editExpense") : t("newExpense")} · {currency}</h2>
+          </div>
+          <div className="randomSplitHeaderAction">
+            <strong>{itemTotal.toFixed(2)}</strong>
+            {(editingExpense || entryMode === "items") && <button
+              type="button"
+              className="spinTriggerButton"
+              onClick={() => setRandomSplitTarget("global")}
+              disabled={group.locked || group.people.length === 0 || itemTotal <= 0}
+              title={t("randomSplitGlobal")}
+            >
+              <Dices size={17} />
+              <span>SPIN</span>
+            </button>}
+          </div>
+        </div>
+
+        {/* ITEMS */}
+        <div className="form">
+          {!editingExpense && <div className="expenseModeSelector" role="radiogroup" aria-label={t("newExpense")}>
+            <button
+              type="button"
+              role="radio"
+              aria-checked={entryMode === "equal"}
+              className={`expenseModeOption${entryMode === "equal" ? " selected" : ""}`}
+              disabled={group.locked}
+              onClick={() => setEntryMode("equal")}
+            >
+              <strong>{t("withoutItems")}</strong>
+              <span>{t("oneAmountForAll")}</span>
+            </button>
+            <button
+              type="button"
+              role="radio"
+              aria-checked={entryMode === "items"}
+              className={`expenseModeOption${entryMode === "items" ? " selected" : ""}`}
+              disabled={group.locked}
+              onClick={() => setEntryMode("items")}
+            >
+              <strong>{t("byItems")}</strong>
+              <span>{t("everyonePicksItems")}</span>
+            </button>
+          </div>}
+
+          {!editingExpense && entryMode === "items" && <div className="billImageActions">
+            {/* Camera */}
+            <input
+              id="bill-camera"
+              className="billImageInput"
+              type="file"
+              accept="image/*"
+              capture="environment"
+              onChange={handleBillAsImage}
+              disabled={group.locked || parsingBill}
+            />
+
+            <label
+              onClick={e=>{if(!navigator.onLine){e.preventDefault();setActionError(t("offlineScan"))}}} htmlFor="bill-camera"
+              className="billImageActionButton"
+            >
+              <Camera size={18} />
+              {parsingBill ? t("readingBill") : t("scanBill")}
+            </label>
+
+            {/* Upload */}
+            <input
+              id="bill-image"
+              className="billImageInput"
+              type="file"
+              accept="image/jpeg,image/png,image/webp,image/gif"
+              onChange={handleBillAsImage}
+              disabled={group.locked || parsingBill}
+            />
+
+            <label
+              onClick={e=>{if(!navigator.onLine){e.preventDefault();setActionError(t("offlineScan"))}}} htmlFor="bill-image"
+              className="billImageActionButton"
+            >
+              <ImagePlus size={18} />
+              {t("uploadBillImage")}
+            </label>
+
+            {billParseRetryAvailable && !billParseRetryUsed && (
+              <button
+                type="button"
+                className="billImageActionButton"
+                onClick={handleRetryBillParse}
+                disabled={group.locked || parsingBill}
+              >
+                <RefreshCw size={18} />
+                {t("retryBillParse")}
+              </button>
+            )}
+          </div>}
+          {!editingExpense && entryMode === "items" && billParseRetryUsed && <p className="billImageHint">{t("billRetryGuidance")}</p>}
+
+          <div className="rpTitle"><label className="rpCategory" title={t(labels[category])}><CategoryIcon category={category}/><select aria-label={t("categoryFilter")} value={override??"auto"} disabled={group.locked} onChange={e=>setOverride(e.target.value==="auto"?null:e.target.value as Category)}><option value="auto">Auto · {t(labels[inferCategory(note)])}</option>{(Object.keys(labels) as Category[]).map(k=><option value={k} key={k}>{t(labels[k])}</option>)}</select></label>
+          <input aria-label={t("note")} value={note} onChange={e=>setNote(e.target.value)} placeholder={t("billNote")} maxLength={200} disabled={group.locked}/></div>
+          <label>{t("billCurrency")}<select value={currency} disabled={group.locked} onChange={e=>setCurrency(e.target.value)}>{!currencies.some(c=>c.code===baseCurrency)&&<option>{baseCurrency}</option>}{currencies.map(c=><option key={c.code} value={c.code}>{c.code} · {c.name}</option>)}</select></label><label>{t("billDate")}<input type="date" value={date} required disabled={group.locked} onChange={e=>{if(e.target.value)setDate(e.target.value)}}/></label>
+          {!editingExpense && entryMode === "equal" ? (
+            <div className="equalExpenseSection">
+              <label>
+                <span>{t("amount")} ({currency})</span>
+                <input
+                  className="equalExpenseAmount"
+                  type="text"
+                  inputMode="decimal"
+                  value={equalAmount}
+                  onChange={(event) => {
+                    setEqualAmount(sanitizeDecimalInput(event.target.value));
+                    setFieldErrors((current) => ({ ...current, equalAmount: "" }));
+                  }}
+                  placeholder="0.00"
+                  disabled={group.locked}
+                  aria-invalid={Boolean(fieldErrors.equalAmount)}
+                />
+                {fieldErrors.equalAmount && <span className="validationMessage">{fieldErrors.equalAmount}</span>}
+              </label>
+              <div className="equalExpenseParticipants">
+                <strong>{t("selectedParticipants")}</strong>
+                <p className="muted">{t("chooseParticipantsHint")}</p>
+                <div className="sharePicker">
+                  {group.people.map((person) => {
+                    const selected = equalParticipantIds.includes(person.id);
+                    return (
+                      <button
+                        key={person.id}
+                        type="button"
+                        className={`expenseModeParticipant${selected ? " selected" : ""}`}
+                        aria-pressed={selected}
+                        disabled={group.locked}
+                        onClick={() => {
+                          setEqualParticipantIds((current) =>
+                            current.includes(person.id)
+                              ? current.filter((id) => id !== person.id)
+                              : [...current, person.id],
+                          );
+                          setFieldErrors((current) => ({ ...current, equalParticipants: "" }));
+                        }}
+                      >
+                        {person.name}
+                      </button>
+                    );
+                  })}
+                </div>
+                {fieldErrors.equalParticipants && <p className="validationMessage">{fieldErrors.equalParticipants}</p>}
+                <div className="equalSplitModes" role="group" aria-label={t("split")}>
+                  {([
+                    ["equal", t("splitEqually")],
+                    ["amount", t("splitModeAmounts")],
+                    ["percent", t("splitModePercent")],
+                    ["weight", t("splitModeWeights")],
+                  ] as const).map(([mode, label]) => (
+                    <button
+                      key={mode}
+                      type="button"
+                      className={`expenseModeParticipant${equalSplitMode === mode ? " selected" : ""}`}
+                      aria-pressed={equalSplitMode === mode}
+                      disabled={group.locked}
+                      onClick={() => {
+                        setEqualSplitMode(mode);
+                        setFieldErrors((current) => ({ ...current, equalSplit: "" }));
+                      }}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                {equalSplitMode !== "equal" && (
+                  <div className="equalSplitValues">
+                    <p className="muted">
+                      {t(
+                        equalSplitMode === "amount"
+                          ? "splitAmountHint"
+                          : equalSplitMode === "percent"
+                            ? "splitPercentHint"
+                            : "splitWeightHint",
+                      )}
+                    </p>
+                    {group.people.filter((person) => equalParticipantIds.includes(person.id)).map((person) => (
+                      <label key={person.id}>
+                        <span>
+                          {person.name} ({equalSplitMode === "amount"
+                            ? currency
+                            : equalSplitMode === "percent" ? "%" : t("splitModeWeights")})
+                        </span>
+                        <input
+                          type="text"
+                          inputMode="decimal"
+                          value={equalSplitValues[person.id] ?? ""}
+                          onChange={(event) => {
+                            setEqualSplitValues((current) => ({
+                              ...current,
+                              [person.id]: sanitizeDecimalInput(event.target.value),
+                            }));
+                            setFieldErrors((current) => ({ ...current, equalSplit: "" }));
+                          }}
+                          disabled={group.locked}
+                        />
+                      </label>
+                    ))}
+                    {fieldErrors.equalSplit && <p className="validationMessage">{fieldErrors.equalSplit}</p>}
+                  </div>
+                )}
+              </div>
+            </div>
+          ) : (
+          <div hidden={!editingExpense && entryMode !== "items"}>
+            <div className="sectionHeaderWithButton sectionHeaderMargin">
+              <div>
+                <strong>{t("billItems")}</strong>
+              </div>
+              <button
+                type="button"
+                className="secondaryButton"
+                onClick={()=>{setScanPreview(false);addDraftItem()}}
+                disabled={group.locked}
+              >
+                <Plus size={18} />
+                {t("addItems")}
+              </button>
+            </div>
+
+            {scanPreview?<div className="rpPicker">{draftItems.map(i=><div className="rpContribution" key={i.id}><b>{i.name}</b><span>{i.quantity||1} × {i.price} · {lineTotal(i).toFixed(2)}</span></div>)}<button type="button" className="secondaryButton" onClick={()=>setScanPreview(false)}>{t("editExpense")}</button></div>:<div className="list">
+              <label><input type="checkbox" disabled={group.locked} checked={assignNow} onChange={e=>{
+                setAssignNow(e.target.checked);
+                if (editingExpense) {
+                  setDraftItems(current => current.map(item => ({ ...item, originalShares: undefined })));
+                }
+              }}/>{t("assignNow")}</label>
+              <p>{t("assignNowHint")}</p>
+              {draftItems.map((item, index) => (
+                <div
+                  key={item.id}
+                  className="card draftEditorCard"
+                >
+                  <div className="draftItemEditor">
+                    <div className="draftItemOrdinalNumber" aria-label={`Item ${item.ordinalNumber}`}>
+                      {item.ordinalNumber}.
+                    </div>
+                    <label>
+                      <span>{t("itemName")}</span>
+                      <input
+                        value={item.name}
+                        onChange={(event) =>
+                          updateDraftItem(item.id, "name", event.target.value)
+                        }
+                        placeholder={t("itemPlaceholder")}
+                        disabled={group.locked}
+                        aria-invalid={Boolean(fieldErrors[`item-${item.id}-name`])}
+                      />
+                      {fieldErrors[`item-${item.id}-name`] && <span className="validationMessage">{fieldErrors[`item-${item.id}-name`]}</span>}
+                    </label>
+
+                    <label>
+                      <span>{t("price")} ({currency})</span>
+                      <input
+                        type="text"
+                        inputMode="decimal"
+                        value={item.price}
+                        onChange={(event) =>
+                          updateDraftItem(
+                            item.id,
+                            "price",
+                            sanitizeDecimalInput(event.target.value)
+                          )
+                        }
+                        placeholder="0.00"
+                        disabled={group.locked}
+                        aria-invalid={Boolean(fieldErrors[`item-${item.id}-price`])}
+                      />
+                      {fieldErrors[`item-${item.id}-price`] && <span className="validationMessage">{fieldErrors[`item-${item.id}-price`]}</span>}
+                    </label>
+
+                    <label>
+                      {t("quantity")}
+                      <span className="rpQty"><button type="button" disabled={group.locked||Number(item.quantity||1)<=1} aria-label={"− "+item.name} onClick={()=>updateDraftItem(item.id,"quantity",String(Number(item.quantity||1)-1))}>−</button><input disabled={group.locked} type="number" min="1" max="999" step="1" value={item.quantity??"1"} onChange={e=>updateDraftItem(item.id,"quantity",e.target.value)} aria-invalid={Boolean(fieldErrors[`item-${item.id}-quantity`])}/><button type="button" disabled={group.locked||Number(item.quantity||1)>=999} aria-label={"+ "+item.name} onClick={()=>updateDraftItem(item.id,"quantity",String(Number(item.quantity||1)+1))}>+</button></span>
+                      {fieldErrors[`item-${item.id}-quantity`] && <span className="validationMessage">{fieldErrors[`item-${item.id}-quantity`]}</span>}
+                    </label>
+                    <div className="draftItemShares" hidden={!assignNow}>
+                      <div className="draftItemSharesHeader">
+                        <div className="draftItemSharesTitle">
+                          <span>{t("assignedTo")}</span>
+
+                        </div>
+                        <button
+                          type="button"
+                          className="miniSpinButton"
+                          onClick={() => setRandomSplitTarget(item.id)}
+                          disabled={group.locked || group.people.length === 0 || lineTotal(item) <= 0}
+                          title={t("randomSplitItem")}
+                        >
+                          <Dices size={15} />
+                          <span>SPIN</span>
+                        </button>
+                      </div>
+                      <div className="sharePicker">
+                        {group.people.map((person) => {
+                          const checked = item.assignedPersonIds.includes(person.id);
+                          if (units(item)) {
+                            return (
+                              <label key={person.id} className="shareOption">
+                                <span>{person.name}</span>
+                                <input
+                                  aria-label={`${person.name} · ${t("quantity")}`}
+                                  type="number"
+                                  min="0"
+                                  max={item.quantity ?? "1"}
+                                  step="1"
+                                  value={item.assignedUnits?.[person.id] ?? 0}
+                                  onChange={(event) => {
+                                    const units = Math.min(
+                                      Math.max(0,Number(item.quantity??1)-Object.entries(item.assignedUnits??{}).reduce((n,[id,u])=>n+(id===person.id?0:u),0)),
+                                      Math.max(0, Math.floor(Number(event.target.value) || 0)),
+                                    );
+                                    setDraftItems((current) => current.map((entry) => {
+                                      if (entry.id !== item.id) return entry;
+                                      const assignedUnits = { ...entry.assignedUnits, [person.id]: units };
+                                      return {
+                                        ...entry,
+                                        originalShares: undefined,
+                                        assignedUnits,
+                                        assignedPersonIds: units > 0
+                                          ? [...new Set([...entry.assignedPersonIds, person.id])]
+                                          : entry.assignedPersonIds.filter((id) => id !== person.id),
+                                      };
+                                    }));
+                                  }}
+                                />
+                              </label>
+                            );
+                          }
+                          return (
+                            <label key={person.id} className="shareOption">
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                disabled={group.locked}
+                                onChange={() => {
+                                  const next = checked
+                                    ? item.assignedPersonIds.filter((id) => id !== person.id)
+                                    : [...item.assignedPersonIds, person.id];
+                                  updateDraftItem(item.id, "assignedPersonIds", next);
+                                }}
+                              />
+                              <span>{person.name}</span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      className="iconButton"
+                      onClick={() => removeDraftItem(item.id)}
+                      disabled={group.locked || draftItems.length <= 1}
+                      title={t("removeItem")}
+                    >
+                      <Trash2 size={17} />
+                    </button>
+                  </div>
+
+                  <small className="muted">
+                    {t("itemNumber")}: {index + 1}
+                  </small>
+                </div>
+              ))}
+            </div>
+            }{fieldErrors.items && <p className="validationMessage">{fieldErrors.items}</p>}
+          </div>)}
+
+          {/* PAYERS */}
+          <div
+            className="payersSection"
+          >
+            <button type="button" className="secondaryButton" aria-expanded={payerOpen} onClick={()=>setPayerOpen(!payerOpen)}>{t("paidBy")}: {multiple?t("manyPayers"):group.people.find(p=>p.id===single)?.name||t("billPayers")} ▾</button>
+            {payerOpen&&<div className="rpPicker"><div className="sharePicker">{[false,true].map(v=><button key={String(v)} type="button" className={"expenseModeParticipant"+(v===multiple?" selected":"")} aria-pressed={v===multiple} disabled={group.locked} onClick={()=>{setMultiple(v);setFieldErrors({})}}>{t(v?"manyPayers":"onePayer")}</button>)}</div>
+            {group.people.map(p=>multiple?<label className="rpContribution" key={p.id}>{p.name}<input inputMode="decimal" placeholder="0,00" disabled={group.locked} value={amounts[p.id]??""} onChange={e=>{const v=sanitizeDecimalInput(e.target.value);setAmounts(prev=>({...prev,[p.id]:v}))}} aria-invalid={!!fieldErrors["payer-"+p.id+"-amount"]}/></label>:<button type="button" key={p.id} aria-pressed={single===p.id} className={"expenseModeParticipant"+(single===p.id?" selected":"")} disabled={group.locked} onClick={()=>setSingle(p.id)}>{p.name}</button>)}</div>}
+            {fieldErrors.payers && <p className="validationMessage">{fieldErrors.payers}</p>}
+          </div>
+
+          {/* TOTALS */}
+          <div
+            className="totalsCard"
+          >
+            <div className="settlement">
+              <span>{t("itemsTotal")}</span>
+              <strong>{itemTotal.toFixed(2)}</strong>
+            </div>
+            <div className="settlement">
+              <span>{t("paidTotal")}</span>
+              <strong>{payerTotal.toFixed(2)}</strong>
+            </div>
+            <div className="settlement">
+              <span>{t("unassignedTotal")}</span>
+              <strong>{unassignedAmount.toFixed(2)}</strong>
+            </div>
+            <div className="settlement">
+              <span>{t("difference")}</span>
+              <strong className={Math.abs(difference) < 0.01 ? "success" : "toastError"}>
+                {difference.toFixed(2)}
+              </strong>
+            </div>
+          </div>
+          {quoteError&&<p role="alert">{quoteError}</p>}{currency!==baseCurrency&&quote?.base===currency&&<p>≈ {(itemTotal*quote.rate).toFixed(2)} {baseCurrency} · 1 {currency} = {quote.rate} {baseCurrency}</p>}
+          {fieldErrors.paymentTotal && <p className="validationMessage">{fieldErrors.paymentTotal}</p>}
+          {fieldErrors.assignmentTotal && <p className="validationMessage">{fieldErrors.assignmentTotal}</p>}
+
+          {(paymentOverpaid || assignmentAmountInvalid) && (
+            <div className="toastError" role="alert">
+              {paymentOverpaid
+                ? `Paid amount (${payerTotal.toFixed(2)}) cannot be greater than the item total (${itemTotal.toFixed(2)}). Please check the payer amounts.`
+                : `Assigned amount cannot be greater than the item total (${itemTotal.toFixed(2)}). Please check the item assignments.`}
+            </div>
+          )}
+
+          <button
+            className="primaryButton"
+            type="button"
+            onClick={saveDraftBill}
+            disabled={group.locked || saving}
+          >
+            <Plus size={18} />
+            {editingExpense ? t("saveChanges") : t("createExpense")}
+          </button>
+        </div>
+      </section>
+
+
+      <RandomSplitWheel currency={currency}
+        open={randomSplitTarget !== null}
+        title={
+          randomSplitTarget === "global"
+            ? t("randomSplitGlobal")
+            : `${t("randomSplitItem")} ${draftItems.find((item) => item.id === randomSplitTarget)?.name || ""}`.trim()
+        }
+        amount={
+          randomSplitTarget === "global"
+            ? itemTotal
+            : Number(draftItems.find((item) => item.id === randomSplitTarget)?.price || 0)
+        }
+        people={group.people}
+        initialSelectedIds={
+          randomSplitTarget === "global"
+            ? draftItems.length > 0
+              ? draftItems[0].assignedPersonIds
+              : []
+            : draftItems.find((item) => item.id === randomSplitTarget)?.assignedPersonIds ?? []
+        }
+        onConfirm={applyRandomSplit}
+        onClose={() => setRandomSplitTarget(null)}
+      />
+    </main>
+  );
+};

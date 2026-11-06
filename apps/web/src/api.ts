@@ -37,6 +37,7 @@ export type ParsedBillItem = {
 };
 
 export type CreateDraftExpenseRequest = {
+  currency?:string; quoteId?:string; billDate?:string; category?:Expense["category"];
   requestId?:string;
   note?: string;
   payers: Array<{ personId: string; amount: number }>;
@@ -181,7 +182,14 @@ async function request<T>(
   }
 }
 
+export type FxQuote={id:string;rate:number;base:string;quote:string;expiresAt:string;rateDate:string};
 export const api = {
+  settings:(slug:string,body:{currency?:string;avatar?:string;archived?:boolean})=>request(`/groups/${slug}/workflow/settings`,{method:"PATCH",body:JSON.stringify(body)}),
+  release:(slug:string,id:string)=>request(`/groups/${slug}/workflow/people/${id}/release`,{method:"POST"}),
+  role:(slug:string,id:string,role:"ADMIN"|"MEMBER")=>request(`/groups/${slug}/workflow/people/${id}/role`,{method:"PATCH",body:JSON.stringify({role})}),
+  rotateInvite:(slug:string,password:string)=>request(`/groups/${slug}/workflow/rotate-invite`,{method:"POST",body:JSON.stringify({password})}),
+  currencies:()=>request<{code:string;name:string}[]>("/currencies",undefined,{background:true}),
+  fxQuote:(slug:string,currency:string)=>request<FxQuote>(`/groups/${slug}/fx-quote`,{method:"POST",body:JSON.stringify({currency})},{background:true}),
   login: (body: { username: string; password: string }) =>
     authRequest<{ token: string; user: AuthUser }>("/login", body),
   register: (body: { username: string; password: string; repeatPassword: string }) =>
@@ -222,7 +230,7 @@ export const api = {
   ) =>
     request<DraftExpense>(
       `/groups/${slug}/${finalized ? "expenses" : "draft-expenses"}/${id}/items/${itemId}/mine`,
-      { method: "PATCH", body: JSON.stringify({ selected }) },
+      { method: "PATCH", body: JSON.stringify(typeof selected === "number" ? { units: selected } : { selected }) },
     ),
   parseBillImage: async (file: File, attempt = 1): Promise<{ items: ParsedBillItem[] }> => {
     startApiLoading();

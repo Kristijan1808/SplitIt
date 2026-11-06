@@ -1,7 +1,11 @@
+import {queueBill,snapshotForEditor,syncBills} from "../offlineBills";
+import {CategoryIcon,inferCategory,labels,type Category} from "../components/ExpenseCategory";
+import {getWhoAmI,saveWhoAmI} from "../storage";
+import "../styles/receiptParity.css";
 import { useEffect, useMemo, useState } from "react";
-import { ArrowLeft, Camera, ReceiptText, ImagePlus, Plus, RefreshCw, Trash2, Dices } from "lucide-react";
+import { ArrowLeft, Camera, ImagePlus, Plus, RefreshCw, Trash2, Dices } from "lucide-react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { api } from "../api";
+import { api,type FxQuote } from "../api";
 import { useLanguage } from "../i18n";
 import type { Expense, Group } from "../types";
 import { RandomSplitWheel } from "../components/RandomSplitWheel";
@@ -16,9 +20,12 @@ type DraftItem = {
   assignedPersonIds: string[];
   splitMode?: "shared" | "units";
   assignedUnits?: Record<string, number>;
+  originalLineTotal?:number;
   originalShares?: Array<{ personId: string; amount: number; units?: number | null }>;
 };
 
+const lineTotal=(item:DraftItem)=>item.originalLineTotal??Math.round(Number(item.price)*100)*Number(item.quantity||1)/100;
+const units=(item:DraftItem)=>(item.splitMode??(Number(item.quantity||1)>1?"units":"shared"))==="units";
 type DraftPayer = {
   id: string;
   personId: string;
@@ -99,10 +106,25 @@ export const GroupAddExpensePage = () => {
   const [assignNow,setAssignNow]=useState(false);
   const [requestId]=useState(()=>crypto.randomUUID());
   const [saved,setSaved]=useState(false);
-  const [scanPreview,setScanPreview]=useState(false);
   const [note, setNote] = useState("");
   const [draftItems, setDraftItems] = useState<DraftItem[]>([]);
-  const [draftPayers, setDraftPayers] = useState<DraftPayer[]>([]);
+  const [amounts,setAmounts]=useState<Record<string,string>>({});
+  const [single,setSingle]=useState("");
+  const [multiple,setMultiple]=useState(false);
+  const [payerOpen,setPayerOpen]=useState(false);
+  const [override,setOverride]=useState<Category|null>(null);
+  const category=override??inferCategory(note);
+  const baseCurrency=group?.currency||"EUR";
+  const [overrideCurrency,setCurrency]=useState("");
+  const currency=overrideCurrency||baseCurrency;
+  const [currencies,setCurrencies]=useState<{code:string;name:string}[]>([]);
+  const [quote,setQuote]=useState<FxQuote|null>(null);
+  const [quoteError,setQuoteError]=useState("");
+  useEffect(()=>{let active=true;api.currencies().then(v=>{if(active)setCurrencies(v)}).catch(()=>{});return()=>{active=false}},[]);
+  useEffect(()=>{let active=true;setQuote(null);setQuoteError("");if(currency===baseCurrency)return;const load=()=>api.fxQuote(slug,currency).then(v=>{if(active){setQuote(v);setQuoteError("")}}).catch(e=>{if(active)setQuoteError(e.message)});void load();const id=setInterval(load,300000);return()=>{active=false;clearInterval(id)}},[slug,currency,baseCurrency]);
+  const [scanPreview,setScanPreview]=useState(false);
+  const [actor,setActor]=useState("");
+  const [date,setDate]=useState(()=>new Date().toISOString().slice(0,10));
   const [actionError, setActionError] = useState("");
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
@@ -115,7 +137,7 @@ export const GroupAddExpensePage = () => {
   useEffect(() => {
     const load = async () => {
       try {
-        const currentGroup = await api.getGroup(slug);
+        const {group:currentGroup,workflow}=await snapshotForEditor(slug);
         setGroup(currentGroup);
         setEqualParticipantIds(currentGroup.people.map((person) => person.id));
         const expense = editExpenseId
@@ -140,17 +162,18 @@ export const GroupAddExpensePage = () => {
             assignedUnits: Object.fromEntries(
               item.shares.map((share) => [share.personId, share.units ?? 1]),
             ),
+            originalLineTotal:Number(item.price),
             originalShares: item.shares.map((share) => ({
               personId: share.personId,
               amount: Number(share.amount),
               units: share.units,
             })),
           })));
-          setDraftPayers(expense.payers.map((payer) => ({
-            id: payer.id,
-            personId: payer.personId,
-            amount: String(payer.amount),
-          })));
+          setMultiple(expense.payers.length>1);
+          setSingle(expense.payers[0]?.personId||"");
+          setAmounts(Object.fromEntries(expense.payers.map(p=>[p.personId,String(p.amount)])));
+          setOverride(expense.category??null);
+          if(expense.billDate)setDate(expense.billDate.slice(0,10));
           return;
         }
 
@@ -164,7 +187,7 @@ export const GroupAddExpensePage = () => {
           }
         ]);
 
-        setDraftPayers([]);
+        const me=workflow.people.find(p=>p.mine&&!p.inactive)?.id??getWhoAmI(slug)?.participantId;const id=currentGroup.people.find(p=>p.id===me)?.id||"";if(id)saveWhoAmI(slug,id,currentGroup.people.find(p=>p.id===id)?.name);setSingle(id);setActor(id);setPayerOpen(!id);
       } catch {
         navigate(`/g/${slug}`);
       }
@@ -182,13 +205,16 @@ export const GroupAddExpensePage = () => {
         return Number.isFinite(amount) && amount >= 0 ? Math.round(amount * 100) / 100 : 0;
       }
       return draftItems.reduce((sum, item) => {
-        const value = (Math.round(Number(item.price)*100)*Number(item.quantity??1)/100);
+        const value = lineTotal(item);
         return sum + (Number.isFinite(value) && value >= 0 ? value : 0);
       }, 0);
     },
     [draftItems, equalAmount, equalMode]
   );
 
+  const draftPayers:DraftPayer[]=useMemo(()=>multiple
+    ? Object.entries(amounts).filter(([,v])=>v!==""&&Number(v)!==0).map(([personId,amount])=>({id:personId,personId,amount}))
+    : single?[{id:single,personId:single,amount:itemTotal.toFixed(2)}]:[],[amounts,multiple,single,itemTotal]);
   const payerTotal = useMemo(
     () =>
       draftPayers.reduce((sum, payer) => {
@@ -205,7 +231,7 @@ export const GroupAddExpensePage = () => {
       if (equalMode) return equalParticipantIds.length > 0 ? itemTotal : 0;
       return draftItems.reduce((sum, item) => {
         if (!assignNow || item.assignedPersonIds.length === 0) return sum;
-        const value = (Math.round(Number(item.price)*100)*Number(item.quantity??1)/100);
+        const value = units(item)?Math.round(lineTotal(item)*100*Object.values(item.assignedUnits??{}).reduce((a,b)=>a+b,0)/Number(item.quantity||1))/100:lineTotal(item);
         return sum + (Number.isFinite(value) && value > 0 ? value : 0);
       }, 0);
     },
@@ -242,27 +268,16 @@ export const GroupAddExpensePage = () => {
     setDraftItems((current) =>
       current.map((item) => {
         if (item.id !== id) return item;
-        const updated = { ...item, [field]: value };
+        const updated = { ...item, [field]: value, originalLineTotal: field==="price"||field==="quantity"?undefined:item.originalLineTotal };
         if (field !== "quantity" || typeof value !== "string" || !/^\d+$/.test(value)) {
           return field === "price" || field === "assignedPersonIds"
             ? { ...updated, originalShares: undefined }
             : updated;
         }
         const quantity = Number(value);
-        const assignedUnits = Object.fromEntries(
-          Object.entries(item.assignedUnits ?? {}).map(([personId, units]) => [
-            personId,
-            Math.min(units, quantity),
-          ]),
-        );
-        return {
-          ...updated,
-          originalShares: undefined,
-          assignedUnits,
-          assignedPersonIds: item.assignedPersonIds.filter(
-            (personId) => (assignedUnits[personId] ?? 1) > 0,
-          ),
-        };
+        let left=quantity;
+        const assignedUnits=Object.fromEntries(Object.entries(item.assignedUnits??{}).map(([id,n])=>{const take=Math.min(n,left);left-=take;return [id,take]}));
+        return {...updated,originalShares:undefined,splitMode:quantity>1?"units":"shared",assignedUnits,assignedPersonIds:quantity>1?Object.keys(assignedUnits).filter(id=>assignedUnits[id]>0):item.assignedPersonIds};
       })
     );
   };
@@ -363,43 +378,6 @@ export const GroupAddExpensePage = () => {
   });
 };
 
-  const addDraftPayer = () => {
-    if (!group || group.people.length === 0) return;
-
-    const usedPersonIds = new Set(draftPayers.map((payer) => payer.personId));
-    const availablePerson =
-      group.people.find((person) => !usedPersonIds.has(person.id)) ??
-      group.people[0];
-
-    setDraftPayers((current) => [
-      ...current,
-      {
-        id: crypto.randomUUID(),
-        personId: availablePerson.id,
-        amount: ""
-      }
-    ]);
-  };
-
-  const updateDraftPayer = (
-    id: string,
-    field: "personId" | "amount",
-    value: string
-  ) => {
-    setFieldErrors((current) => ({ ...current, [`payer-${id}-${field}`]: "" }));
-    setDraftPayers((current) =>
-      current.map((payer) =>
-        payer.id === id ? { ...payer, [field]: value } : payer
-      )
-    );
-  };
-
-  const removeDraftPayer = (id: string) => {
-    setDraftPayers((current) =>
-      current.filter((payer) => payer.id !== id)
-    );
-  };
-
   const parseBillImage = async (file: File, attempt: number) => {
     try {
       setParsingBill(true);
@@ -417,12 +395,13 @@ export const GroupAddExpensePage = () => {
           id: crypto.randomUUID(),
           ordinalNumber: index + 1,
           name: item.name,
+          originalLineTotal:Number(item.price),
           price: (item.unitPrice ?? item.price / (item.quantity ?? 1)).toFixed(2),
           quantity: String(item.quantity ?? 1),
           assignedPersonIds: group?.people.map((person) => person.id) ?? []
         }))
       );
-      setScanPreview(true);setEntryMode("items");
+      setEntryMode("items");setScanPreview(true);
     } catch (error) {
       setActionError(
         error instanceof Error
@@ -468,17 +447,14 @@ export const GroupAddExpensePage = () => {
   };
 
   const applyRandomSplit = (personIds: string[]) => {
-    if (randomSplitTarget === "global") {
-      setDraftItems((current) =>
-        current.map((item) => ({
-          ...item,
-          assignedPersonIds: [...personIds]
-        }))
-      );
-    } else if (randomSplitTarget) {
-      updateDraftItem(randomSplitTarget, "assignedPersonIds", [...personIds]);
+    if(equalMode){setEqualParticipantIds(personIds)}else{
+      setAssignNow(true);
+      setDraftItems(current=>current.map(i=>{
+        if(randomSplitTarget!=="global"&&i.id!==randomSplitTarget)return i;
+        const qty=Number(i.quantity||1),assignedUnits=Object.fromEntries(personIds.map((id,n)=>[id,Math.floor(qty/personIds.length)+(n<qty%personIds.length?1:0)]));
+        return {...i,originalShares:undefined,assignedUnits,assignedPersonIds:personIds.filter(id=>!units(i)||assignedUnits[id]>0)};
+      }));
     }
-
     setRandomSplitTarget(null);
   };
 
@@ -536,7 +512,7 @@ export const GroupAddExpensePage = () => {
     const totalForValidation = equalMode
       ? Math.round(Number(equalAmount) * 100) / 100
       : draftItems.reduce(
-          (sum, item) => sum + (Math.round(Number(item.price) * 100) * Number(item.quantity ?? 1) / 100),
+          (sum, item) => sum + lineTotal(item),
           0,
         );
     const equalShareAllocation = equalMode && equalSplitMode !== "equal"
@@ -563,6 +539,7 @@ export const GroupAddExpensePage = () => {
     }
     if (paymentOverpaid) errors.paymentTotal = t("paidTotalMustMatch");
     if (assignmentAmountInvalid) errors.assignmentTotal = t("invalidAmount");
+    if(multiple&&draftPayers.length<2)errors.payers=t("twoPayers");
     setFieldErrors(errors);
     if (Object.keys(errors).length > 0) {
       showToast(t("formCorrectionToast"));
@@ -574,8 +551,8 @@ export const GroupAddExpensePage = () => {
       : draftItems.filter(
           (item) =>
             item.name.trim().length > 0 &&
-            Number.isFinite((Math.round(Number(item.price)*100)*Number(item.quantity??1)/100)) &&
-            (Math.round(Number(item.price)*100)*Number(item.quantity??1)/100) >= 0
+            Number.isFinite(lineTotal(item)) &&
+            lineTotal(item) >= 0
         );
 
     if (!equalMode && validItems.length === 0) {
@@ -591,7 +568,7 @@ export const GroupAddExpensePage = () => {
     const validItemsTotal = equalMode
       ? totalForValidation
       : validItems.reduce(
-          (sum, item) => sum + (Math.round(Number(item.price)*100)*Number(item.quantity??1)/100),
+          (sum, item) => sum + lineTotal(item),
           0
         );
 
@@ -624,7 +601,7 @@ export const GroupAddExpensePage = () => {
       ? validItemsTotal
       : validItems.reduce((sum, item) => {
           if (item.assignedPersonIds.length === 0) return sum;
-          const value = (Math.round(Number(item.price)*100)*Number(item.quantity??1)/100);
+          const value = lineTotal(item);
           return sum + (Number.isFinite(value) && value > 0 ? value : 0);
         }, 0);
     const finalUnassignedAmount = Number(
@@ -652,10 +629,12 @@ export const GroupAddExpensePage = () => {
       setSaving(true);
       setActionError("");
 
+      const currentQuote=currency===baseCurrency||(!editingExpense&&!navigator.onLine)?null:quote?.base===currency&&Date.parse(quote.expiresAt)>Date.now()?quote:await api.fxQuote(slug,currency);
       const body = {
+        currency,quoteId:currentQuote?.id,
         note: note.trim() || undefined,
-        ...(editingExpense?.billDate ? { billDate: editingExpense.billDate } : {}),
-        ...(editingExpense?.category ? { category: editingExpense.category } : {}),
+        billDate:editingExpense?.billDate?.slice(0,10)===date ? editingExpense.billDate : new Date(date+"T12:00:00Z").toISOString(),
+        category,
         payers: validPayers.map((payer) => ({
           personId: payer.personId,
           amount: Number(payer.amount)
@@ -675,16 +654,16 @@ export const GroupAddExpensePage = () => {
           : validItems.map((item, index) => ({
           ordinalNumber: index + 1,
           quantity:Number(item.quantity??1),
-          splitMode: item.splitMode ?? (!assignNow && Number(item.quantity??1)>1 ? "units" : "shared"),
+          splitMode: item.splitMode ?? (Number(item.quantity??1)>1 ? "units" : "shared"),
           name: item.name.trim(),
-          price: (Math.round(Number(item.price)*100)*Number(item.quantity??1)/100),
-          shares: (assignNow ? item.assignedPersonIds : []).map((personId) => {
+          price: lineTotal(item),
+          shares: (assignNow ? units(item)?Object.keys(item.assignedUnits??{}).filter(id=>item.assignedUnits![id]>0):item.assignedPersonIds : []).map((personId) => {
             const originalShare = item.originalShares?.find(
               (share) => share.personId === personId,
             );
             return {
               personId,
-              ...(item.splitMode === "units"
+              ...(units(item)
                 ? { units: item.assignedUnits?.[personId] ?? 1 }
                 : originalShare
                   ? { amount: originalShare.amount }
@@ -700,7 +679,15 @@ export const GroupAddExpensePage = () => {
           expectedUpdatedAt: editingExpense.updatedAt,
         });
       } else {
-        await api.createExpense(slug, { ...body, requestId });
+        const createBody={...body,requestId};
+        try{
+          if(!navigator.onLine)throw new TypeError("offline");
+          await api.createExpense(slug,createBody);
+        }catch(e){
+          if(!(e instanceof TypeError))throw e;
+          await queueBill(slug,actor,baseCurrency,createBody);
+          void syncBills().catch(()=>{});
+        }
       }
 
       setSaved(true);
@@ -717,7 +704,7 @@ export const GroupAddExpensePage = () => {
   if (!group) return null;
 
   return (
-    <main className="page wide expensePage">
+    <main className="page wide">
       {saving && (
         <div className="screenLoader">
           <div className="spinner large" />
@@ -731,10 +718,29 @@ export const GroupAddExpensePage = () => {
         {t("backToGroup")}
       </Link>
 
-      <section className="formCard mobileEditor">
-        <header className="editorHeading"><h1>{editingExpense?t("editExpense"):t("newExpense")}</h1><p>{group.name}</p></header>
+      <section className="card formCard">
+        <div className="sectionHeaderWithButton">
+          <div>
+            <p className="eyebrow">{editingExpense ? t("editExpense") : t("newExpense")}</p>
+            <h2>{editingExpense ? t("editExpense") : t("newExpense")} · {currency}</h2>
+          </div>
+          <div className="randomSplitHeaderAction">
+            <strong>{itemTotal.toFixed(2)}</strong>
+            {(editingExpense || entryMode === "items") && <button
+              type="button"
+              className="spinTriggerButton"
+              onClick={() => setRandomSplitTarget("global")}
+              disabled={group.locked || group.people.length === 0 || itemTotal <= 0}
+              title={t("randomSplitGlobal")}
+            >
+              <Dices size={17} />
+              <span>SPIN</span>
+            </button>}
+          </div>
+        </div>
+
         {/* ITEMS */}
-        <div className="form editorLayout"><div className="editorColumn">
+        <div className="form">
           {!editingExpense && <div className="expenseModeSelector" role="radiogroup" aria-label={t("newExpense")}>
             <button
               type="button"
@@ -760,7 +766,7 @@ export const GroupAddExpensePage = () => {
             </button>
           </div>}
 
-          <section className="card editorBasics">{!editingExpense && entryMode === "items" && <div className="billImageActions">
+          {!editingExpense && entryMode === "items" && <div className="billImageActions">
             {/* Camera */}
             <input
               id="bill-camera"
@@ -773,7 +779,7 @@ export const GroupAddExpensePage = () => {
             />
 
             <label
-              htmlFor="bill-camera"
+              onClick={e=>{if(!navigator.onLine){e.preventDefault();setActionError(t("offlineScan"))}}} htmlFor="bill-camera"
               className="billImageActionButton"
             >
               <Camera size={18} />
@@ -791,7 +797,7 @@ export const GroupAddExpensePage = () => {
             />
 
             <label
-              htmlFor="bill-image"
+              onClick={e=>{if(!navigator.onLine){e.preventDefault();setActionError(t("offlineScan"))}}} htmlFor="bill-image"
               className="billImageActionButton"
             >
               <ImagePlus size={18} />
@@ -812,20 +818,13 @@ export const GroupAddExpensePage = () => {
           </div>}
           {!editingExpense && entryMode === "items" && billParseRetryUsed && <p className="billImageHint">{t("billRetryGuidance")}</p>}
 
-          <label className="titleLine"><span className="entryIcon"><ReceiptText aria-hidden="true"/></span><span className="visuallyHidden">{t("note")}</span>
-            <input
-              value={note}
-              onChange={(event) => setNote(event.target.value)}
-              placeholder={t("billNote")}
-              maxLength={200}
-              disabled={group.locked}
-            />
-          </label>
-
-          {!editingExpense && entryMode === "equal" && (
-            <>
-              <label className="amountLine">
-                <span className="currencyBadge">{group.currency || "EUR"}</span>
+          <div className="rpTitle"><label className="rpCategory" title={t(labels[category])}><CategoryIcon category={category}/><select aria-label={t("categoryFilter")} value={override??"auto"} disabled={group.locked} onChange={e=>setOverride(e.target.value==="auto"?null:e.target.value as Category)}><option value="auto">Auto · {t(labels[inferCategory(note)])}</option>{(Object.keys(labels) as Category[]).map(k=><option value={k} key={k}>{t(labels[k])}</option>)}</select></label>
+          <input aria-label={t("note")} value={note} onChange={e=>setNote(e.target.value)} placeholder={t("billNote")} maxLength={200} disabled={group.locked}/></div>
+          <label>{t("billCurrency")}<select value={currency} disabled={group.locked} onChange={e=>setCurrency(e.target.value)}>{!currencies.some(c=>c.code===baseCurrency)&&<option>{baseCurrency}</option>}{currencies.map(c=><option key={c.code} value={c.code}>{c.code} · {c.name}</option>)}</select></label>
+          {!editingExpense && entryMode === "equal" ? (
+            <div className="equalExpenseSection">
+              <label>
+                <span>{t("amount")} ({currency})</span>
                 <input
                   className="equalExpenseAmount"
                   type="text"
@@ -841,9 +840,7 @@ export const GroupAddExpensePage = () => {
                 />
                 {fieldErrors.equalAmount && <span className="validationMessage">{fieldErrors.equalAmount}</span>}
               </label>
-            </>)} </section>
-          {!editingExpense && entryMode === "equal" ? (
-            <details className="card splitDetails"><summary>{t("split")} · {t(({equal:"splitEqually",amount:"splitModeAmounts",percent:"splitModePercent",weight:"splitModeWeights"} as const)[equalSplitMode])} · {equalParticipantIds.length}</summary><div className="equalExpenseParticipants">
+              <div className="equalExpenseParticipants">
                 <strong>{t("selectedParticipants")}</strong>
                 <p className="muted">{t("chooseParticipantsHint")}</p>
                 <div className="sharePicker">
@@ -908,7 +905,7 @@ export const GroupAddExpensePage = () => {
                       <label key={person.id}>
                         <span>
                           {person.name} ({equalSplitMode === "amount"
-                            ? group.currency || "EUR"
+                            ? currency
                             : equalSplitMode === "percent" ? "%" : t("splitModeWeights")})
                         </span>
                         <input
@@ -930,24 +927,41 @@ export const GroupAddExpensePage = () => {
                   </div>
                 )}
               </div>
-            </details>
+            </div>
           ) : (
           <div hidden={!editingExpense && entryMode !== "items"}>
-            <section className="card assignmentCard"><strong>{t("assignmentTitle")}</strong><p>{t("assignNowHint")}</p>
-              <button type="button" className="assignmentChip" aria-pressed={assignNow} disabled={group.locked} onClick={()=>{
-                setAssignNow(!assignNow);setScanPreview(false);
-                if(editingExpense)setDraftItems(current=>current.map(item=>({...item,originalShares:undefined})));
-              }}>{assignNow?"✓ ":""}{t("assignNow")}</button></section>
-            <div className="itemsHeading"><h2>{t("billItems")}</h2><span>{draftItems.length}</span></div>
-            {scanPreview ? <section className="card scanPreview">{draftItems.map(i=><div key={i.id}><b>{i.name}</b><small>{i.quantity||1} × {i.price}</small><strong>{(Number(i.quantity||1)*Number(i.price)).toFixed(2)} {group.currency||"EUR"}</strong></div>)}<button type="button" className="secondaryButton" onClick={()=>setScanPreview(false)}>{t("edit")}</button></section>:
-            <div className="list editorItems">
+            <div className="sectionHeaderWithButton sectionHeaderMargin">
+              <div>
+                <strong>{t("billItems")}</strong>
+              </div>
+              <button
+                type="button"
+                className="secondaryButton"
+                onClick={()=>{setScanPreview(false);addDraftItem()}}
+                disabled={group.locked}
+              >
+                <Plus size={18} />
+                {t("addItems")}
+              </button>
+            </div>
+
+            {scanPreview?<div className="rpPicker">{draftItems.map(i=><div className="rpContribution" key={i.id}><b>{i.name}</b><span>{i.quantity||1} × {i.price} · {lineTotal(i).toFixed(2)}</span></div>)}<button type="button" className="secondaryButton" onClick={()=>setScanPreview(false)}>{t("editExpense")}</button></div>:<div className="list">
+              <label><input type="checkbox" disabled={group.locked} checked={assignNow} onChange={e=>{
+                setAssignNow(e.target.checked);
+                if (editingExpense) {
+                  setDraftItems(current => current.map(item => ({ ...item, originalShares: undefined })));
+                }
+              }}/>{t("assignNow")}</label>
+              <p>{t("assignNowHint")}</p>
               {draftItems.map((item, index) => (
                 <div
                   key={item.id}
                   className="card draftEditorCard"
                 >
                   <div className="draftItemEditor">
-                    <header className="itemHeader"><b>{t("itemNumber")} {index+1}</b>{draftItems.length>1&&<button type="button" aria-label={t("removeItem")+" "+(index+1)} disabled={group.locked} onClick={()=>removeDraftItem(item.id)}><Trash2 size={16}/></button>}</header>
+                    <div className="draftItemOrdinalNumber" aria-label={`Item ${item.ordinalNumber}`}>
+                      {item.ordinalNumber}.
+                    </div>
                     <label>
                       <span>{t("itemName")}</span>
                       <input
@@ -963,7 +977,7 @@ export const GroupAddExpensePage = () => {
                     </label>
 
                     <label>
-                      <span>{t("price")} ({group?.currency||"EUR"})</span>
+                      <span>{t("price")} ({currency})</span>
                       <input
                         type="text"
                         inputMode="decimal"
@@ -982,41 +996,22 @@ export const GroupAddExpensePage = () => {
                       {fieldErrors[`item-${item.id}-price`] && <span className="validationMessage">{fieldErrors[`item-${item.id}-price`]}</span>}
                     </label>
 
-                    <div className="qtyField"><label htmlFor={'qty-'+item.id}>{t("quantity")}</label><div className="qtyStepper">
-                      <button type="button" aria-label={'− '+t("quantity")} disabled={group.locked||Number(item.quantity??1)<=1} onClick={()=>updateDraftItem(item.id,"quantity",String(Math.max(1,Number(item.quantity??1)-1)))}>−</button>
-                      <input id={'qty-'+item.id} type="text" inputMode="numeric" maxLength={3} value={item.quantity??"1"} disabled={group.locked} onChange={e=>updateDraftItem(item.id,"quantity",e.target.value.replace(/[^0-9]/g,""))} aria-invalid={Boolean(fieldErrors[`item-${item.id}-quantity`])}/>
-                      <button type="button" aria-label={'+ '+t("quantity")} disabled={group.locked||Number(item.quantity??1)>=999} onClick={()=>updateDraftItem(item.id,"quantity",String(Math.min(999,Number(item.quantity??1)+1)))}>+</button></div>
-                      {fieldErrors[`item-${item.id}-quantity`]&&<small className="validationMessage">{fieldErrors[`item-${item.id}-quantity`]}</small>}</div>
+                    <label>
+                      {t("quantity")}
+                      <span className="rpQty"><button type="button" disabled={group.locked||Number(item.quantity||1)<=1} aria-label={"− "+item.name} onClick={()=>updateDraftItem(item.id,"quantity",String(Number(item.quantity||1)-1))}>−</button><input disabled={group.locked} type="number" min="1" max="999" step="1" value={item.quantity??"1"} onChange={e=>updateDraftItem(item.id,"quantity",e.target.value)} aria-invalid={Boolean(fieldErrors[`item-${item.id}-quantity`])}/><button type="button" disabled={group.locked||Number(item.quantity||1)>=999} aria-label={"+ "+item.name} onClick={()=>updateDraftItem(item.id,"quantity",String(Number(item.quantity||1)+1))}>+</button></span>
+                      {fieldErrors[`item-${item.id}-quantity`] && <span className="validationMessage">{fieldErrors[`item-${item.id}-quantity`]}</span>}
+                    </label>
                     <div className="draftItemShares" hidden={!assignNow}>
                       <div className="draftItemSharesHeader">
                         <div className="draftItemSharesTitle">
                           <span>{t("assignedTo")}</span>
-                          <label className="shareCheckAll">
-                            <input
-                              type="checkbox"
-                              checked={group.people.length > 0 && item.assignedPersonIds.length === group.people.length}
-                              ref={(input) => {
-                                if (input) {
-                                  input.indeterminate = item.assignedPersonIds.length > 0 && item.assignedPersonIds.length < group.people.length;
-                                }
-                              }}
-                              disabled={group.locked || group.people.length === 0}
-                              onChange={(event) =>
-                                updateDraftItem(
-                                  item.id,
-                                  "assignedPersonIds",
-                                  event.target.checked ? group.people.map((person) => person.id) : []
-                                )
-                              }
-                            />
-                            <span>{t("checkAll")}</span>
-                          </label>
+
                         </div>
                         <button
                           type="button"
                           className="miniSpinButton"
                           onClick={() => setRandomSplitTarget(item.id)}
-                          disabled={group.locked || group.people.length === 0 || (Math.round(Number(item.price)*100)*Number(item.quantity??1)/100) <= 0}
+                          disabled={group.locked || group.people.length === 0 || lineTotal(item) <= 0}
                           title={t("randomSplitItem")}
                         >
                           <Dices size={15} />
@@ -1026,7 +1021,7 @@ export const GroupAddExpensePage = () => {
                       <div className="sharePicker">
                         {group.people.map((person) => {
                           const checked = item.assignedPersonIds.includes(person.id);
-                          if (editingExpense && item.splitMode === "units") {
+                          if (units(item)) {
                             return (
                               <label key={person.id} className="shareOption">
                                 <span>{person.name}</span>
@@ -1039,7 +1034,7 @@ export const GroupAddExpensePage = () => {
                                   value={item.assignedUnits?.[person.id] ?? 0}
                                   onChange={(event) => {
                                     const units = Math.min(
-                                      Number(item.quantity ?? 1),
+                                      Math.max(0,Number(item.quantity??1)-Object.entries(item.assignedUnits??{}).reduce((n,[id,u])=>n+(id===person.id?0:u),0)),
                                       Math.max(0, Math.floor(Number(event.target.value) || 0)),
                                     );
                                     setDraftItems((current) => current.map((entry) => {
@@ -1079,96 +1074,39 @@ export const GroupAddExpensePage = () => {
                       </div>
                     </div>
 
-                  </div>
-                </div>
-              ))}
-              <button className="secondaryButton" type="button" disabled={group.locked} onClick={addDraftItem}><Plus size={18}/>{t("addItems")}</button>
-            </div>}
-            {fieldErrors.items && <p className="validationMessage">{fieldErrors.items}</p>}
-          </div>)}
-
-          </div><aside className="editorColumn editorReview">
-          {/* PAYERS */}
-          <div
-            className="card payersSection"
-          >
-            <div className="sectionHeaderWithButton sectionHeaderMargin">
-              <div>
-                <strong>{t("billPayers")}</strong>
-                <p className="muted">{t("billPayersHint")}</p>
-              </div>
-              <button
-                type="button"
-                className="secondaryButton"
-                onClick={addDraftPayer}
-                disabled={group.locked}
-              >
-                <Plus size={18} />
-                {t("addPayer")}
-              </button>
-            </div>
-
-            {draftPayers.length === 0 ? (
-              <p className="muted">{t("noPayersAdded")}</p>
-            ) : (
-              <div className="list">
-                {draftPayers.map((payer) => (
-                  <div key={payer.id} className="draftPayerEditor">
-                    <label>
-                      <span>{t("paidBy")}</span>
-                      <select
-                        value={payer.personId}
-                        onChange={(event) =>
-                          updateDraftPayer(payer.id, "personId", event.target.value)
-                        }
-                        disabled={group.locked}
-                        aria-invalid={Boolean(fieldErrors[`payer-${payer.id}-personId`])}
-                      >
-                        {group.people.map((person) => (
-                          <option key={person.id} value={person.id}>
-                            {person.name}
-                          </option>
-                        ))}
-                      </select>
-                      {fieldErrors[`payer-${payer.id}-personId`] && <span className="validationMessage">{fieldErrors[`payer-${payer.id}-personId`]}</span>}
-                    </label>
-
-                    <label>
-                      <span>{t("amount")}</span>
-                      <input
-                        type="number"
-                        min="0.01"
-                        step="0.01"
-                        value={payer.amount}
-                        onChange={(event) =>
-                          updateDraftPayer(payer.id, "amount", event.target.value)
-                        }
-                        placeholder="0.00"
-                        disabled={group.locked}
-                        aria-invalid={Boolean(fieldErrors[`payer-${payer.id}-amount`])}
-                      />
-                      {fieldErrors[`payer-${payer.id}-amount`] && <span className="validationMessage">{fieldErrors[`payer-${payer.id}-amount`]}</span>}
-                    </label>
-
                     <button
                       type="button"
                       className="iconButton"
-                      onClick={() => removeDraftPayer(payer.id)}
-                      disabled={group.locked}
-                      title={t("removePayer")}
+                      onClick={() => removeDraftItem(item.id)}
+                      disabled={group.locked || draftItems.length <= 1}
+                      title={t("removeItem")}
                     >
                       <Trash2 size={17} />
                     </button>
                   </div>
-                ))}
-              </div>
-            )}
+
+                  <small className="muted">
+                    {t("itemNumber")}: {index + 1}
+                  </small>
+                </div>
+              ))}
+            </div>
+            }{fieldErrors.items && <p className="validationMessage">{fieldErrors.items}</p>}
+          </div>)}
+
+          {/* PAYERS */}
+          <div
+            className="payersSection"
+          >
+            <button type="button" className="secondaryButton" aria-expanded={payerOpen} onClick={()=>setPayerOpen(!payerOpen)}>{t("paidBy")}: {multiple?t("manyPayers"):group.people.find(p=>p.id===single)?.name||t("billPayers")} ▾</button>
+            {payerOpen&&<div className="rpPicker"><div className="sharePicker">{[false,true].map(v=><button key={String(v)} type="button" className={"expenseModeParticipant"+(v===multiple?" selected":"")} aria-pressed={v===multiple} disabled={group.locked} onClick={()=>{setMultiple(v);setFieldErrors({})}}>{t(v?"manyPayers":"onePayer")}</button>)}</div>
+            {group.people.map(p=>multiple?<label className="rpContribution" key={p.id}>{p.name}<input inputMode="decimal" placeholder="0,00" disabled={group.locked} value={amounts[p.id]??""} onChange={e=>{const v=sanitizeDecimalInput(e.target.value);setAmounts(prev=>({...prev,[p.id]:v}))}} aria-invalid={!!fieldErrors["payer-"+p.id+"-amount"]}/></label>:<button type="button" key={p.id} aria-pressed={single===p.id} className={"expenseModeParticipant"+(single===p.id?" selected":"")} disabled={group.locked} onClick={()=>setSingle(p.id)}>{p.name}</button>)}</div>}
             {fieldErrors.payers && <p className="validationMessage">{fieldErrors.payers}</p>}
           </div>
 
           {/* TOTALS */}
           <div
-            className="card totalsCard"
+            className="totalsCard"
           >
             <div className="settlement">
               <span>{t("itemsTotal")}</span>
@@ -1189,6 +1127,7 @@ export const GroupAddExpensePage = () => {
               </strong>
             </div>
           </div>
+          {quoteError&&<p role="alert">{quoteError}</p>}{currency!==baseCurrency&&quote?.base===currency&&<p>≈ {(itemTotal*quote.rate).toFixed(2)} {baseCurrency} · 1 {currency} = {quote.rate} {baseCurrency}</p>}
           {fieldErrors.paymentTotal && <p className="validationMessage">{fieldErrors.paymentTotal}</p>}
           {fieldErrors.assignmentTotal && <p className="validationMessage">{fieldErrors.assignmentTotal}</p>}
 
@@ -1209,21 +1148,11 @@ export const GroupAddExpensePage = () => {
             <Plus size={18} />
             {editingExpense ? t("saveChanges") : t("createExpense")}
           </button>
-{(editingExpense || entryMode === "items") && <button
-              type="button"
-              className="spinTriggerButton"
-              onClick={() => setRandomSplitTarget("global")}
-              disabled={group.locked || group.people.length === 0 || itemTotal <= 0}
-              title={t("randomSplitGlobal")}
-            >
-              <Dices size={17} />
-              <span>SPIN</span>
-            </button>}
-          </aside></div>
+        </div>
       </section>
 
 
-      <RandomSplitWheel currency={group?.currency||"EUR"}
+      <RandomSplitWheel currency={currency}
         open={randomSplitTarget !== null}
         title={
           randomSplitTarget === "global"

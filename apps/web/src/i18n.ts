@@ -11,8 +11,7 @@ export const languageOptions = [
 
 export const translations = {
   hr: {
-    assignmentTitle:"Unesi → kreiraj račun → ekipa bira", filtersTitle:"Filtri",
-    teamSlogan: "Dobra ekipa\ndijeli fer.",
+    twoPayers: "Unesi uplate barem dviju osoba ili odaberi jednog platitelja.", waitingSync:"Čeka slanje", retrySync:"Pokušaj ponovno", onePayer: "Jedna osoba", manyPayers: "Više osoba", billDate: "Datum računa", offlineScan: "Nema internetske veze. Nije moguće slikati ili učitati račun.", billCurrency: "Valuta računa", teamSlogan: "Dobra ekipa\ndijeli fer.",
     yourGroups: "Tvoje grupe",
     groupsNav: "Grupe",
     settingsNav: "Postavke",
@@ -308,8 +307,7 @@ export const translations = {
     close: "Zatvori"
   },
   en: {
-    assignmentTitle:"Enter → create bill → everyone selects", filtersTitle:"Filters",
-    teamSlogan: "Good company\nshares fairly.",
+    twoPayers: "Enter at least two payments or choose one payer.", waitingSync:"Waiting to upload", retrySync:"Retry", onePayer: "One person", manyPayers: "Multiple people", billDate: "Bill date", offlineScan: "Offline: cannot scan or upload a receipt.", billCurrency: "Bill currency", teamSlogan: "Good company\nshares fairly.",
     yourGroups: "Your groups",
     groupsNav: "Groups",
     settingsNav: "Settings",
@@ -604,8 +602,7 @@ export const translations = {
     close: "Close"
   },
   ja: {
-    assignmentTitle:"入力 → レシートを作成 → 各自で選択", filtersTitle:"絞り込み",
-    teamSlogan: "みんなで楽しく、\n公平に割り勘。",
+    twoPayers: "2人以上の金額を入力するか、1人を選んでください。", waitingSync:"送信待ち", retrySync:"再試行", onePayer: "1人", manyPayers: "複数人", billDate: "日付", offlineScan: "オフラインではレシートを送信できません。", billCurrency: "通貨", teamSlogan: "みんなで楽しく、\n公平に割り勘。",
     yourGroups: "あなたのグループ",
     groupsNav: "グループ",
     settingsNav: "設定",
@@ -900,8 +897,7 @@ export const translations = {
     close: "閉じる"
   },
   de: {
-    assignmentTitle:"Eintragen → Beleg erstellen → gemeinsam aufteilen", filtersTitle:"Filter",
-    teamSlogan: "Gute Gesellschaft\nteilt fair.",
+    twoPayers: "Mindestens zwei Beträge eingeben oder eine Person wählen.", waitingSync:"Wartet auf Upload", retrySync:"Erneut versuchen", onePayer: "Eine Person", manyPayers: "Mehrere Personen", billDate: "Belegdatum", offlineScan: "Offline können keine Belege hochgeladen werden.", billCurrency: "Belegwährung", teamSlogan: "Gute Gesellschaft\nteilt fair.",
     yourGroups: "Deine Gruppen",
     groupsNav: "Gruppen",
     settingsNav: "Einstellungen",

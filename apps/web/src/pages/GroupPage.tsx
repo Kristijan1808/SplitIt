@@ -1,3 +1,7 @@
+import {GroupAdminTools} from "../components/GroupAdminTools";
+import {pendingBills,snapshotForEditor,syncBills} from "../offlineBills";
+import {CategoryIcon,inferCategory} from "../components/ExpenseCategory";
+import "../styles/receiptParity.css";
 import {ReceiptItem} from "../components/ReceiptItem";
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -107,25 +111,16 @@ export const GroupPage = () => {
     itemId?: string;
   } | null>(null);
 
-  useEffect(() => {
-    const load = async () => {
-      try {
-        const currentGroup = await api.getGroup(slug);
-        lastChangedAt.current = currentGroup.lastChangedAt;
-        saveGroupToLocalStorage(currentGroup);
-        setGroup({...currentGroup,locked:currentGroup.locked||!!(currentGroup as any).archived});
-        const flow=await api.workflow(slug);setWorkflow(flow);
-        const mine=flow.people.find(p=>p.mine&&!p.inactive);
-        saveWhoAmI(slug,mine?.id??"",mine?.name??null);
-        setGroupName(currentGroup.name);
-      } catch {
-        navigate("/");
-      }
-    };
-
-    void load();
-  }, [slug, navigate]);
-
+  const [pending,setPending]=useState<{count:number,error?:string}>({count:0});
+  useEffect(()=>{
+    let live=true;
+    const load=()=>refreshSnapshot(()=>live).catch(()=>{if(live)navigate("/")});
+    const count=()=>pendingBills(slug).then(rows=>{if(live)setPending({count:rows.length,error:rows.find(x=>x.row.error)?.row.error})}).catch(()=>{});
+    const uploaded=(e:Event)=>{if((e as CustomEvent).detail===slug)void load()};
+    void load();void count();
+    window.addEventListener("splitit:queue",count);window.addEventListener("splitit:uploaded",uploaded);
+    return()=>{live=false;window.removeEventListener("splitit:queue",count);window.removeEventListener("splitit:uploaded",uploaded)};
+  },[slug,navigate]);
   useEffect(() => {
     if (!group) return;
 
@@ -139,19 +134,6 @@ export const GroupPage = () => {
       (searchParams.get("chooseParticipant") === "1" || !validSelection);
     setShowWhoAreYou(shouldPrompt);
   }, [group, slug, searchParams]);
-
-  useEffect(() => {
-    const loadDrafts = async () => {
-      try {
-        const nextDrafts = await api.getDraftExpenses(slug);
-        setDrafts(nextDrafts.map(normalizeDraft));
-      } catch {
-        setDrafts([]);
-      }
-    };
-
-    void loadDrafts();
-  }, [slug]);
 
   useEffect(() => {
     const loadSettlements = async () => {
@@ -169,8 +151,10 @@ export const GroupPage = () => {
     void loadSettlements();
   }, [group, slug]);
 
-  const refreshSnapshot = async () => {
-    const snapshot = await api.getGroupSnapshot(slug);
+  const refreshSnapshot = async (valid=()=>true) => {
+    const snapshot = await snapshotForEditor(slug);
+    if(!valid())return;
+    saveGroupToLocalStorage(snapshot.group);
     lastChangedAt.current = snapshot.group.lastChangedAt;
     lastNotifiedChange.current = snapshot.group.lastChangedAt;
     setGroupChangedNotice(false);
@@ -832,6 +816,7 @@ export const GroupPage = () => {
           </button>
         ))}
       </nav>
+        {pending.count>0&&<div role="status" className="card">{t("waitingSync")} · {pending.count} {pending.error&&<span>{pending.error}</span>} <button type="button" onClick={()=>void syncBills(true)}>{t("retrySync")}</button></div>}
         {activeTab === "expenses" && !group.locked && !workflow.archived && group.people.length > 0 && currentParticipantId && (
           <div className="flActions"><Link className="secondaryButton" to={`/g/${slug}/add-expense?scan=1`}><Camera size={18}/>{t("scanBill")}</Link><Link className="primaryButton" to={`/g/${slug}/add-expense`}>
             <Plus size={18} /> {t("addExpense")}
@@ -1034,7 +1019,7 @@ export const GroupPage = () => {
             </div>
           </section>
           <section className="card">
-            <h2>{t("groupSettings")}</h2>
+            <h2>{t("groupSettings")}</h2>{workflow.canAdmin&&<GroupAdminTools group={group} workflow={workflow} refresh={refreshSnapshot}/>}
             <form className="inlineInput" onSubmit={(event) => void saveGroupName(event)} noValidate>
               <input value={groupName} onChange={(event) => {
                 setGroupName(event.target.value);
@@ -1079,12 +1064,7 @@ export const GroupPage = () => {
       )}
 
       {activeTab === "expenses" && (
-        <section id="expenses-container"><aside className="card groupSummary"><div><span>{t("totalSpent")}</span><strong>{group.expenses.reduce((n,e)=>n+Number(e.totalAmount),0).toFixed(2)} {group.currency||"EUR"}</strong></div>              <div className="balanceLine">
-                <span>{currentParticipant ? `${t("myBalance")} · ${currentParticipant.name}` : t("selectYourParticipant")}</span>
-                <strong>{currentBalance ? `${currentBalance.balance > 0 ? "+" : ""}${currentBalance.balance.toFixed(2)} ${group.currency || "EUR"}` : "—"}</strong>
-                <button type="button" className="textButton" onClick={() => setActiveTab("debts")}>{t("groupTabDebts")}</button>
-              </div>
-</aside>
+        <section id="expenses-container">
           <div className="grid">
             <section className="card">
               <div className="sectionHeaderWithButton">
@@ -1093,7 +1073,12 @@ export const GroupPage = () => {
                   <p className="muted">{group.expenses.length} · {group.expenses.reduce((sum, expense) => sum + Number(expense.totalAmount), 0).toFixed(2)} {group.currency || "EUR"}</p>
                 </div>
               </div>
-              <details className="billFilters"><summary>{t("filtersTitle")}</summary><div className="expenseFilters">
+              <div className="expenseBalanceSummary">
+                <span>{currentParticipant ? `${t("myBalance")} · ${currentParticipant.name}` : t("selectYourParticipant")}</span>
+                <strong>{currentBalance ? `${currentBalance.balance > 0 ? "+" : ""}${currentBalance.balance.toFixed(2)} ${group.currency || "EUR"}` : "—"}</strong>
+                <button type="button" className="textButton" onClick={() => setActiveTab("debts")}>{t("groupTabDebts")}</button>
+              </div>
+              <div className="expenseFilters">
                 <input aria-label={t("searchExpenses")} placeholder={t("searchExpenses")} value={expenseSearch} onChange={(event) => setExpenseSearch(event.target.value)} />
                 <label>{t("monthFilter")}<input type="month" value={expenseMonth} onChange={(event) => setExpenseMonth(event.target.value)} /></label>
                 <label>{t("categoryFilter")}<select value={expenseCategory} onChange={(event) => setExpenseCategory(event.target.value)}><option value="">{t("allCategories")}</option><option value="other">{t("categoryOther")}</option><option value="food">{t("categoryFood")}</option><option value="travel">{t("categoryTravel")}</option><option value="home">{t("categoryHome")}</option><option value="fun">{t("categoryFun")}</option><option value="taxi">{t("categoryTaxi")}</option><option value="shopping">{t("categoryShopping")}</option><option value="health">{t("categoryHealth")}</option></select></label>
@@ -1101,7 +1086,7 @@ export const GroupPage = () => {
                 <button type="button" className={`secondaryButton compact${mineOnly ? " filterSelected" : ""}`} aria-pressed={mineOnly} onClick={() => setMineOnly((value) => !value)} disabled={!currentParticipantId}>{t("myExpenses")}</button>
                 {(expenseSearch || expenseMonth || expenseCategory || pendingOnly || mineOnly) && <button type="button" className="textButton" onClick={() => { setExpenseSearch(""); setExpenseMonth(""); setExpenseCategory(""); setPendingOnly(false); setMineOnly(false); }}>{t("clearFilters")}</button>}
               </div>
-              </details>{(() => {
+              {(() => {
                   const expenses = filteredExpenses;
                   if (group.expenses.length === 0)
                     return <p className="muted">{t("noExpensesYet")}</p>;
@@ -1120,7 +1105,7 @@ export const GroupPage = () => {
                         const currentNet = currentPayerTotal - Number(currentShare);
                         const currentInvolved = currentPayerTotal > 0 || Number(currentShare) > 0;
                         return (
-                          <div className={"expenseCard"+(expense.allocationComplete===false?" awaitsSplit":"")} key={expense.id}>
+                          <div className="expenseCard" key={expense.id}>
                             <div className="expenseSummaryRow">
                               <button
                                 type="button"
@@ -1136,7 +1121,7 @@ export const GroupPage = () => {
                                   })
                                 }
                               >
-                                <div className="billDate" aria-hidden="true"><small>{new Date(expense.billDate||expense.createdAt).toLocaleDateString(locale,{month:"short"})}</small><b>{new Date(expense.billDate||expense.createdAt).getDate()}</b></div><Receipt size={20} className="billGlyph"/><div className="expenseSummaryMain">
+                                <CategoryIcon category={expense.category??inferCategory(expense.note||"")}/><div className="expenseSummaryMain">
                                   <strong>{expense.note || t("expense")}</strong>
                                   {expense.allocationComplete === false && (
                                     <small className="expenseStatusPending">
@@ -1147,7 +1132,7 @@ export const GroupPage = () => {
                                     <small className="expenseStatusPending">{t("expenseCheckPayers")}</small>
                                   )}
                                   <small>
-                                    {expense.payers.map(p=>p.person?.name||group.people.find(x=>x.id===p.personId)?.name).filter(Boolean).join(", ")} ·{" "}
+                                    {formatLocalDateTime(expense.createdAt)} ·{" "}
                                     {expense.items?.length ?? 0} {t("itemsCount")}
                                   </small>
                                   {currentParticipant && (
