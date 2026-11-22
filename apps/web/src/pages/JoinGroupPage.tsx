@@ -1,0 +1,121 @@
+import { FormEvent, useEffect, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { ArrowLeft, UserRoundPlus } from "lucide-react";
+import { api } from "../api";
+import { useLanguage } from "../i18n";
+import { showToast } from "../notifications";
+
+export function JoinGroupPage() {
+  const navigate = useNavigate();
+  const { t, locale } = useLanguage();
+  const [code, setCode] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [requiresLogin, setRequiresLogin] = useState(false);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const groupCode = params.get("code");
+    if (groupCode) setCode(groupCode.toUpperCase());
+  }, []);
+
+  async function handleSubmit(event: FormEvent) {
+    event.preventDefault();
+    setError("");
+    const errors: Record<string, string> = {};
+    if (!/^[A-Z0-9]{6}$/.test(code.trim())) {
+      errors.code = t("invalidGroupCode");
+    }
+    if (!password) {
+      errors.password = t("fieldRequired");
+    } else if (password.length > 80) {
+      errors.password = t("fieldMaxLength").replace("{count}", "80");
+    }
+    setFieldErrors(errors);
+    if (Object.keys(errors).length > 0) {
+      showToast(t("formCorrectionToast"));
+      return;
+    }
+
+    try {
+      const group = await api.joinGroup({ code: code.trim(), password });
+      navigate(`/g/${group.slug}?chooseParticipant=1`);
+    } catch (err) {
+      if (err instanceof Error && "status" in err && err.status === 401) {
+        setRequiresLogin(true);
+        setError(t("registeredJoinRequiresLogin"));
+        showToast(t("registeredJoinRequiresLogin"));
+      } else {
+        setRequiresLogin(false);
+        setError(err instanceof Error ? err.message : t("somethingWentWrong"));
+      }
+    }
+  }
+
+  return (
+    <main className="page">
+      <div className="zTop"><Link className="zBack" to="/" aria-label={t("home")}>&#8249;</Link><h1 className="zH2" style={{ flex: 1, textAlign: "center" }}>{t("joinTitle")}</h1><span style={{ width: 44 }} /></div>
+      <p className="zMuted" style={{ margin: "4px 0 0" }}>{t("joinHint")}</p>
+      <section className="zAuth">
+        {/^[A-Z0-9]{6}$/.test(code) && (
+          <a
+            className="secondaryButton"
+            href={`splitit://join?code=${encodeURIComponent(code)}`}
+          >
+            {locale.startsWith("hr")
+              ? "Otvori u mobilnoj aplikaciji"
+              : "Open in the mobile app"}
+          </a>
+        )}
+
+
+        <form className="form" onSubmit={handleSubmit} noValidate>
+          <label className="zField">
+            <b>{t("groupCodeInput")}</b>
+            <input
+              value={code}
+              onChange={(event) => {
+                setCode(event.target.value.toUpperCase());
+                setFieldErrors((current) => ({ ...current, code: "" }));
+              }}
+              placeholder="AB12CD"
+              maxLength={6}
+              aria-invalid={Boolean(fieldErrors.code)}
+            />
+            {fieldErrors.code && <span className="validationMessage">{fieldErrors.code}</span>}
+          </label>
+
+          <label className="zField">
+            <b>{t("password")}</b>
+            <input
+              type="password"
+              value={password}
+              onChange={(event) => {
+                setPassword(event.target.value);
+                setFieldErrors((current) => ({ ...current, password: "" }));
+              }}
+              maxLength={80}
+              aria-invalid={Boolean(fieldErrors.password)}
+            />
+            {fieldErrors.password && <span className="validationMessage">{fieldErrors.password}</span>}
+          </label>
+
+          {error && <p className="error">{error}</p>}
+          {requiresLogin && (
+            <Link
+              className="secondaryButton"
+              to={`/login?redirect=${encodeURIComponent(`/join?code=${code.trim()}`)}`}
+            >
+              {t("login")}
+            </Link>
+          )}
+
+          <button className="primaryButton" type="submit">
+            <UserRoundPlus size={18} /> {t("joinButton")}
+          </button>
+        </form>
+      </section>
+    </main>
+  );
+}

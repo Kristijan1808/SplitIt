@@ -1,0 +1,157 @@
+:root {
+  --green-950: #edf3fa;
+  --green-900: #79daba;
+  --green-800: #234f50;
+  --green-700: #79daba;
+  --green-500: #79daba;
+  --mint: #233f3c;
+  --mint-strong: #2d4b46;
+  --black: #edf3fa;
+  --white: #101923;
+  --gray: #abbccd;
+  --line: #354756;
+  --page-bg: #101923;
+  --panel-bg: #1c2a36;
+  --panel-alt: #101923;
+  --surface: #1c2a36;
+  --surface-solid: #1c2a36;
+  --surface-hover: #233f3c;
+  --accent: #79daba;
+  --tint: #233f3c;
+  --danger: #ffa4ad;
+  --danger-tint: #35252e;
+  --info: #9dbefe;
+  --info-tint: #24354f;
+  --hero: #234f50;
+  --shadow-soft: 0 4px 16px rgba(0, 0, 0, 0.12);
+  --shadow-card: 0 8px 24px rgba(0, 0, 0, 0.16);
+  color: var(--black);
+  background: var(--page-bg);
+}
+
+body {
+  background: var(--page-bg);
+  color: var(--black);
+}
+
+.logo {
+  background: var(--hero);
+  color: var(--black);
+  box-shadow: var(--shadow-soft);
+}
+
+h1,
+h2,
+label {
+  color: var(--green-950);
+}
+
+.heroText {
+  color: var(--gray);
+}
+
+.card,
+.groupHeader {
+  background: var(--panel-bg);
+  border-color: var(--line);
+  box-shadow: var(--shadow-card);
+}
+
+.primaryButton {
+  background: var(--accent);
+  color: #101923;
+  box-shadow: none;
+}
+
+.secondaryButton,
+.iconButton {
+  background: var(--tint);
+  color: var(--accent);
+  border-color: var(--line);
+}
+
+.iconButton.danger {
+  background: var(--danger-tint);
+  color: var(--danger);
+  border-color: var(--line);
+}
+
+.backLink {
+  color: var(--accent);
+}
+
+input,
+select {
+  background: var(--panel-alt);
+  border-color: var(--line);
+  color: var(--black);
+}
+
+input::placeholder {
+  color: var(--gray);
+}
+
+input:focus,
+select:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 16%, transparent);
+}
+
+.groupRow,
+.personRow,
+.paymentRow,
+.settlement,
+.historyItem {
+  background: var(--panel-bg);
+  border-color: var(--line);
+}
+
+.stats div {
+  background: var(--tint);
+}
+
+.stats strong {
+  color: var(--green-950);
+}
+
+.settlement em {
+  color: var(--accent);
+}
+
+.success {
+  color: var(--accent);
+}
+
+.error {
+  color: var(--danger);
+}
+
+.muted,
+small {
+  color: var(--gray);
+}
+
+/* Auth and access dark overrides */
+.accessOption {
+  background: var(--panel-bg);
+  border-color: var(--line);
+}
+
+.accessOption:hover,
+.accessOption.selected {
+  border-color: var(--accent);
+  box-shadow: var(--shadow-soft);
+}
+
+.accessOption strong,
+.loadingTitle {
+  color: var(--green-950);
+}
+
+.screenLoader {
+  background: rgba(16, 25, 35, 0.58);
+}
+
+.toastError {
+  background: #35252e;
+}

@@ -1,0 +1,3 @@
+import {test} from 'node:test';import assert from 'node:assert/strict';import {LoginTickets} from './mobile-login.js';
+test('browser approval and handset pickup require different secrets; tokens are single-use',()=>{const t=new LoginTickets(),a=t.start(),b=t.start(),u={id:'1',username:'Jura'};assert.equal(t.take(a.id,a.pickup),null);assert.throws(()=>t.approve(a.id,b.approval,u));t.approve(a.id,a.approval,u);assert.throws(()=>t.take(a.id,a.approval));assert.deepEqual(t.take(a.id,a.pickup),u);assert.throws(()=>t.take(a.id,a.pickup))});
+test('expired requests cannot be approved',()=>{let clock=1;const t=new LoginTickets(()=>clock),a=t.start();clock+=300001;assert.throws(()=>t.approve(a.id,a.approval,{id:'1',username:'Jura'}))});

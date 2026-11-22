@@ -1,0 +1,196 @@
+import { z } from "zod";
+
+export const createGroupSchema = z.object({
+  name: z.string().trim().min(1).max(80),
+  password: z.string().trim().min(1).max(80),
+  people: z.array(z.string().trim().min(1).max(60)),
+  accessType: z.enum(["ANONYMOUS_ONLY", "REGISTERED_ONLY", "MIXED"]).default("ANONYMOUS_ONLY")
+}).superRefine((body, context) => {
+  if (body.accessType === "REGISTERED_ONLY") {
+    if (body.people.length > 0) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["people"],
+        message: "U grupama samo za registrirane vlasnik se automatski dodaje kao sudionik"
+      });
+    }
+    return;
+  }
+
+  if (body.people.length === 0) {
+    context.addIssue({
+      code: z.ZodIssueCode.too_small,
+      minimum: 1,
+      type: "array",
+      inclusive: true,
+      path: ["people"],
+      message: "Dodaj barem jednog sudionika"
+    });
+  }
+});
+
+const usernameSchema = z.string().trim().min(4).max(32).regex(/^[a-zA-Z0-9_.-]+$/);
+const loginIdentifierSchema = z.union([
+  usernameSchema,
+  z.string().trim().min(4).max(254).email()
+]);
+const passwordSchema = z.string().min(8).max(80);
+
+export const registerSchema = z.object({
+  username: usernameSchema,
+  email: z.string().trim().toLowerCase().min(4).max(254).email(),
+  password: passwordSchema,
+  repeatPassword: passwordSchema
+});
+
+export const authSchema = z.object({
+  username: loginIdentifierSchema,
+  password: passwordSchema
+});
+
+export const googleAuthSchema = z.object({
+  credential: z.string().min(1).max(8192)
+});
+
+export const joinGroupSchema = z.object({
+  code:z.string().trim().regex(/^[A-Z0-9]{6}$/i),
+  password:z.string().min(1).max(80)
+});
+
+export const addPersonSchema = z.object({
+  name: z.string().min(1).max(60)
+});
+
+//
+// Draft bill creation.
+//
+// An item does NOT require an assigned person.
+//
+// Example:
+//
+// {
+//   name: "Pizza",
+//   price: 20,
+//   shares: []
+// }
+//
+// is completely valid.
+//
+export const createDraftExpenseSchema = z.object({
+  requestId: z.string().uuid().optional(),
+  requireResponses: z.boolean().default(false),
+  billDate: z.string().datetime().optional(),
+  category: z.enum(["other","food","travel","home","fun"]).default("other"),
+  note: z.string().max(200).optional(),
+
+  payers: z
+    .array(
+      z.object({
+        personId: z.string().min(1),
+        amount: z.number().positive()
+      })
+    )
+    .default([]),
+
+  items: z
+    .array(
+      z.object({
+        ordinalNumber: z.number().int().positive().optional(),
+        name: z.string().min(1).max(120),
+        price: z.number().min(0),
+
+        // Optional initial assignments.
+        //
+        // amount is optional. If omitted, the backend calculates
+        // equal shares when the item is saved.
+        shares: z
+          .array(
+            z.object({
+              personId: z.string().min(1),
+              amount: z.number().positive().optional()
+            })
+          )
+          .default([])
+      })
+    )
+    .min(1)
+});
+
+//
+// Replace all people assigned to one draft item.
+//
+// Example:
+//
+// {
+//   shares: [
+//     { personId: "...", amount: 10 },
+//     { personId: "...", amount: 10 }
+//   ]
+// }
+//
+// Or:
+//
+// {
+//   shares: []
+// }
+//
+// to remove all assignments.
+//
+export const updateDraftExpenseItemSchema = z.object({
+  shares: z
+    .array(
+      z.object({
+        personId: z.string().min(1),
+        amount: z.number().positive().optional()
+      })
+    )
+    .default([])
+});
+
+//
+// Update draft payer list.
+//
+export const updateDraftExpensePayersSchema = z.object({
+  payers: z.array(
+    z.object({
+      personId: z.string().min(1),
+      amount: z.number().positive()
+    })
+  )
+});
+
+//
+// Add a normal/finalized expense directly.
+//
+export const addExpenseSchema = z.object({
+  note: z.string().max(200).optional(),
+
+  items: z
+    .array(
+      z.object({
+        ordinalNumber: z.number().int().positive().optional(),
+        name: z.string().min(1).max(120),
+        price: z.number().positive(),
+        shares: z.array(
+          z.object({
+            personId: z.string().min(1),
+            amount: z.number().positive().optional()
+          })
+        )
+      })
+    )
+    .min(1),
+
+  payers: z
+    .array(
+      z.object({
+        personId: z.string().min(1),
+        amount: z.number().positive()
+      })
+    )
+    .min(1)
+});
+
+export const patchExpenseSchema = z.object({
+  note: z.string().max(200).optional()
+});

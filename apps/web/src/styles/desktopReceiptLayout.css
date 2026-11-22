@@ -1,0 +1,65 @@
+/* Layout overrides scoped to the receipt screens; no change to allocation rules. */
+.fl #expenses-container,
+.fl #expenses-container > .grid {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  max-width: none;
+}
+.fl #expenses-container > .grid > .card { width: 100%; min-width: 0; box-sizing: border-box; }
+.fl #expenses-container .expenseFilters {
+  display: flex; flex-wrap: wrap; gap: 10px; align-items: end;
+}
+.fl #expenses-container .expenseFilters > input { flex: 1 1 220px; min-width: 0; }
+.fl #expenses-container .expenseFilters > label { flex: 0 1 190px; min-width: 0; }
+.fl #expenses-container .expenseFilters input,
+.fl #expenses-container .expenseFilters select { width: 100%; box-sizing: border-box; min-width: 0; }
+.fl #expenses-container .expenseSummary { flex: 1; min-width: 0; gap: 12px; }
+.fl #expenses-container .expenseSummaryMain { flex: 1; min-width: 0; }
+.fl #expenses-container .expenseSummaryAmount { white-space: nowrap; flex: none; }
+.fl #expenses-container .expenseBalanceSummary { flex-wrap: wrap; gap: 10px; }
+.fl #expenses-container .expenseBalanceSummary > span { flex: 1 1 180px; }
+.fl #expenses-container .expenseBalanceSummary > strong { white-space: nowrap; }
+
+/* Name, unit price, and quantity are always on the same row above 370px. */
+.fl .draftItemEditor {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(76px, 120px) 132px;
+  gap: 8px;
+  align-items: start;
+}
+.fl .draftItemEditor > .draftItemOrdinalNumber { grid-column: 1 / 3; grid-row: 1; align-self: center; }
+.fl .draftItemEditor > button.iconButton { grid-column: 3; grid-row: 1; justify-self: end; min-width: 44px; min-height: 44px; }
+.fl .draftItemEditor > label:nth-of-type(1) { grid-column: 1; grid-row: 2; }
+.fl .draftItemEditor > label:nth-of-type(2) { grid-column: 2; grid-row: 2; }
+.fl .draftItemEditor > label:nth-of-type(3) { grid-column: 3; grid-row: 2; }
+.fl .draftItemEditor > label { display: flex; flex-direction: column; min-width: 0; gap: 6px; margin: 0; }
+.fl .draftItemEditor > label > input { min-width: 0; min-height: 48px; width: 100%; box-sizing: border-box; }
+.fl .draftItemEditor .rpQty { display: flex; width: 100%; min-width: 0; height: 48px; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; box-sizing: border-box; }
+.fl .draftItemEditor .rpQty > button { flex: 0 0 40px; min-width: 40px; min-height: 46px; padding: 0; border: 0; border-radius: 0; background: var(--tint); color: var(--accent); font-size: 20px; }
+.fl .draftItemEditor .rpQty > input { flex: 1 1 0; width: 0; min-width: 0; height: 46px; min-height: 46px; padding: 0; border: 0; border-radius: 0; text-align: center; appearance: textfield; }
+.fl .draftItemEditor .rpQty input::-webkit-inner-spin-button { appearance: none; }
+.fl .draftItemEditor > .draftItemShares { grid-row: 3; grid-column: 1 / -1; }
+.fl .draftItemEditor > .draftItemShares[hidden] { display: none !important; }
+.fl .draftItemEditor > .draftItemShares input[type=checkbox] { width: auto; }
+.fl .draftEditorCard > small { display: none; }
+@media (min-width: 1024px) {
+  .fl .page.wide { max-width: 1320px; padding-left: 24px; padding-right: 24px; box-sizing: border-box; }
+  .fl #expenses-container .expenseFilters { margin: 12px 0; }
+}
+@media (min-width: 370px) and (max-width: 600px) {
+  .fl .draftItemEditor { grid-template-columns: minmax(0, 1fr) 76px 120px; gap: 6px; }
+  .fl .draftItemEditor > label { font-size: 12px; }
+  .fl .draftItemEditor > label > input { padding-left: 7px; padding-right: 7px; }
+  .fl .draftEditorCard { padding: 8px; }
+  .fl .draftItemEditor .rpQty > button { flex-basis: 38px; min-width: 38px; }
+}
+@media (max-width: 369px) {
+  .fl .draftItemEditor { grid-template-columns: minmax(0, 1fr) 120px; }
+  .fl .draftItemEditor > .draftItemOrdinalNumber { grid-column: 1; }
+  .fl .draftItemEditor > button.iconButton { grid-column: 2; }
+  .fl .draftItemEditor > label:nth-of-type(1) { grid-column: 1 / -1; grid-row: 2; }
+  .fl .draftItemEditor > label:nth-of-type(2) { grid-column: 1; grid-row: 3; }
+  .fl .draftItemEditor > label:nth-of-type(3) { grid-column: 2; grid-row: 3; }
+  .fl .draftItemEditor > .draftItemShares { grid-row: 4; }
+}

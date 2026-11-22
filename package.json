@@ -1,0 +1,16 @@
+{
+  "name": "splitit",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "concurrently \"npm run dev -w @splitit/api\" \"npm run dev -w @splitit/web\"",
+    "db:generate": "npm run db:generate -w @splitit/api",
+    "db:migrate": "npm run db:migrate -w @splitit/api"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
+}

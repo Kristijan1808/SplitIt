@@ -1,0 +1,73 @@
+/* Smjer A "Svijetli i mekani": zaobljene bijele kartice, pill gumbi i tabovi, hero kartica salda.
+   Učitava se ZADNJI (main.tsx) i koristi samo tokene aktivne palete (--accent, --hero, --tint ...),
+   pa radi u svim paletama i u tamnoj temi. */
+.fl{--shadow-card:0 2px 16px rgb(35 30 69 / .07);--r-card:24px}
+:root[data-theme=dark] .fl{--shadow-card:0 2px 16px rgb(0 0 0 / .35)}
+
+/* Kartice */
+.fl .card,.fl .expenseCard,.fl .totalsCard,.fl .flGroup,.fl .createdCodeBox{border:0;border-radius:var(--r-card);box-shadow:var(--shadow-card);padding:16px}
+.fl .flGroup{padding:12px 16px;min-height:68px}
+.fl .flGroup i{width:48px;height:48px;border-radius:16px}
+.fl .flGroup strong{font-size:16px;font-weight:800}
+.fl .expenseBalanceSummary,.fl .equalExpenseSection{border-radius:20px}
+.fl .settlement{border:0;border-radius:18px}
+
+/* Gumbi su pill */
+.fl .primaryButton,.fl .secondaryButton,.fl .billImageActionButton{border-radius:999px;min-height:52px;padding:12px 22px;font-weight:800}
+.fl .primaryButton{background:var(--accent);color:var(--on-accent)}
+.fl .secondaryButton,.fl .billImageActionButton{background:var(--panel-bg);color:var(--accent);box-shadow:var(--shadow-card)}
+.fl .secondaryButton.compact,.fl .primaryButton.compact{min-height:44px;padding:8px 16px}
+.fl .secondaryButton.filterSelected{background:var(--tint);box-shadow:none}
+
+/* Polja */
+.fl input:not([type=checkbox]):not([type=radio]):not([type=file]),.fl select,.fl textarea{background:var(--panel-bg);border:1px solid var(--line);border-radius:16px;min-height:48px}
+.fl .accessOption,.fl .expenseModeOption,.fl .expenseModeParticipant{border-radius:18px;border-width:2px}
+.fl .qtyStepper,.fl .flStepper,.fl .flShared{border-radius:14px}
+
+/* Zaglavlje grupe: lagano, naslov + oznake; hero je kartica salda */
+.fl .groupHeader{background:transparent;color:var(--black);border-radius:0;padding:4px 0 0}
+.fl .groupHeader :is(h1,.muted,p){color:var(--black)}
+.fl .groupHeader .groupTitleRow p{color:var(--gray)}
+.fl .groupHeader h1{font-size:28px;letter-spacing:-.04em}
+.fl .groupHeader .participantsToggle,.fl .groupHeader .eyebrow{background:var(--tint);color:var(--accent);border-radius:999px;font-weight:700}
+.fl .groupAvatar{width:56px;height:56px;flex-basis:56px;border:0;border-radius:18px;background:var(--panel-bg);box-shadow:var(--shadow-card)}
+
+/* Tabovi su pill */
+.fl .groupTabBar{gap:8px;overflow-x:auto;padding:4px 2px 8px;scrollbar-width:none}
+.fl .groupTabBar::-webkit-scrollbar{display:none}
+.fl .groupTabBar .groupTab{flex:1 0 auto;min-height:44px;padding:0 16px;border:0;border-radius:999px;background:var(--panel-bg);color:var(--gray);font-weight:700;box-shadow:var(--shadow-card)}
+.fl .groupTabBar .groupTabActive{background:var(--accent);color:var(--on-accent);box-shadow:none}
+.fl .groupTabBar .groupTabActive::before{content:none}
+
+/* Hero kartica "Moj saldo" */
+.fl .facetStats{grid-template-columns:1fr;gap:10px}
+.fl .facetBalance{order:-1;background:var(--hero);color:#fff;border-radius:28px;padding:22px 24px;gap:2px}
+.fl .facetBalance span{color:#ffffffe6;font-size:13px}
+.fl .facetStats .facetBalance strong{color:#fff;font-size:clamp(36px,9vw,48px);font-weight:800;letter-spacing:-.04em}
+.fl .facetBalance.negative{background:var(--debt)}
+.fl .facetBalance .textButton{justify-self:start;margin-top:8px;min-height:40px;padding:0 16px;border-radius:999px;background:#ffffff26;color:#fff;font-weight:700;text-decoration:none}
+.fl .facetTotal{background:var(--tint);border-radius:20px;padding:14px 18px}
+.fl .facetStats .facetTotal strong{color:var(--black);font-size:22px}
+.fl .facetTotal span{color:var(--gray)}
+
+/* Donja navigacija i plutajući gumbi */
+.fl .flNav{border-top:0;border-radius:24px 24px 0 0;box-shadow:0 -4px 20px rgb(35 30 69 / .08)}
+.fl .flNav a{border-radius:14px}
+@media(max-width:1023px){.flActions{left:16px;right:16px;width:auto;grid-template-columns:1fr 1fr;bottom:calc(84px + env(safe-area-inset-bottom))}}
+@media(min-width:1024px){.fl .flNav{border-radius:0;box-shadow:none}.fl .flNav a.on{background:var(--tint)}}
+
+/* Početna: hero kartica umjesto kutnog bannera */
+.fl .page.homeBleed{padding:12px 0 24px}
+.fl .homeBleed > .fullHomeBanner{width:min(656px,calc(100% - 24px));margin:0 auto;border-radius:28px;background:var(--hero);min-height:clamp(150px,18vw,220px);padding:24px clamp(20px,4vw,40px)}
+.fullHomeBanner::after{content:none}
+.fl .fullHomeBanner h1{font-size:clamp(28px,5vw,40px);letter-spacing:-.04em}
+.fl .homeBleed > :is(.primaryButton,.secondaryButton){width:min(656px,calc(100% - 24px))}
+.fl .flHeading h2{font-size:18px;font-weight:800}
+
+/* Stavke računa */
+.fl .flReceipt{border-radius:20px}
+.fl .flStatus{border-radius:999px}
+
+/* Vanjska kartica oko hero salda i popisa troškova: bez dvostrukog okvira. */
+.fl .card:has(> .facetStats){background:transparent;box-shadow:none;padding:0;display:grid;gap:12px}
+.fl .expenseFilters{background:var(--panel-bg);border-radius:20px;padding:12px;box-shadow:var(--shadow-card)}

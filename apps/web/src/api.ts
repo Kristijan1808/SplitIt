@@ -1,0 +1,417 @@
+import type {
+  AddPaymentRequest,
+  AddPersonRequest,
+  CreateGroupRequest,
+  Group,
+  Expense,
+  HistoryItem,
+  JoinGroupRequest,
+  PatchPaymentRequest,
+  SettlementResult,
+  Workflow,
+  GroupSnapshot,
+  AccountGroup,
+  AuthUser,
+} from "./types";
+import { legacyCredential } from "./legacy-access";
+import {
+  getWhoAmI,
+  saveGroupToLocalStorage,
+  syncSavedGroupToLocalStorage,
+} from "./storage";
+import { startApiLoading, endApiLoading } from "./loading";
+import { getStoredLanguage, translations } from "./i18n";
+import { showToast } from "./notifications";
+
+type DraftItemShareRequest = {
+  personId: string;
+  amount?: number;
+  units?: number;
+};
+
+export type ParsedBillItem = {
+  name: string;
+  price: number; // Line total (kept for older clients).
+  quantity?: number;
+  unitPrice?: number;
+};
+
+export type CreateDraftExpenseRequest = {
+  currency?:string; quoteId?:string; billDate?:string; category?:Expense["category"];
+  requestId?:string;
+  note?: string;
+  payers: Array<{ personId: string; amount: number }>;
+  items: Array<{
+    ordinalNumber: number;
+    name: string;
+    price: number;
+    quantity?:number;
+    splitMode?:"shared"|"units";
+    shares: DraftItemShareRequest[];
+  }>;
+};
+
+export type UpdateExpenseRequest = Omit<CreateDraftExpenseRequest, "requestId"> & {
+  expectedUpdatedAt: string;
+  billDate?: string;
+  category?: "other" | "food" | "travel" | "home" | "fun" | "taxi" | "shopping" | "health";
+};
+
+export type UpdateDraftExpenseItemRequest = {
+  shares: DraftItemShareRequest[];
+};
+
+export type DraftExpenseItemShare = {
+  id: string;
+  itemId: string;
+  personId: string;
+  amount: number;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+export type DraftExpenseItem = {
+  id: string;
+  draftId: string;
+  ordinalNumber: number;
+  name: string;
+  price: number;
+  createdAt?: string;
+  updatedAt?: string;
+  shares: DraftExpenseItemShare[];
+};
+
+export type DraftExpense = {
+  canManage?: boolean;
+  legacyOwner?: boolean;
+  id: string;
+  groupId: string;
+  note?: string | null;
+  createdAt: string;
+  updatedAt?: string;
+  payers: Array<{
+    id: string;
+    draftId: string;
+    personId: string;
+    amount: number;
+  }>;
+  items: DraftExpenseItem[];
+};
+
+const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:4000";
+
+async function responseJson<T>(response: Response): Promise<T> {
+  if (!response.ok) {
+    const messages = translations[getStoredLanguage()];
+    const error = await response
+      .json()
+      .catch(() => ({ error: "Request failed" }));
+    const known: Record<string, keyof typeof messages> = {
+      "Username already exists": "usernameTaken",
+      "Email already exists": "emailTaken",
+      "Invalid username or password": "invalidLogin",
+      "Passwords do not match": "invalidPasswordMatch",
+      "Sign in and join this group to access it.": "signInToJoin",
+    };
+    const raw = error.error ?? error.message ?? "Request failed";
+    const text = known[raw] ? String(messages[known[raw]]) : raw;
+    // Kod 403 prikaži stvarni razlog sa servera (npr. „Ponovno se pridruži grupi kodom i lozinkom.”), a ne općenitu poruku.
+    if (response.status === 403) {
+      showToast(raw && raw !== "Request failed" && raw !== "Forbidden" ? text : messages.forbiddenAction);
+    } else if (response.status === 401) {
+      showToast(messages.unauthorizedMessage);
+    }
+    const requestError = new Error(text) as Error & { status: number };
+    requestError.status = response.status;
+    throw requestError;
+  }
+
+  return response.json() as Promise<T>;
+}
+
+let guestPromise: Promise<string> | undefined;
+function guestToken() {
+  if (!guestPromise)
+    guestPromise = (async () => {
+      const saved = localStorage.getItem("splitit.guest-token");
+      if (saved) return saved;
+      const response = await fetch(`${API_URL}/guest-session`, {
+        method: "POST",
+        headers: { "X-SplitIt-Language": getStoredLanguage() },
+      });
+      const data = await responseJson<{ token?: string }>(response);
+      if (!response.ok || !data?.token)
+        throw new Error("API treba nadograditi.");
+      localStorage.setItem("splitit.guest-token", data.token);
+      return data.token as string;
+    })().catch((e) => {
+      guestPromise = undefined;
+      throw e;
+    });
+  return guestPromise;
+}
+async function request<T>(
+  path: string,
+  options?: RequestInit,
+  { background = false }: { background?: boolean } = {},
+): Promise<T> {
+  if (!background) startApiLoading();
+
+  try {
+    const token = legacyCredential();
+    const guest = await guestToken();
+    const slug = path.match(/^\/groups\/([^/]+)/)?.[1];
+    const participantId = slug
+      ? getWhoAmI(decodeURIComponent(slug))?.participantId
+      : null;
+
+    let response: Response;
+    try {
+    response = await fetch(`${API_URL}${path}`, {
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        "X-SplitIt-Guest-Token": guest,
+        "X-SplitIt-Language": getStoredLanguage(),
+        ...(participantId ? { "X-SplitIt-Participant-Id": participantId } : {}),
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(options?.headers ?? {}),
+      },
+    });
+    } catch (networkError) {
+      const lang = getStoredLanguage();
+      const msg: Record<string, string> = {
+        hr: "Server nije dostupan. Provjeri je li API pokrenut (npm run dev) i pokušaj ponovno.",
+        en: "The server is unreachable. Check that the API is running (npm run dev) and try again.",
+        de: "Der Server ist nicht erreichbar. Prüfe, ob die API läuft (npm run dev), und versuche es erneut.",
+        ja: "サーバーに接続できません。API が起動しているか確認してください（npm run dev）。",
+      };
+      throw Object.assign(new TypeError(msg[lang] ?? msg.en), { cause: networkError, offline: true });
+    }
+
+    const data = await responseJson<T>(response);
+    if (slug && options?.method && options.method !== "GET") {
+      window.dispatchEvent(
+        new CustomEvent("splitit:group-changed-locally", { detail: { slug } }),
+      );
+    }
+    return data;
+  } finally {
+    if (!background) endApiLoading();
+  }
+}
+
+export type FxQuote={id:string;rate:number;base:string;quote:string;expiresAt:string;rateDate:string};
+export const api = {
+  leaveGroup: (slug: string) => request<{ ok: boolean }>(`/groups/${encodeURIComponent(slug)}/workflow/leave`, { method: "POST", body: "{}" }),
+  me: () => request<{ user: AuthUser }>("/auth/me", undefined, { background: true }),
+  setProfileImage: (image: string | null) =>
+    request<{ ok: boolean }>("/auth/me/avatar", { method: "PATCH", body: JSON.stringify({ image }) }),
+  settings:(slug:string,body:{currency?:string;avatar?:string;archived?:boolean})=>request(`/groups/${slug}/workflow/settings`,{method:"PATCH",body:JSON.stringify(body)}),
+  release:(slug:string,id:string)=>request(`/groups/${slug}/workflow/people/${id}/release`,{method:"POST"}),
+  role:(slug:string,id:string,role:"ADMIN"|"MEMBER")=>request(`/groups/${slug}/workflow/people/${id}/role`,{method:"PATCH",body:JSON.stringify({role})}),
+  rotateInvite:(slug:string,password:string)=>request(`/groups/${slug}/workflow/rotate-invite`,{method:"POST",body:JSON.stringify({password})}),
+  currencies:()=>request<{code:string;name:string}[]>("/currencies",undefined,{background:true}),
+  fxQuote:(slug:string,currency:string)=>request<FxQuote>(`/groups/${slug}/fx-quote`,{method:"POST",body:JSON.stringify({currency})},{background:true}),
+  login: (body: { username: string; password: string }) =>
+    authRequest<{ token: string; user: AuthUser }>("/login", body),
+  register: (body: { username: string; email: string; password: string; repeatPassword: string }) =>
+    authRequest<{ token: string; user: AuthUser }>("/register", body),
+  googleSignIn: (credential: string) =>
+    authRequest<{ token: string; user: AuthUser }>("/google", { credential }),
+  getMyGroups: () => request<AccountGroup[]>("/groups/mine"),
+  createExpense:(slug:string,body:CreateDraftExpenseRequest)=>request<Expense>(`/groups/${slug}/expenses`,{method:"POST",body:JSON.stringify(body)}),
+  updateExpense: (slug: string, expenseId: string, body: UpdateExpenseRequest) =>
+    request<Expense>(`/groups/${slug}/expenses/${expenseId}`, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    }),
+  workflow: (slug: string) => request<Workflow>(`/groups/${slug}/workflow`),
+  claim: (slug:string,personId:string)=>request(`/groups/${slug}/workflow/identity`,{method:"POST",body:JSON.stringify({personId})}),
+  transfer: (slug: string, body: {
+    requestId: string;
+    fromId: string;
+    toId: string;
+    amount: number;
+    note?: string;
+    occurredAt: string;
+  }) => request(`/groups/${slug}/workflow/transfers`, { method: "POST", body: JSON.stringify(body) }),
+  voidTransfer: (slug: string, transferId: string) =>
+    request(`/groups/${slug}/workflow/transfers/${transferId}`, { method: "DELETE" }),
+  setPersonInactive: (slug: string, personId: string, inactive: boolean) =>
+    request(`/groups/${slug}/workflow/people/${personId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ inactive }),
+    }),
+  response: (slug:string,id:string,status:string)=>request(`/groups/${slug}/workflow/drafts/${id}/response`,{method:"POST",body:JSON.stringify({status})}),
+  ownItem: (
+    slug: string,
+    id: string,
+    itemId: string,
+    selected: boolean | number,
+    finalized = false,
+  ) =>
+    request<DraftExpense>(
+      `/groups/${slug}/${finalized ? "expenses" : "draft-expenses"}/${id}/items/${itemId}/mine`,
+      { method: "PATCH", body: JSON.stringify(typeof selected === "number" ? { units: selected } : { selected }) },
+    ),
+  parseBillImage: async (file: File, attempt = 1): Promise<{ items: ParsedBillItem[] }> => {
+    startApiLoading();
+
+    try {
+      const token = legacyCredential();
+      const guest = await guestToken();
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("attempt", String(attempt));
+      formData.append("language", getStoredLanguage());
+
+      const response = await fetch(`${API_URL}/ai/parse-bill`, {
+        method: "POST",
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+        body: formData,
+      });
+
+      return responseJson<{ items: ParsedBillItem[] }>(response);
+    } finally {
+      endApiLoading();
+    }
+  },
+
+  createGroup: async (body: CreateGroupRequest) => {
+    const group = await request<Group>("/groups", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+    saveGroupToLocalStorage(group);
+    return group;
+  },
+
+  joinGroup: async (body: JoinGroupRequest) => {
+    const group = await request<Group>("/groups/join", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+    saveGroupToLocalStorage(group);
+    return group;
+  },
+
+  lockGroup: (slug: string, locked: boolean) =>
+    request<Group>(`/groups/${slug}/lock`, {
+      method: "PATCH",
+      body: JSON.stringify({ locked }),
+    }),
+
+  getGroup: async (slug: string) => {
+    const group = await request<Group>(`/groups/${slug}`);
+    syncSavedGroupToLocalStorage(group);
+    return group;
+  },
+
+  getGroupSnapshot: async (slug: string) => {
+    const snapshot = await request<GroupSnapshot>(`/groups/${slug}/snapshot`);
+    syncSavedGroupToLocalStorage(snapshot.group);
+    return snapshot;
+  },
+
+  getGroupLastChangedAt: (slug: string) =>
+    request<{ lastChangedAt: string }>(
+      `/groups/${slug}/last-changed-at`,
+      undefined,
+      { background: true },
+    ),
+
+  updateGroup: (slug: string, name: string) =>
+    request<Group>(`/groups/${slug}`, {
+      method: "PATCH",
+      body: JSON.stringify({ name }),
+    }),
+
+  addPerson: (slug: string, body: AddPersonRequest) =>
+    request<Group>(`/groups/${slug}/people`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+
+  updatePerson: (slug: string, personId: string, name: string) =>
+    request<Group>(`/groups/${slug}/people/${personId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ name }),
+    }),
+
+  deletePerson: (slug: string, personId: string) =>
+    request<Group>(`/groups/${slug}/people/${personId}`, {
+      method: "DELETE",
+    }),
+
+  addPayment: (slug: string, body: AddPaymentRequest) =>
+    request<Group>(`/groups/${slug}/payments`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+
+  getDraftExpenses: (slug: string) =>
+    request<DraftExpense[]>(`/groups/${slug}/draft-expenses`),
+
+  createDraftExpense: (slug: string, body: CreateDraftExpenseRequest) =>
+    request<DraftExpense>(`/groups/${slug}/draft-expenses`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+
+  updateDraftExpenseItem: (
+    slug: string,
+    draftId: string,
+    itemId: string,
+    body: UpdateDraftExpenseItemRequest,
+  ) =>
+    request<DraftExpense>(
+      `/groups/${slug}/draft-expenses/${draftId}/items/${itemId}`,
+      {
+        method: "PATCH",
+        body: JSON.stringify(body),
+      },
+    ),
+
+  confirmDraftExpense: (slug: string, draftId: string) =>
+    request<{ expense: Expense; group: Group }>(
+      `/groups/${slug}/draft-expenses/${draftId}/confirm`,
+      {
+        method: "POST",
+      },
+    ),
+
+  updatePayment: (slug: string, paymentId: string, body: PatchPaymentRequest) =>
+    request<Group>(`/groups/${slug}/payments/${paymentId}`, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    }),
+
+  deletePayment: (slug: string, paymentId: string) =>
+    request<Group>(`/groups/${slug}/payments/${paymentId}`, {
+      method: "DELETE",
+    }),
+
+  getSettlements: (slug: string) =>
+    request<SettlementResult>(`/groups/${slug}/settlements`),
+
+  getHistory: (slug: string) =>
+    request<HistoryItem[]>(`/groups/${slug}/history`),
+};
+
+async function authRequest<T>(path: string, body: unknown): Promise<T> {
+  startApiLoading();
+  try {
+    const response = await fetch(`${API_URL}/auth${path}`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-SplitIt-Language": getStoredLanguage(),
+      },
+      body: JSON.stringify(body),
+    });
+    return responseJson<T>(response);
+  } finally {
+    endApiLoading();
+  }
+}

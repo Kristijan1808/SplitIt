@@ -1,0 +1,175 @@
+import { participantIdentity, accountAvatars } from "./participant-identity.js";
+import {identityTarget} from "./identity-target.js";
+import {listCurrencies} from "./fx-provider.js";
+import {currencySchema} from "./currency.service.js";
+import type {Request, RequestHandler} from "express";
+import {Router} from "express";
+import {Prisma} from "@prisma/client";
+import {z} from "zod";
+import {imageDataUrl} from "./image-data-url.js";
+import {randomBytes} from "node:crypto";
+import {getUserFromRequest,prisma} from "../core.js";
+import {billKeys,creatorKey,canManageBill} from "./bill-permissions.js";
+import {ensureCanViewGroup,ensureCanEditGroup} from "./access.service.js";
+import {calculateBalances} from "./balance-domain.js";
+import {groupDetailsInclude} from "../utils.js";
+export const failure=(message:string,status=400)=>Object.assign(new Error(message),{status});
+export async function actorPerson(req:Request,groupId:string,access:string){
+ const id=req.get("X-SplitIt-Participant-Id");
+ const person=id?await prisma.person.findFirst({where:{id,groupId,inactive:false}}):null;
+ const user=getUserFromRequest(req);
+ if(!person || !participantIdentity(person,access,user?.id,billKeys(req)).mine)throw failure("Odaberi i poveži svoje ime u Sudionicima.",403);
+ return person;
+}
+export const groupGate:RequestHandler=async(req,res,next)=>{try{
+ const group=await prisma.group.findUnique({where:{slug:req.params.slug as string}});
+ if(!group)throw failure("Grupa nije pronađena.",404);
+ const access=await ensureCanViewGroup(group,req);if(!access.allowed)throw failure(access.error!,access.status);
+ const authUser=getUserFromRequest(req);
+ const [sessions,membership]=await Promise.all([
+  prisma.groupSession.findMany({where:{groupId:group.id,key:{in:billKeys(req)}}}),
+  authUser?prisma.groupMember.findUnique({where:{groupId_userId:{groupId:group.id,userId:authUser.id}}}):null
+ ]);
+ res.locals.group=group;res.locals.admin=sessions.some(session=>["OWNER","ADMIN"].includes(session.role))||!!membership&&["OWNER","ADMIN"].includes(membership.role)||(!!authUser&&group.ownerUserId===authUser.id);
+ res.locals.owner=!!group.ownerKey&&billKeys(req).includes(group.ownerKey)||(!!authUser&&group.ownerUserId===authUser.id);
+ next();
+}catch(e){next(e)}};
+export const adminGate:RequestHandler=(_req,res,next)=>res.locals.admin?next():next(failure("Ovu radnju može izvršiti administrator grupe.",403));
+export const workflowRouter=Router({mergeParams:true});
+const wrap=(fn:(req:Request,res:any)=>Promise<unknown>):RequestHandler=>async(req,res,next)=>{try{await fn(req,res)}catch(e){next(e)}};
+async function editable(req:Request,group:any){const a=await ensureCanEditGroup(group,req);if(!a.allowed)throw failure(a.error!,a.status)}
+const serial={isolationLevel:Prisma.TransactionIsolationLevel.Serializable};
+workflowRouter.get("/",wrap(async(req,res)=>{
+ const g=res.locals.group,keys=billKeys(req),user=getUserFromRequest(req);
+ const [people,selections,transfers,sessions]=await Promise.all([
+ prisma.person.findMany({where:{groupId:g.id},orderBy:{createdAt:"asc"}}),
+ prisma.draftSelection.findMany({where:{draft:{groupId:g.id,confirmedExpenseId:null}}}),
+ prisma.settlementTransfer.findMany({where:{groupId:g.id},orderBy:{createdAt:"desc"}}),
+ prisma.groupSession.findMany({where:{groupId:g.id}})]);
+ const avatars=await accountAvatars(people);
+ res.json({avatar:g.avatar,archived:g.archived,canAdmin:res.locals.admin,canOwn:res.locals.owner,
+ people:people.map(p=>({id:p.id,name:p.name,role:sessions.find(s=>s.key===p.identityKey)?.role||"MEMBER",inactive:p.inactive,avatar:p.userId?avatars.get(p.userId)??null:null,...participantIdentity(p,g.accessType,user?.id,keys)})),selections,
+ transfers:transfers.map(p=>({...p,amount:Number(p.amount)}))});
+}));
+workflowRouter.post("/identity",wrap(async(req,res)=>{
+ const g=res.locals.group;await editable(req,g);
+ let personId:string|undefined;const keys=billKeys(req),key=creatorKey(req);
+ if(g.accessType==="REGISTERED_ONLY"){
+ const user=getUserFromRequest(req);
+ if(!user)throw failure("Sign in to choose your participant.",401);
+ const {personId:requestedPersonId}=z.object({personId:z.string().min(1)}).strict().parse(req.body);
+ const person=await prisma.person.findFirst({where:{groupId:g.id,userId:user.id,inactive:false}});
+ if(!person||person.id!==requestedPersonId)throw failure("Choose the participant linked to your account.",403);
+ res.json({ok:true,personId:person.id});return;
+ }
+ await prisma.$transaction(async tx=>{
+ const live=await tx.group.findUniqueOrThrow({where:{id:g.id}});
+ if(live.locked||live.archived)throw failure("Grupa je zaključana ili arhivirana.",423);
+ personId=await identityTarget(tx,g.id,req.body,keys);
+ const p=await tx.person.findFirst({where:{id:personId,groupId:g.id,inactive:false}});
+ if(!p)throw failure("Sudionik nije pronađen.",404);
+ if(p.identityKey&&!keys.includes(p.identityKey))throw failure("Ovaj sudionik je već povezan s drugim uređajem.",409);
+ const prior=await tx.person.findFirst({where:{groupId:g.id,identityKey:{in:keys},id:{not:personId}}});
+ if(prior)throw failure("Već imaš povezano ime u ovoj grupi. Za ispravak se obrati administratoru.",409);
+ await tx.person.update({where:{id:personId},data:{identityKey:key}});
+ },serial);res.json({ok:true,personId});
+}));
+workflowRouter.patch("/people/:id",adminGate,wrap(async(req,res)=>{
+ const {inactive}=z.object({inactive:z.boolean()}).strict().parse(req.body);
+ const count=await prisma.person.updateMany({where:{id:req.params.id as string,groupId:res.locals.group.id},data:{inactive}});
+ if(!count.count)throw failure("Sudionik nije pronađen.",404);
+ await prisma.history.create({data:{groupId:res.locals.group.id,action:inactive?"ARCHIVE":"RESTORE",entity:"PERSON",entityId:req.params.id as string,message:inactive?"Sudionik je deaktiviran; prethodni računi ostaju.":"Sudionik je ponovno aktiviran."}});
+ res.json({ok:true});
+}));
+workflowRouter.patch("/settings",adminGate,wrap(async(req,res)=>{
+ const body=z.object({currency:currencySchema.optional(),archived:z.boolean().optional(),avatar:z.union([z.enum(["👥","🏠","🍽️","✈️","🎉","🏖️","🚗","💼"]),imageDataUrl]).optional()}).strict().parse(req.body);
+ if(body.currency&&body.currency!==res.locals.group.currency&&!(await listCurrencies()).some(x=>x.code===body.currency))throw failure("Valuta nije dostupna.");
+ await prisma.$transaction(async tx=>{
+ const live=await tx.group.findUniqueOrThrow({where:{id:res.locals.group.id}});
+ if(body.currency&&body.currency!==live.currency){
+ const count=await tx.expense.count({where:{groupId:live.id}});const transfers=await tx.settlementTransfer.count({where:{groupId:live.id}});
+ if(count||transfers)throw failure("Glavna valuta može se promijeniti prije prvog računa ili uplate. Postojeći iznosi ne smiju samo promijeniti oznaku.");
+ }
+ await tx.group.update({where:{id:live.id},data:body});
+ },{isolationLevel:"Serializable"});
+ await prisma.history.create({data:{groupId:res.locals.group.id,action:"UPDATE",entity:"GROUP",message:"Promijenjene su postavke grupe.",newValue:JSON.stringify({...body,avatar:body.avatar?.startsWith("data:")?"[image]":body.avatar})}});res.json({ok:true});
+}));
+workflowRouter.post("/rotate-invite",adminGate,wrap(async(req,res)=>{
+ const password=z.string().min(8).max(80).parse(req.body.password);
+ const bcrypt=await import('bcryptjs');const code=randomBytes(6).toString('hex').slice(0,6).toUpperCase();
+ await prisma.group.update({where:{id:res.locals.group.id},data:{code,passwordHash:await bcrypt.default.hash(password,12)}});
+ await prisma.history.create({data:{groupId:res.locals.group.id,action:"UPDATE",entity:"GROUP",message:"Promijenjeni su kod i lozinka pozivnice."}});res.json({code});
+}));
+workflowRouter.post("/drafts/:id/response",wrap(async(req,res)=>{
+ const g=res.locals.group;await editable(req,g);const me=await actorPerson(req,g.id,g.accessType);
+ const {status}=z.object({status:z.enum(["DONE","SKIP","PENDING"])}).strict().parse(req.body);
+ await prisma.$transaction(async tx=>{
+ const draft=await tx.expenseDraft.findFirst({where:{id:req.params.id as string,groupId:g.id,confirmedExpenseId:null},include:{items:{include:{shares:true}}}});
+ if(!draft)throw failure("Račun u pripremi nije pronađen.",404);
+ if(status==='SKIP'&&draft.items.some(i=>i.shares.some(s=>s.personId===me.id)))throw failure("Prvo ukloni svoje kvačice, zatim odaberi da ne sudjeluješ.");
+ await tx.expenseDraft.update({where:{id:draft.id},data:{updatedAt:new Date()}});
+ await tx.draftSelection.upsert({where:{draftId_personId:{draftId:draft.id,personId:me.id}},create:{draftId:draft.id,personId:me.id,status},update:{status}});
+ },serial);res.json({ok:true});
+}));
+workflowRouter.delete("/drafts/:id",wrap(async(req,res)=>{
+ await editable(req,res.locals.group);
+ const d=await prisma.expenseDraft.findFirst({where:{id:req.params.id as string,groupId:res.locals.group.id,confirmedExpenseId:null}});
+ if(!d)throw failure("Račun nije pronađen.",404);if(!canManageBill(d,req))throw failure("Samo autor može obrisati račun u pripremi.",403);
+ await prisma.$transaction(async tx=>{await tx.expenseDraft.delete({where:{id:d.id,confirmedExpenseId:null}});await tx.history.create({data:{groupId:d.groupId,action:"DELETE",entity:"DRAFT",entityId:d.id,message:`Obrisan račun u pripremi: ${d.note||'Račun'}`}})});res.json({ok:true});
+}));
+workflowRouter.post("/transfers",wrap(async(req,res)=>{
+ const g=res.locals.group;await editable(req,g);const me=await actorPerson(req,g.id,g.accessType);
+ const b=z.object({requestId:z.string().uuid(),fromId:z.string(),toId:z.string(),amount:z.number().positive().max(1000000).refine(v=>Math.abs(v*100-Math.round(v*100))<1e-7),note:z.string().max(200).optional(),occurredAt:z.string().datetime()}).strict().parse(req.body);
+ if(b.fromId===b.toId)throw failure("Odaberi dvije različite osobe.");
+ if(![b.fromId,b.toId].includes(me.id))throw failure("Možeš evidentirati samo uplatu u kojoj sudjeluješ.",403);
+ const people=await prisma.person.count({where:{id:{in:[b.fromId,b.toId]},groupId:g.id}});if(people!==2)throw failure("Obje osobe moraju pripadati grupi.");
+ const key=creatorKey(req);const id=`${g.id}:${key}:${b.requestId}`;
+ const previous=await prisma.settlementTransfer.findUnique({where:{requestId:id}});if(previous)return res.json(previous);
+ const transfer=await prisma.$transaction(async tx=>{
+ const row=await tx.settlementTransfer.create({data:{...b,requestId:id,groupId:g.id,creatorKey:key,occurredAt:new Date(b.occurredAt)}});
+ await tx.history.create({data:{groupId:g.id,entity:"TRANSFER",entityId:row.id,action:"CREATE",message:`${me.name}: evidentirana uplata ${b.amount.toFixed(2)} €`,newValue:JSON.stringify({fromId:b.fromId,toId:b.toId,amount:b.amount})}});return row;
+ });res.status(201).json({...transfer,amount:Number(transfer.amount)});
+}));
+workflowRouter.delete("/transfers/:id",wrap(async(req,res)=>{
+ await editable(req,res.locals.group);const row=await prisma.settlementTransfer.findFirst({where:{id:req.params.id as string,groupId:res.locals.group.id}});
+ if(!row)throw failure("Uplata nije pronađena.",404);if(!canManageBill(row,req))throw failure("Samo autor može poništiti ovaj zapis.",403);
+ if(row.voidedAt)return res.json({ok:true});
+ await prisma.$transaction(async tx=>{await tx.settlementTransfer.update({where:{id:row.id},data:{voidedAt:new Date()}});await tx.history.create({data:{groupId:row.groupId,entity:"TRANSFER",entityId:row.id,action:"VOID",message:"Poništen je zapis uplate.",oldValue:JSON.stringify({amount:Number(row.amount)})}})});res.json({ok:true});
+}));
+workflowRouter.post("/people/:id/release",adminGate,wrap(async(req,res)=>{
+ const p=await prisma.person.findFirst({where:{id:req.params.id as string,groupId:res.locals.group.id}});
+ if(!p)throw failure("Sudionik nije pronađen.",404);
+ // Releasing a ime sudionikae never transfers ownership of its historical bills.
+ await prisma.$transaction(async tx=>{await tx.person.update({where:{id:p.id},data:{identityKey:null}});await tx.history.create({data:{groupId:p.groupId,entity:"PERSON",entityId:p.id,action:"UPDATE",message:`Administrator je oslobodio ime sudionika ${p.name} za novo povezivanje.`}})});res.json({ok:true});
+}));
+workflowRouter.patch("/people/:id/role",wrap(async(req,res)=>{
+ if(!res.locals.owner)throw failure("Samo vlasnik može mijenjati administratore.",403);
+ const {role}=z.object({role:z.enum(["ADMIN","MEMBER"])}).strict().parse(req.body);
+ const p=await prisma.person.findFirst({where:{id:req.params.id as string,groupId:res.locals.group.id}});
+ if(!p?.identityKey)throw failure("Osoba najprije treba povezati svoj ime sudionika.");
+ if(p.identityKey===res.locals.group.ownerKey)throw failure("Uloga vlasnika ne može se promijeniti ovdje.");
+ await prisma.$transaction(async tx=>{await tx.groupSession.updateMany({where:{groupId:p.groupId,key:p.identityKey!},data:{role}});await tx.history.create({data:{groupId:p.groupId,entity:"PERSON",entityId:p.id,action:"UPDATE",message:`${p.name}: uloga ${role}`}})});res.json({ok:true});
+}));
+
+/** Napuštanje grupe: sudionik se deaktivira, a pristup s računa i uređaja se uklanja.
+ *  Računi, uplate i povijest ostaju. Vlasnik ne može napustiti grupu, a saldo mora biti 0. */
+workflowRouter.post("/leave",wrap(async(req,res)=>{
+ const g=res.locals.group,keys=billKeys(req),user=getUserFromRequest(req);
+ if(res.locals.owner)throw failure("Vlasnik ne može napustiti grupu. Možeš je arhivirati u postavkama grupe.",409);
+ const details=await prisma.group.findUniqueOrThrow({where:{id:g.id},include:groupDetailsInclude});
+ const me=details.people.find(p=>!p.inactive&&((user&&p.userId===user.id)||(!p.userId&&p.identityKey&&keys.includes(p.identityKey))));
+ if(me){
+  const transfers=await prisma.settlementTransfer.findMany({where:{groupId:g.id,voidedAt:null}});
+  const bal=calculateBalances(details.people,details.expenses,transfers).balances.find(b=>b.id===me.id)?.balance??0;
+  if(Math.abs(bal)>=0.005)throw failure(`Prije izlaska podmiri dugovanja (tvoj saldo je ${bal.toFixed(2).replace(".",",")} ${g.currency||"EUR"}).`,409);
+ }
+ await prisma.$transaction(async tx=>{
+  if(me){
+   await tx.person.update({where:{id:me.id},data:{inactive:true,...(me.userId?{}:{identityKey:null})}});
+   await tx.history.create({data:{groupId:g.id,entity:"PERSON",entityId:me.id,action:"UPDATE",message:`${me.name} je napustio/la grupu.`}});
+  }
+  if(user)await tx.groupMember.deleteMany({where:{groupId:g.id,userId:user.id}});
+  await tx.groupSession.deleteMany({where:{groupId:g.id,key:{in:keys}}});
+ });
+ res.json({ok:true});
+}));

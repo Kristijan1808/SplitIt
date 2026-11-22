@@ -1,0 +1,160 @@
+.confirmationModalBackdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(2, 6, 23, 0.48);
+  backdrop-filter: blur(4px);
+  animation: confirmationModalFadeIn 0.15s ease-out;
+}
+
+.confirmationModal {
+  position: relative;
+  width: min(440px, 100%);
+  padding: 28px;
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  background: var(--panel-bg);
+  color: var(--black);
+  box-shadow: 0 24px 80px rgba(2, 6, 23, 0.22);
+  animation: confirmationModalScaleIn 0.15s ease-out;
+}
+
+.confirmationModalClose {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  width: 34px;
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--gray);
+  cursor: pointer;
+}
+
+.confirmationModalClose:hover {
+  background: var(--surface-hover);
+  color: var(--black);
+}
+
+.confirmationModalClose:focus-visible {
+  outline: 2px solid var(--green-500);
+  outline-offset: 2px;
+}
+
+.confirmationModalIcon {
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 18px;
+  border-radius: 14px;
+  background: rgba(34, 197, 94, 0.12);
+  color: var(--green-700);
+}
+
+.confirmationModalIcon.danger {
+  background: rgba(180, 35, 24, 0.1);
+  color: var(--danger, #b42318);
+}
+
+.confirmationModal h2 {
+  margin: 0 40px 10px 0;
+  font-size: 21px;
+  line-height: 1.25;
+}
+
+.confirmationModal p {
+  margin: 0;
+  color: var(--gray);
+  line-height: 1.55;
+  white-space: pre-line;
+}
+
+.confirmationModalActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 26px;
+}
+
+.confirmationModalCancel,
+.confirmationModalConfirm {
+  min-height: 42px;
+  padding: 9px 16px;
+  border-radius: 11px;
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.confirmationModalCancel {
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--black);
+}
+
+.confirmationModalCancel:hover {
+  background: var(--surface-hover);
+}
+
+.confirmationModalConfirm {
+  border: 1px solid var(--green-700);
+  background: var(--green-700);
+  color: white;
+}
+
+.confirmationModalConfirm:hover {
+  filter: brightness(0.94);
+}
+
+.confirmationModalConfirm.danger {
+  border-color: var(--danger, #b42318);
+  background: var(--danger, #b42318);
+}
+
+.confirmationModalCancel:focus-visible,
+.confirmationModalConfirm:focus-visible {
+  outline: 2px solid var(--green-500);
+  outline-offset: 2px;
+}
+
+@keyframes confirmationModalFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes confirmationModalScaleIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@media (max-width: 600px) {
+  .confirmationModal {
+    padding: 24px 20px 20px;
+    border-radius: 18px;
+  }
+
+  .confirmationModalActions {
+    flex-direction: column-reverse;
+  }
+
+  .confirmationModalCancel,
+  .confirmationModalConfirm {
+    width: 100%;
+  }
+}
