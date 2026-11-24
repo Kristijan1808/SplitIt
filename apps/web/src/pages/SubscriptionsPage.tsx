@@ -40,21 +40,12 @@ export function SubscriptionsPage() {
     <main className="page subscriptionsPage">
       
 
-      <Link className="backLink" to="/">
-        <ArrowLeft size={18} /> {t("home")}
-      </Link>
-
-      <header className="subscriptionsHeader">
-        <div className="subscriptionsEyebrow">
-          <Sparkles size={16} />
-          <span>{t("subscriptions")}</span>
-        </div>
-        <h1>{t("subscriptionsTitle")}</h1>
-        <p className="muted">{t("subscriptionsIntro")}</p>
-      </header>
+      <div className="zTop"><Link className="zBack" to="/" aria-label={t("home")}>&#8249;</Link><h1 className="zH2" style={{ flex: 1, textAlign: "center" }}>{t("subscriptions")}</h1><span style={{ width: 44 }} /></div>
+      <h1 className="zH1" style={{ fontSize: 24 }}>{t("subscriptionsTitle")}</h1>
+      <p className="zMuted" style={{ margin: 0 }}>{t("subscriptionsIntro")}</p>
 
       <section className="subscriptionPlans" aria-label={t("subscriptionsTitle")}>
-        {plans.map((plan) => (
+        {[...plans].reverse().map((plan) => (
           <article
             key={plan.name}
             className={`subscriptionPlan card ${plan.className}${plan.featured ? " subscriptionPlanFeatured" : ""}`}

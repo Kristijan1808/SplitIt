@@ -16,8 +16,10 @@ enum GroupAccessType {
 model User {
   id           String   @id @default(uuid())
   username     String   @unique
+  email        String?  @unique
   passwordHash String
   googleSubject String? @unique
+  avatarImage   String?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 

@@ -218,3 +218,8 @@
   justify-content: flex-end;
   align-items: center;
 }
+
+/* "Tvoj dio": running total of the items the current person has claimed. */
+.myShareBar{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 14px;margin-bottom:8px;border-radius:16px;background:var(--tint,#EDE5FA);color:var(--black)}
+.myShareBar span{font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--gray)}
+.myShareBar strong{font-size:22px;font-weight:800}

@@ -8,6 +8,7 @@ authRouter.post("/register", joinLimit, authService.register);
 authRouter.post("/login", joinLimit, authService.login);
 authRouter.post("/google", joinLimit, authService.google);
 authRouter.get("/me", authService.me);
+authRouter.patch("/me/avatar", authService.setAvatar);
 authRouter.post("/logout", authService.logout);
 
 import {LoginTickets} from '../services/mobile-login.js';

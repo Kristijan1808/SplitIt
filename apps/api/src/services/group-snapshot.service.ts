@@ -1,5 +1,5 @@
 import type { RequestHandler } from "express";
-import {participantIdentity} from "./participant-identity.js";
+import {participantIdentity,accountAvatars} from "./participant-identity.js";
 import { prisma,getUserFromRequest } from "../core.js";
 import { groupDetailsInclude, serializeGroup } from "../utils.js";
 import { billKeys } from "./bill-permissions.js";
@@ -35,6 +35,7 @@ export const groupSnapshot: RequestHandler = async (req, res, next) => {
       const linked=await prisma.person.upsert({where:{groupId_userId:{groupId:group.id,userId:user.id}},create:{groupId:group.id,userId:user.id,name:user.username},update:{}});
       details.people.push(linked);
     }
+    const avatars = await accountAvatars(details.people);
     res.json({
       group: serializeGroup(details),
       drafts: [],
@@ -54,6 +55,7 @@ export const groupSnapshot: RequestHandler = async (req, res, next) => {
           name: person.name,
           role: sessions.find((session) => session.key === person.identityKey)?.role ?? "MEMBER",
           inactive: person.inactive,
+          avatar: person.userId ? avatars.get(person.userId) ?? null : null,
           ...participantIdentity(person,group.accessType,user?.id,keys)
         })),
         selections,

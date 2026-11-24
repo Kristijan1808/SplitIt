@@ -205,7 +205,7 @@ export class PaymentService {
           entity: "EXPENSE",
           entityId: expense.id,
 
-          message: `${actor.name} created "${expense.note || "Račun"}" · €${body.amount.toFixed(2)}`,
+          message: `${actor.name} je dodao/la račun "${expense.note || "Račun"}" · €${body.amount.toFixed(2)}`,
           newValue: auditValue(actor, expense),
         },
       });

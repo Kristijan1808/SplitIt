@@ -4,6 +4,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { ArrowLeft, LogIn, UserPlus } from "lucide-react";
 import { api } from "../api";
 import { saveAuth } from "../auth";
+import { syncAccountGroups } from "../accountSync";
 import { GoogleSignInButton } from "../components/GoogleSignInButton";
 import { useLanguage } from "../i18n";
 import { showToast } from "../notifications";
@@ -15,10 +16,11 @@ export function LoginPage() {
   const redirect = params.get("redirect") || "/";
   const { t } = useLanguage();
 
-  const [mode, setMode] = useState<"login" | "register">("login");
+  const [mode, setMode] = useState<"login" | "register">(params.get("mode") === "register" ? "register" : "login");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [repeatPassword, setRepeatPassword] = useState("");
+  const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -29,6 +31,7 @@ export function LoginPage() {
       setError("");
       const result = await api.googleSignIn(credential);
       saveAuth(result.token, result.user);
+      await syncAccountGroups();
       navigate(redirect, { replace: true });
     } catch (err) {
       setError(err instanceof Error ? err.message : t("somethingWentWrong"));
@@ -50,6 +53,12 @@ export function LoginPage() {
       errors.username = t("fieldMaxLength").replace("{count}", String(usernameMaxLength));
     } else if (mode === "register" && !/^[a-zA-Z0-9_.-]+$/.test(usernameValue)) {
       errors.username = t("invalidUsername");
+    }
+
+    if (mode === "register") {
+      const mail = email.trim();
+      if (!mail) errors.email = t("fieldRequired");
+      else if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(mail) || mail.length > 254) errors.email = t("invalidEmail");
     }
 
     if (password.length < 8) {
@@ -81,9 +90,10 @@ export function LoginPage() {
       const result =
         mode === "login"
           ? await api.login({ username: usernameValue, password })
-          : await api.register({ username: usernameValue, password, repeatPassword });
+          : await api.register({ username: usernameValue, email: email.trim().toLowerCase(), password, repeatPassword });
 
       saveAuth(result.token, result.user);
+      await syncAccountGroups();
       navigate(redirect, { replace: true });
     } catch (err) {
       setError(err instanceof Error ? err.message : t("somethingWentWrong"));
@@ -93,20 +103,21 @@ export function LoginPage() {
   }
 
   return (
-    <main className="page">
-      
+    <main className="page zLoginPage">
+      <aside className="zLoginHero" aria-hidden="true"><i>&divide;</i><h2>{t("teamSlogan")}</h2></aside>
+      <div className="zLoginBody">
+      <div className="zTop"><Link className="zBack" to="/" aria-label={t("home")}>&#8249;</Link><h1 className="zH2" style={{ flex: 1, textAlign: "center" }}>{t("myAccount")}</h1><span style={{ width: 44 }} /></div>
 
-      <Link className="backLink" to="/">
-        <ArrowLeft size={18} /> {t("home")}
-      </Link>
+      <section className="zAuth">
+        <div className="zTabs" role="tablist">
+          {(["login", "register"] as const).map((m) => (
+            <button key={m} type="button" role="tab" aria-selected={mode === m} className={`zTab${mode === m ? " on" : ""}`} onClick={() => { setError(""); setFieldErrors({}); setMode(m); }}>{m === "login" ? t("login") : t("signIn")}</button>
+          ))}
+        </div>
 
-      <section className="card authCard">
-        <p className="eyebrow">{mode === "login" ? t("welcomeBack") : t("createAccount")}</p>
-        <h1>{mode === "login" ? t("login") : t("signIn")}</h1>
-
-        <form className="form authForm" onSubmit={submit} noValidate>
-          <label>
-            {t("usernameOrEmail")}
+        <form className="zPage authForm" onSubmit={submit} noValidate>
+          <label className="zField">
+            <b>{mode === "register" ? t("usernameLabel") : t("usernameOrEmail")}</b>
             <input
               placeholder={t("usernamePlaceholder")}
               value={username}
@@ -121,8 +132,28 @@ export function LoginPage() {
             {fieldErrors.username && <span className="validationMessage">{fieldErrors.username}</span>}
           </label>
 
-          <label>
-            {t("password")}
+          {mode === "register" && (
+            <label className="zField">
+              <b>{t("emailLabel")}</b>
+              <input
+                type="email"
+                inputMode="email"
+                placeholder={t("emailPlaceholder")}
+                value={email}
+                onChange={(event) => {
+                  setEmail(event.target.value);
+                  setFieldErrors((current) => ({ ...current, email: "" }));
+                }}
+                maxLength={254}
+                autoComplete="email"
+                aria-invalid={Boolean(fieldErrors.email)}
+              />
+              {fieldErrors.email && <span className="validationMessage">{fieldErrors.email}</span>}
+            </label>
+          )}
+
+          <label className="zField">
+            <b>{t("password")}</b>
             <input
               type="password"
               placeholder={t("enterPassword")}
@@ -139,8 +170,8 @@ export function LoginPage() {
           </label>
 
           {mode === "register" && (
-            <label>
-              {t("repeatPassword")}
+            <label className="zField">
+              <b>{t("repeatPassword")}</b>
               <input
                 type="password"
                 placeholder={t("repeatPassword")}
@@ -159,27 +190,17 @@ export function LoginPage() {
 
           {error && <p className="error">{error}</p>}
 
-          <button className="primaryButton" disabled={loading}>
-            {mode === "login" ? <LogIn size={18} /> : <UserPlus size={18} />}
+          <button className="zBtn" disabled={loading}>
             {loading ? t("pleaseWait") : mode === "login" ? t("login") : t("signIn")}
           </button>
         </form>
 
-        <div className="authDivider">{t("or")}</div>
+        <div className="zMuted" style={{ textAlign: "center" }}>{t("or")}</div>
         <GoogleSignInButton mode={mode} onCredential={handleGoogleCredential} />
+        <Link className="zBtn zBtnG" to="/" style={{ textAlign: "center", textDecoration: "none" }}>{t("continueGuest")}</Link>
 
-        <button
-          className="secondaryButton authSwitch"
-          type="button"
-          onClick={() => {
-            setError("");
-            setFieldErrors({});
-            setMode(mode === "login" ? "register" : "login");
-          }}
-        >
-          {mode === "login" ? t("needAccount") : t("alreadyHaveAccount")}
-        </button>
       </section>
+      </div>
     </main>
   );
 }

@@ -18,7 +18,7 @@ export function ClaimPawns({ shares, remaining, mine }) {
  {shares.flatMap(p => {
             const initials = p.name.trim().split(/\s+/u);
             const tag = Array.from(initials[0] || "?")[0] + (initials.length > 1 ? Array.from(initials[initials.length - 1])[0] : "");
-            const color = p.id === mine ? "#075845" : ["#775184", "#416478", "#756030", "#416D52"][Array.from(p.id).reduce((n, ch) => (n + ch.charCodeAt(0)) % 4, 0)];
+            const color = p.id === mine ? c.hero : ["#775184", "#416478", "#756030", "#416D52"][Array.from(p.id).reduce((n, ch) => (n + ch.charCodeAt(0)) % 4, 0)];
             return Array.from({ length: compact ? 1 : Math.min(5, p.count) }, (_, i) => <View key={p.id + ":" + i} style={{ flexDirection: "row", alignItems: "center" }}><svg width={26} height={27} viewBox="0 0 26 28"><circle cx={13} cy={6.4} r={5.8} fill={color}/><path d={shape} fill={color}/><text x={13} y={23} textAnchor="middle" fontWeight="bold" fontSize={10} fill="white">{tag.toLocaleUpperCase()}</text></svg>{compact && p.count > 1 && <Txt size={11}>×{p.count}</Txt>}</View>);
         })}
  {remaining > 0 && <svg width={25} height={27} viewBox="0 0 26 28"><circle cx={13} cy={6.4} r={5.5} fill="none" stroke={c.muted} strokeDasharray="3 2"/><path d={shape} fill="none" stroke={c.muted} strokeDasharray="3 2"/></svg>}

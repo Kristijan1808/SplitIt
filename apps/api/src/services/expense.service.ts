@@ -174,7 +174,7 @@ export class ExpenseService {
               action: "UPDATE",
               entity: "EXPENSE",
               entityId: existing.id,
-              message: `${actor.name} updated "${result.note || "Račun"}" · ${prepared.totalAmount.toFixed(2)} ${group.currency||"EUR"}`,
+              message: `${actor.name} je uredio/la račun "${result.note || "Račun"}" · ${prepared.totalAmount.toFixed(2)} ${group.currency||"EUR"}`,
               oldValue: auditValue(actor, existing),
               newValue: auditValue(actor, result),
             },
@@ -256,7 +256,7 @@ export class ExpenseService {
               action: "DELETE",
               entity: "EXPENSE",
               entityId: expense.id,
-              message: `${actor.name} deleted "${current.note || "Račun"}" · ${Number(current.totalAmount).toFixed(2)} ${group.currency||"EUR"}`,
+              message: `${actor.name} je obrisao/la račun "${current.note || "Račun"}" · ${Number(current.totalAmount).toFixed(2)} ${group.currency||"EUR"}`,
               oldValue: auditValue(actor, current),
             },
           });

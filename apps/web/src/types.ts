@@ -1,7 +1,7 @@
 export type AccessType = "ANONYMOUS_ONLY" | "REGISTERED_ONLY" | "MIXED";
 export type GroupRole = "OWNER" | "MEMBER";
 
-export type AuthUser = { id: string; username: string };
+export type AuthUser = { id: string; username: string; avatarImage?: string | null };
 export type AccountGroup = {
   slug: string;
   name: string;
@@ -239,6 +239,8 @@ export type Workflow = {
     inactive: boolean;
     claimed: boolean;
     mine: boolean;
+    /** Profilna slika računa, ako je sudionik povezan s računom. */
+    avatar?: string | null;
   }>;
   selections: Array<{ draftId: string; personId: string; status: string }>;
   transfers: Array<{

@@ -53,7 +53,7 @@ export class PersonService {
 
       if (group.accessType === "REGISTERED_ONLY") {
         return res.status(403).json({
-          error: "Registered-only groups automatically add participants when members join"
+          error: "U grupama samo za registrirane sudionici se dodaju automatski kad se član pridruži"
         });
       }
 
@@ -91,7 +91,7 @@ export class PersonService {
           action: "CREATE",
           entity: "PERSON",
           message:
-            `${name} was added`
+            `Dodan sudionik ${name}`
         }
       });
 
@@ -190,7 +190,7 @@ export class PersonService {
           entityId: person.id,
 
           message:
-            `Person changed from "${person.name}" to "${newName}"`,
+            `Sudionik preimenovan iz „${person.name}” u „${newName}”`,
 
           oldValue:
             person.name,

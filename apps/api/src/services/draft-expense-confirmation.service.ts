@@ -287,7 +287,7 @@ export class DraftExpenseConfirmationService {
 
             entityId: createdExpense.id,
 
-            message: `${actor.name} created "${createdExpense.note || "Račun"}" · €${itemTotal.toFixed(2)}`,
+            message: `${actor.name} je dodao/la račun "${createdExpense.note || "Račun"}" · €${itemTotal.toFixed(2)}`,
             newValue: auditValue(actor, createdExpense),
           },
         });

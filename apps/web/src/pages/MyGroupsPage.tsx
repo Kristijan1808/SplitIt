@@ -1,7 +1,8 @@
 
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { ArrowLeft, ChevronRight, Users, LogOut, X } from "lucide-react";
+import { LogOut, X } from "lucide-react";
+import { useOverview, money, tileClass } from "../overview";
 import { api } from "../api";
 import { clearAuth, getAuthUser, isLoggedIn } from "../auth";
 import { ConfirmationModal } from "../components/ConfirmationModal";
@@ -9,6 +10,7 @@ import { useLanguage } from "../i18n";
 import {
   getSavedGroups,
   removeSavedGroup,
+  mergeAccountGroups,
   type SavedGroup
 } from "../storage";
 
@@ -28,15 +30,13 @@ export function MyGroupsPage() {
         return;
       }
       try {
+        // Grupe s računa spajaju se s grupama stvorenima bez računa na ovom uređaju.
         const accountGroups = await api.getMyGroups();
         if (cancelled) return;
+        const user = getAuthUser();
+        if (user?.id) mergeAccountGroups(user.id, accountGroups);
         setAccountList(true);
-        setGroups(accountGroups.map((group) => ({
-          ...group,
-          participantId: null,
-          participantName: null,
-          savedAt: group.createdAt
-        })));
+        setGroups(getSavedGroups());
       } catch (loadError) {
         if (cancelled) return;
         if (loadError instanceof Error && loadError.message === "Not logged in") {
@@ -73,73 +73,34 @@ export function MyGroupsPage() {
     setGroups(getSavedGroups());
   };
 
+  const {rows}=useOverview();
+  const bySlug=new Map(rows.map(r=>[r.slug,r]));
+  const [q,setQ]=useState("");
+  const shown=groups.filter(g=>g.name.toLowerCase().includes(q.trim().toLowerCase()));
   return (
-    <main className="page">
-      <div className="topBar">
-        <div className="topBarControls">
-          {username && (
-            <button className="secondaryButton" type="button" onClick={signOut}>
-              <LogOut size={16} /> {t("signOut")}
-            </button>
-          )}
-          
+    <main className="page zPage">
+      <div className="zTop"><h1>{t("myGroups")}</h1></div>
+      <div className="zGrid2"><Link className="zBtn" to="/new" style={{minHeight:48}}>{t("createShort")}</Link><Link className="zBtnG" to="/join" style={{minHeight:48}}>{t("joinCode")}</Link></div>
+      {groups.length>3&&<label className="zSearch"><input aria-label={t("searchGroups")} placeholder={t("searchGroups")} value={q} onChange={e=>setQ(e.target.value)} /></label>}
+      {error && <p className="error">{error}</p>}
+      {groups.length === 0 ? (
+        <section className="zCard"><p className="zMuted">{t("noSavedGroups")}</p></section>
+      ) : (
+        <div className="zGroups">
+          {shown.map((group) => {
+            const o=bySlug.get(group.slug),b=o?.balance;
+            return (
+            <div className="zGroupWrap" key={group.slug}>
+              <Link className="zGroup" to={`/g/${group.slug}`} aria-label={`${t("open")} ${group.name}`}>
+                <i className={tileClass(group.name)}>{o?.avatar?.startsWith("data:image/")?<img src={o.avatar} alt="" />:group.name.charAt(0).toUpperCase()}</i>
+                <div className="zGroupMid"><strong>{group.name}</strong><small>{o?.members!==undefined?`${o.members} ${t("membersShort")}`:group.code?`${t("code")}: ${group.code}`:""}</small></div>
+                {b!==undefined&&<div className="zGroupBal"><small>{Math.abs(b)<.005?"":b>0?"+":"−"}</small><b className={Math.abs(b)<.005?"":b>0?"zPos":"zNeg"}>{money(Math.abs(b),o?.currency)}</b></div>}
+              </Link>
+              {!accountList && <button type="button" className="zGroupX" onClick={() => handleDeleteGroup(group)} aria-label={`Delete ${group.name} from My Groups`} title="Delete from My Groups"><X size={14} strokeWidth={2.5} /></button>}
+            </div>);
+          })}
         </div>
-      </div>
-
-      <Link className="backLink" to="/">
-        <ArrowLeft size={18} /> {t("home")}
-      </Link>
-
-      <header className="editorHeading"><h1>{t("myGroups")}</h1></header><section className="groupDirectory">
-        <div className="directoryActions"><Link className="primaryButton" to="/new">{t("createShort")}</Link><Link className="secondaryButton" to="/join">{t("joinCode")}</Link></div>
-        {error && <p className="error">{error}</p>}
-
-        {groups.length === 0 ? (
-          <p className="muted">{t("noSavedGroups")}</p>
-        ) : (
-          <div className="list">
-            {groups.map((group) => (
-              <div className="groupRow savedGroupRow" key={group.slug}>
-                <Link
-                  className="groupRowLink"
-                  to={`/g/${group.slug}`}
-                  aria-label={`${t("open")} ${group.name}`}
-                >
-                  <i className="entryIcon"><Users size={21}/></i><div className="savedGroupInfo">
-                    <strong>{group.name}</strong>
-
-                    {group.code && (
-                      <small className="muted savedGroupMeta">
-                        {t("code")}: {group.code}
-                      </small>
-                    )}
-
-                    {group.participantName && (
-                      <small className="muted savedGroupMeta">
-                        {t("youAre")}: {group.participantName}
-                      </small>
-                    )}
-                  </div>
-
-                  <small className="inlineFlex savedGroupOpen">
-                    <ChevronRight size={18} />
-                  </small>
-                </Link>
-
-                {!accountList && <button
-                  type="button"
-                  className="deleteSavedGroupButton"
-                  onClick={() => handleDeleteGroup(group)}
-                  aria-label={`Delete ${group.name} from My Groups`}
-                  title="Delete from My Groups"
-                >
-                  <X size={16} strokeWidth={2.5} />
-                </button>}
-              </div>
-            ))}
-          </div>
-        )}
-      </section>
+      )}
 
       <ConfirmationModal
         open={!accountList && groupToDelete !== null}

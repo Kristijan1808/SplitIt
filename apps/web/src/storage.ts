@@ -6,6 +6,8 @@ export type SavedGroup = {
   participantName?: string | null;
   memberCount?: number;
   savedAt: string;
+  /** Id računa kojem grupa pripada; prazno za grupe stvorene bez računa. */
+  account?: string;
 };
 
 const GROUPS_KEY = "splitit:groups";
@@ -33,9 +35,19 @@ function readSavedGroups(): SavedGroup[] {
   }
 }
 
+/** Trenutačno prijavljeni račun (čita se izravno da storage ne ovisi o auth modulu). */
+function currentAccount(): string | null {
+  try { const u = JSON.parse(window.localStorage.getItem("splitit:user") || "null"); return typeof u?.id === "string" ? u.id : null; } catch { return null; }
+}
+const visible = (group: SavedGroup, account = currentAccount()) => !group.account || group.account === account;
+
 function writeSavedGroups(groups: SavedGroup[]) {
   if (typeof window === "undefined") return;
-  window.localStorage.setItem(GROUPS_KEY, JSON.stringify(groups));
+  const next = JSON.stringify(groups);
+  if (window.localStorage.getItem(GROUPS_KEY) === next) return;
+  window.localStorage.setItem(GROUPS_KEY, next);
+  // Izbornik i početna odmah prikažu dodane/maknute grupe.
+  window.setTimeout(() => window.dispatchEvent(new Event("splitit:groups")), 0);
 }
 
 /**
@@ -61,7 +73,8 @@ export function saveGroupToLocalStorage(group: {
     memberCount: group.people?.length ?? existing?.memberCount,
     participantId: existing?.participantId ?? null,
     participantName: existing?.participantName ?? null,
-    savedAt: existing?.savedAt ?? new Date().toISOString()
+    savedAt: existing?.savedAt ?? new Date().toISOString(),
+    account: existing ? existing.account : currentAccount() ?? undefined
   };
 
   writeSavedGroups([
@@ -99,11 +112,33 @@ export function syncSavedGroupToLocalStorage(group: {
 }
 
 export function getSavedGroups(): SavedGroup[] {
-  return readSavedGroups();
+  const account = currentAccount();
+  return readSavedGroups().filter((group) => visible(group, account));
 }
 
 export function getSavedGroup(slug: string): SavedGroup | null {
-  return readSavedGroups().find((group) => group.slug === slug) ?? null;
+  return getSavedGroups().find((group) => group.slug === slug) ?? null;
+}
+
+/** Nakon prijave: grupe s računa (server) dodaju se na uređaj i vežu uz račun. */
+export function mergeAccountGroups(account: string, list: readonly { slug: string; name: string; code?: string | null; createdAt?: string }[]) {
+  const groups = readSavedGroups();
+  const known = new Map(groups.map((g) => [g.slug, g]));
+  const added: SavedGroup[] = [];
+  for (const g of list) {
+    const existing = known.get(g.slug);
+    if (existing) { existing.name = g.name; existing.code = g.code ?? existing.code; if (existing.account && existing.account !== account) existing.account = account; continue; }
+    added.push({ slug: g.slug, name: g.name, code: g.code ?? undefined, participantId: null, participantName: null, savedAt: g.createdAt ?? new Date().toISOString(), account });
+  }
+  writeSavedGroups([...groups, ...added]);
+}
+
+/** Kod odjave: s uređaja se miču grupe vezane uz račun; grupe bez računa ostaju. */
+export function dropAccountGroups() {
+  if (typeof window === "undefined") return;
+  const groups = readSavedGroups();
+  for (const g of groups) if (g.account) window.localStorage.removeItem(`${WHO_AM_I_PREFIX}${g.slug}`);
+  writeSavedGroups(groups.filter((g) => !g.account));
 }
 
 export function removeSavedGroup(slug: string) {

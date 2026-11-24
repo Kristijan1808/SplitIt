@@ -21,8 +21,23 @@ export const errorHandler: ErrorRequestHandler = (error, _req, res, _next) => {
   }
 
   if (error instanceof z.ZodError) {
+    const fields: Record<string, string> = { currency: "valuta", avatar: "oznaka/slika grupe", archived: "arhiviranje", password: "lozinka", locked: "zaključavanje", name: "naziv", role: "uloga", email: "e-pošta", username: "korisničko ime" };
+    const reasons = error.issues.map((issue) => {
+      const key = String(issue.path[0] ?? "");
+      const where = key ? (fields[key] ?? key) + ": " : "";
+      const custom = issue.code === "custom" || /[čćžšđ]|Slika|Dopuštene/.test(issue.message);
+      const why = custom ? issue.message
+        : issue.code === "unrecognized_keys" ? "nepoznato polje (" + (issue as { keys?: string[] }).keys?.join(", ") + ")"
+        : issue.code === "too_small" ? "prekratko ili premalo"
+        : issue.code === "too_big" ? "predugo ili preveliko"
+        : issue.code === "invalid_type" ? "nedostaje ili je pogrešnog tipa"
+        : issue.code === "invalid_enum_value" ? "vrijednost nije dopuštena"
+        : issue.code === "invalid_string" ? "neispravan format"
+        : issue.message;
+      return where + why;
+    });
     res.status(400).json({
-      error: "Validation error",
+      error: "Neispravni podaci — " + reasons.join("; "),
       details: error.flatten(),
     });
     return;

@@ -2308,3 +2308,8 @@ fieldset.accessOptions {
   padding: 4px;
   background: transparent;
 }
+
+.groupAvatar { overflow: hidden; }
+.groupAvatar img, .profileAvatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.profileAvatar { display: grid; place-items: center; width: 96px; height: 96px; border-radius: 50%; overflow: hidden; background: var(--tint); font-size: 36px; font-weight: 800; color: var(--accent); flex: none; }
+.profileRow { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }

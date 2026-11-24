@@ -8,8 +8,10 @@ export async function ensureCanViewGroup(group:GroupAccess,req:Request) {
  const session=await prisma.groupSession.findFirst({where:{groupId:group.id,key:{in:billKeys(req)}}});
  const user=getUserFromRequest(req);
  const member=user?await prisma.groupMember.findUnique({where:{groupId_userId:{groupId:group.id,userId:user.id}}}):null;
- const registered=!!member||group.ownerUserId===user?.id;
- const allowed=group.accessType==="REGISTERED_ONLY"?registered:group.accessType==="ANONYMOUS_ONLY"?(!user&&!!session)||group.ownerUserId===user?.id:registered||!!session;
+ const registered=!!member||(!!user&&group.ownerUserId===user.id);
+ // "Samo anonimni": ulaz je kodom i lozinkom bez računa. Uređaj koji je već u grupi (sesija uređaja)
+ // zadržava pristup i nakon prijave; prijavljeni bez te sesije i dalje ne mogu ući.
+ const allowed=group.accessType==="REGISTERED_ONLY"?registered:group.accessType==="ANONYMOUS_ONLY"?!!session||(!!user&&group.ownerUserId===user.id):registered||!!session;
  return {allowed,status:allowed?200:403,error:allowed?null:group.accessType==="REGISTERED_ONLY"?"Sign in and join this group to access it.":"Ponovno se pridruži grupi kodom i lozinkom."};
 }
 export async function ensureCanEditGroup(group:GroupAccess,req:Request){

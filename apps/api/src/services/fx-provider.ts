@@ -11,7 +11,10 @@ async function fetchJSON(path:string){
  catch{throw fail('Servis tečaja trenutačno nije dostupan. Pokušaj ponovno.');}
 }
 export function parseCurrencies(input:unknown):Currency[]{
- const rows=z.array(z.object({iso_code:codeSchema,name:z.string().min(1)})).min(1).parse(input);
+ // Izvor ponekad vrati zapis bez ispravne ISO oznake; preskoči ga umjesto da odbaciš cijeli popis.
+ const row=z.object({iso_code:codeSchema,name:z.string().min(1)});
+ const rows=z.array(z.unknown()).parse(input).flatMap(x=>{const r=row.safeParse(x);return r.success?[r.data]:[]});
+ if(!rows.length)throw fail('Servis tečaja trenutačno nije dostupan. Pokušaj ponovno.');
  const excluded=new Set(['XAU','XAG','XPD','XPT','XDR','CMD']);
  return [...new Map(rows.filter(x=>!excluded.has(x.iso_code)).map(x=>[x.iso_code,{code:x.iso_code,name:x.name}])).values()].sort((a,b)=>a.code.localeCompare(b.code));
 }

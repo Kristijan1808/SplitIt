@@ -5,7 +5,10 @@ import type { Request } from "express";
 
 
 export const prisma = new PrismaClient({
-  log: [{ emit: "event", level: "query" }]
+  log: [{ emit: "event", level: "query" }],
+  // Spremanje računa (stavke, udjeli, platitelji) je jedna transakcija od ~20 upita. Kad je baza
+  // daleko (300+ ms po upitu), zadanih 5 s nije dovoljno pa transakcija istekne i API vrati 500.
+  transactionOptions: { maxWait: 10_000, timeout: 30_000 }
 });
 
 export type AuthUser = { id: string; username: string };

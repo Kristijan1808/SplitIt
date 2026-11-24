@@ -11,7 +11,7 @@ export const createGroupSchema = z.object({
       context.addIssue({
         code: z.ZodIssueCode.custom,
         path: ["people"],
-        message: "Registered-only groups automatically add the owner as a participant"
+        message: "U grupama samo za registrirane vlasnik se automatski dodaje kao sudionik"
       });
     }
     return;
@@ -24,7 +24,7 @@ export const createGroupSchema = z.object({
       type: "array",
       inclusive: true,
       path: ["people"],
-      message: "Add at least one participant"
+      message: "Dodaj barem jednog sudionika"
     });
   }
 });
@@ -38,6 +38,7 @@ const passwordSchema = z.string().min(8).max(80);
 
 export const registerSchema = z.object({
   username: usernameSchema,
+  email: z.string().trim().toLowerCase().min(4).max(254).email(),
   password: passwordSchema,
   repeatPassword: passwordSchema
 });

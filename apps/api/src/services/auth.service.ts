@@ -10,6 +10,8 @@ import * as schemas from "../schemas/schemas.js";
 import bcrypt from "bcryptjs";
 import { randomBytes } from "node:crypto";
 import { OAuth2Client } from "google-auth-library";
+import { z } from "zod";
+import { imageDataUrl } from "./image-data-url.js";
 
 const googleAuthClient = new OAuth2Client();
 
@@ -50,6 +52,15 @@ export class AuthService {
         });
       }
 
+      // E-mail ne smije biti zauzet ni kao e-mail ni kao korisničko ime (Google računi koriste e-mail kao ime).
+      const emailTaken = await prisma.user.findFirst({
+        where: { OR: [{ email: body.email }, { username: body.email }] },
+        select: { id: true }
+      });
+      if (emailTaken) {
+        return res.status(409).json({ error: "Email already exists" });
+      }
+
       const passwordHash =
         await bcrypt.hash(
           body.password,
@@ -60,6 +71,7 @@ export class AuthService {
         await prisma.user.create({
           data: {
             username,
+            email: body.email,
             passwordHash
           },
 
@@ -94,9 +106,12 @@ export class AuthService {
         );
 
       const user =
-        await prisma.user.findUnique({
+        (await prisma.user.findUnique({
           where: { username }
-        });
+        })) ??
+        (username.includes("@")
+          ? await prisma.user.findUnique({ where: { email: username } })
+          : null);
 
       if (!user) {
         return res.status(401).json({
@@ -126,7 +141,8 @@ export class AuthService {
 
         user: {
           id: user.id,
-          username: user.username
+          username: user.username,
+          avatarImage: user.avatarImage ?? null
         }
       });
     } catch (error) {
@@ -171,7 +187,7 @@ export class AuthService {
 
       const user = await prisma.user.findUnique({
         where: { googleSubject: payload.sub },
-        select: { id: true, username: true }
+        select: { id: true, username: true, avatarImage: true }
       });
 
       if (user) {
@@ -179,8 +195,8 @@ export class AuthService {
       }
 
       const username = normalizeUsername(payload.email);
-      const existingUser = await prisma.user.findUnique({
-        where: { username },
+      const existingUser = await prisma.user.findFirst({
+        where: { OR: [{ username }, { email: username }] },
         select: { id: true }
       });
 
@@ -196,6 +212,7 @@ export class AuthService {
         newUser = await prisma.user.create({
           data: {
             username,
+            email: username,
             passwordHash,
             googleSubject: payload.sub
           },
@@ -208,7 +225,7 @@ export class AuthService {
         ) {
           const racedUser = await prisma.user.findUnique({
             where: { googleSubject: payload.sub },
-            select: { id: true, username: true }
+            select: { id: true, username: true, avatarImage: true }
           });
           if (racedUser) {
             return res.json({
@@ -241,7 +258,43 @@ export class AuthService {
       });
     }
 
-    return res.json({ user });
+    const stored = await prisma.user.findUnique({
+      where: { id: user.id },
+      select: { id: true, username: true, avatarImage: true }
+    });
+
+    return res.json({ user: stored ?? user });
+  };
+
+  setAvatar = async (
+    req: Request,
+    res: Response
+  ) => {
+    const user = getUserFromRequest(req);
+
+    if (!user) {
+      return res.status(401).json({
+        error: "Not logged in"
+      });
+    }
+
+    const parsed = z
+      .object({ image: imageDataUrl.nullable() })
+      .strict()
+      .safeParse(req.body);
+
+    if (!parsed.success) {
+      return res.status(400).json({
+        error: parsed.error.issues[0]?.message ?? "Neispravna slika."
+      });
+    }
+
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { avatarImage: parsed.data.image }
+    });
+
+    return res.json({ ok: true });
   };
 
   logout = async (

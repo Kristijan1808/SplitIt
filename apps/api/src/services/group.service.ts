@@ -83,7 +83,7 @@ export class GroupService {
           create: {
             action: "CREATE",
             entity: "GROUP",
-            message: `Group "${body.name.trim()}" created`
+            message: `Grupa „${body.name.trim()}” je stvorena`
           }
         }
       },
@@ -131,10 +131,11 @@ export class GroupService {
           update: {}
         });
         if (group.accessType === "REGISTERED_ONLY") {
+          // Ponovni ulazak nakon napuštanja grupe vraća istog sudionika (s istom poviješću).
           await tx.person.upsert({
             where: { groupId_userId: { groupId: group.id, userId: user.id } },
             create: { groupId: group.id, userId: user.id, name: user.username },
-            update: {}
+            update: { inactive: false }
           });
         }
       }
@@ -205,7 +206,7 @@ export class GroupService {
             action: "UPDATE",
             entity: "GROUP",
             entityId: existing.id,
-            message: `Group name changed from "${existing.name}" to "${name}"`,
+            message: `Naziv grupe promijenjen iz „${existing.name}” u „${name}”`,
             oldValue: existing.name,
             newValue: name
           }
@@ -233,7 +234,7 @@ export class GroupService {
       prisma.groupSession.findFirst({where:{groupId:group.id,key:{in:billKeys(req)},role:{in:["OWNER","ADMIN"]}}}),
       authUser ? prisma.groupMember.findUnique({where:{groupId_userId:{groupId:group.id,userId:authUser.id}}}) : null
     ]);
-    if (!session && group.ownerUserId !== authUser?.id && !(membership && ["OWNER", "ADMIN"].includes(membership.role))) {
+    if (!session && !(authUser && group.ownerUserId === authUser.id) && !(membership && ["OWNER", "ADMIN"].includes(membership.role))) {
       throw new Error("Only the group owner can lock or unlock it");
     }
 
@@ -246,8 +247,8 @@ export class GroupService {
             action: body.locked ? "LOCK" : "UNLOCK",
             entity: "GROUP",
             message: body.locked
-              ? "Group was locked"
-              : "Group was unlocked"
+              ? "Grupa je zaključana"
+              : "Grupa je otključana"
           }
         }
       }

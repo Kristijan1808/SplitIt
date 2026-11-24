@@ -1,26 +1,20 @@
 import React, { createContext, useContext } from "react";
 import { View, Text, Pressable, TextInput, StyleSheet, ActivityIndicator, ScrollView, RefreshControl, } from "react-native-web";
-// 60% quiet background, 30% layered surfaces, 10% semantic accents.
-export const light = {
-    peach: "#FBE3C6", peachInk: "#834219", bg: "#FCF8EF", card: "#FFFBF4", ink: "#12342E", muted: "#53665C",
-    line: "#D6DCCB", accent: "#005642", tint: "#EAF0DC", danger: "#B33442",
-    dangerTint: "#FBECEE",
-    hero: "#064F40", info: "#32655C", infoTint: "#E4EFE7",
-    debt: "#B33442", debtTint: "#FBECEE",
-};
-export const dark = {
-    peach: "#48382A", peachInk: "#FFCD9B", bg: "#111C19", card: "#1B2924", ink: "#F5F3E8", muted: "#B9C7B9",
-    line: "#394A40", accent: "#91DBC2", tint: "#2B4033", danger: "#FFA4AD",
-    dangerTint: "#35252E",
-    hero: "#124D40", info: "#A7CFBC", infoTint: "#283D33",
-    debt: "#E39AA3", debtTint: "#35252E",
-};
+import {useSyncExternalStore} from 'react';
+import {getColors, DEFAULT_PALETTE} from '../palettes';
+import {currentColors, getThemeSnapshot, subscribeTheme} from '../theme';
+export const light = getColors(DEFAULT_PALETTE, false);
+export const dark = getColors(DEFAULT_PALETTE, true);
 export const UI = createContext({
     c: light,
     t: (hr, en) => hr,
     busy: false,
 });
-export const useUI = () => useContext(UI);
+export const useUI = () => {
+ const context = useContext(UI);
+ useSyncExternalStore(subscribeTheme, getThemeSnapshot, getThemeSnapshot);
+ return {...context, c: currentColors()};
+};
 export function Txt({ children, muted = false, size = 15, bold = false, style, }) {
     const { c } = useUI();
     return (<Text style={[

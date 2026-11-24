@@ -1,14 +1,14 @@
 import {queueBill,snapshotForEditor,syncBills} from "../offlineBills";
+import {avInner} from "../components/PersonAv";
 import {CategoryIcon,inferCategory,labels,type Category} from "../components/ExpenseCategory";
 import {getWhoAmI,saveWhoAmI} from "../storage";
 import "../styles/receiptParity.css";
-import { useEffect, useMemo, useState } from "react";
-import { ArrowLeft, Camera, ImagePlus, Plus, RefreshCw, Trash2, Dices } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { ArrowLeft, Camera, ImagePlus, Plus, RefreshCw, Trash2, Users, ChevronDown, Check } from "lucide-react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { api,type FxQuote } from "../api";
 import { useLanguage } from "../i18n";
 import type { Expense, Group } from "../types";
-import { RandomSplitWheel } from "../components/RandomSplitWheel";
 import { showToast } from "../notifications";
 //push comment
 type DraftItem = {
@@ -93,7 +93,11 @@ export const GroupAddExpensePage = () => {
   const navigate = useNavigate();
   const { slug = "" } = useParams();
   const [searchParams] = useSearchParams();
-  const { t } = useLanguage();
+  const { t, locale } = useLanguage();
+  // Iznosi se interno drže s točkom ("10.5"); prikazuju se s decimalnim zarezom za hr/de i na izlasku iz polja dobiju dvije decimale.
+  const decSep = (1.5).toLocaleString(locale).charAt(1) === "," ? "," : ".";
+  const showDec = (v?: string) => (v ?? "").replace(".", decSep);
+  const fix2 = (v?: string) => { const raw = (v ?? "").trim(); if (!raw) return ""; const n = Number(raw); return Number.isFinite(n) ? n.toFixed(2) : raw; };
   const editExpenseId = searchParams.get("edit");
 
   const [group, setGroup] = useState<Group | null>(null);
@@ -104,11 +108,14 @@ export const GroupAddExpensePage = () => {
   const [equalSplitMode, setEqualSplitMode] = useState<EqualSplitMode>("equal");
   const [equalSplitValues, setEqualSplitValues] = useState<Record<string, string>>({});
   const [assignNow,setAssignNow]=useState(false);
+  const [mine,setMine]=useState<Record<string,number>>({});
+  const [showPeople,setShowPeople]=useState(false);
   const [requestId]=useState(()=>crypto.randomUUID());
   const [saved,setSaved]=useState(false);
   const [note, setNote] = useState("");
   const [draftItems, setDraftItems] = useState<DraftItem[]>([]);
   const [amounts,setAmounts]=useState<Record<string,string>>({});
+  const [avatars,setAvatars]=useState<Record<string,string|null|undefined>>({});
   const [single,setSingle]=useState("");
   const [multiple,setMultiple]=useState(false);
   const [payerOpen,setPayerOpen]=useState(false);
@@ -132,12 +139,12 @@ export const GroupAddExpensePage = () => {
   const [billImageFile, setBillImageFile] = useState<File | null>(null);
   const [billParseRetryAvailable, setBillParseRetryAvailable] = useState(false);
   const [billParseRetryUsed, setBillParseRetryUsed] = useState(false);
-  const [randomSplitTarget, setRandomSplitTarget] = useState<"global" | string | null>(null);
 
   useEffect(() => {
     const load = async () => {
       try {
         const {group:currentGroup,workflow}=await snapshotForEditor(slug);
+        setAvatars(Object.fromEntries(workflow.people.map(p=>[p.id,p.avatar])));
         setGroup(currentGroup);
         setEqualParticipantIds(currentGroup.people.map((person) => person.id));
         const expense = editExpenseId
@@ -446,18 +453,6 @@ export const GroupAddExpensePage = () => {
     void parseBillImage(billImageFile, 2);
   };
 
-  const applyRandomSplit = (personIds: string[]) => {
-    if(equalMode){setEqualParticipantIds(personIds)}else{
-      setAssignNow(true);
-      setDraftItems(current=>current.map(i=>{
-        if(randomSplitTarget!=="global"&&i.id!==randomSplitTarget)return i;
-        const qty=Number(i.quantity||1),assignedUnits=Object.fromEntries(personIds.map((id,n)=>[id,Math.floor(qty/personIds.length)+(n<qty%personIds.length?1:0)]));
-        return {...i,originalShares:undefined,assignedUnits,assignedPersonIds:personIds.filter(id=>!units(i)||assignedUnits[id]>0)};
-      }));
-    }
-    setRandomSplitTarget(null);
-  };
-
   const saveDraftBill = async () => {
     if (!group || group.locked || saving) return;
     if(saved){navigate(`/g/${slug}`);return;}
@@ -657,14 +652,14 @@ export const GroupAddExpensePage = () => {
           splitMode: item.splitMode ?? (Number(item.quantity??1)>1 ? "units" : "shared"),
           name: item.name.trim(),
           price: lineTotal(item),
-          shares: (assignNow ? units(item)?Object.keys(item.assignedUnits??{}).filter(id=>item.assignedUnits![id]>0):item.assignedPersonIds : []).map((personId) => {
+          shares: (assignNow ? units(item)?Object.keys(item.assignedUnits??{}).filter(id=>item.assignedUnits![id]>0):item.assignedPersonIds : (!editingExpense&&actor&&mine[item.id]?[actor]:[])).map((personId) => {
             const originalShare = item.originalShares?.find(
               (share) => share.personId === personId,
             );
             return {
               personId,
               ...(units(item)
-                ? { units: item.assignedUnits?.[personId] ?? 1 }
+                ? { units: assignNow ? item.assignedUnits?.[personId] ?? 1 : Math.min(mine[item.id]??1, Number(item.quantity??1)) }
                 : originalShare
                   ? { amount: originalShare.amount }
                   : {}),
@@ -701,6 +696,70 @@ export const GroupAddExpensePage = () => {
     }
   };
 
+  const preview = useMemo(() => {
+    if (!group) return { rows: [] as { id: string; name: string; cents: number }[], open: 0 };
+    const name = (id: string) => group.people.find((p) => p.id === id)?.name ?? "?";
+    if (equalMode) {
+      const total = Math.round((Number(equalAmount) || 0) * 100);
+      const ids = equalParticipantIds;
+      if (!total || !ids.length) return { rows: [], open: 0 };
+      const alloc = equalSplitMode === "equal"
+        ? allocateEqualShares(total, ids, Object.fromEntries(ids.map((id) => [id, "1"])), "weight")
+        : allocateEqualShares(total, ids, equalSplitValues, equalSplitMode);
+      return { rows: ids.map((id, i) => ({ id, name: name(id), cents: alloc.valid ? alloc.shares[i] ?? 0 : 0 })), open: 0 };
+    }
+    const acc: Record<string, number> = {};
+    let open = 0;
+    for (const item of draftItems) {
+      const line = Math.round(lineTotal(item) * 100);
+      if (!Number.isFinite(line) || line <= 0) continue;
+      const qty = Number(item.quantity ?? 1) || 1;
+      if (assignNow || editingExpense) {
+        if (units(item)) {
+          let used = 0;
+          for (const [id, u] of Object.entries(item.assignedUnits ?? {})) { if (u > 0) { const c = Math.round(line * u / qty); acc[id] = (acc[id] ?? 0) + c; used += c; } }
+          open += line - used;
+        } else if (item.assignedPersonIds.length) {
+          const n = item.assignedPersonIds.length, base = Math.floor(line / n);
+          item.assignedPersonIds.forEach((id, i) => { acc[id] = (acc[id] ?? 0) + base + (i < line - base * n ? 1 : 0); });
+        } else open += line;
+      } else if (actor && mine[item.id]) {
+        const c = units(item) ? Math.round(line * Math.min(mine[item.id], qty) / qty) : line;
+        acc[actor] = (acc[actor] ?? 0) + c; open += line - c;
+      } else open += line;
+    }
+    return { rows: Object.entries(acc).map(([id, cents]) => ({ id, name: name(id), cents })), open };
+  }, [group, equalMode, equalAmount, equalParticipantIds, equalSplitMode, equalSplitValues, draftItems, assignNow, editingExpense, actor, mine]);
+  const saveRef = useRef(saveDraftBill);
+  saveRef.current = saveDraftBill;
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "Enter") { e.preventDefault(); void saveRef.current(); }
+      else if (e.key === "Escape" && !document.querySelector(".zOverlay")) navigate(`/g/${slug}`);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [navigate, slug]);
+  const money = (c: number) => (c / 100).toFixed(2).replace(".", ",") + " " + (currency === "EUR" ? "€" : currency);
+  const payerName = multiple ? t("manyPayers") : group?.people.find((p) => p.id === single)?.name;
+  const myCents = preview.rows.find((r) => r.id === actor)?.cents ?? 0;
+  const previewPanel = (
+    <aside className="zExpPreview" aria-live="polite">
+      <div className="zLbl">{t("splitPreviewTitle")}</div>
+      <div className="zExpPreviewTotal">{money(Math.round(itemTotal * 100))}</div>
+      <div className="zMuted">{payerName ? t("paidByName").replace("{name}", payerName) : t("billPayers")}{preview.rows.length > 1 ? ` · ${preview.rows.length} ${t("peopleShort")}` : ""}</div>
+      <div className="zExpPreviewRows">
+        {preview.rows.map((r) => (
+          <div key={r.id} className="zExpPreviewRow"><span className="zAv s">{avInner(r.name,avatars[r.id])}</span><b>{r.name}{r.id === actor ? ` (${t("youShort")})` : ""}</b><span>{money(r.cents)}</span></div>
+        ))}
+        {preview.open > 0 && <div className="zExpPreviewRow open"><span className="zAv s">?</span><b>{t("waitingForPicks")}</b><span>{money(preview.open)}</span></div>}
+        {!preview.rows.length && !preview.open && <p className="zMuted">{t("splitPreviewEmpty")}</p>}
+      </div>
+      {actor && preview.rows.length > 0 && <div className="zExpPreviewMine"><span>{t("yourShareLabel")}</span><b>{money(myCents)}</b></div>}
+      <button className="zBtn zExpPreviewSave" type="button" onClick={saveDraftBill} disabled={!group || group.locked || saving}>{editingExpense ? t("saveChanges") : t("createExpense")} <span className="kbd">Ctrl ↵</span></button>
+    </aside>
+  );
+
   if (!group) return null;
 
   return (
@@ -713,34 +772,41 @@ export const GroupAddExpensePage = () => {
 
       {actionError && <div className="toastError">{actionError}</div>}
 
-      <Link className="backLink" to={`/g/${slug}`}>
-        <ArrowLeft size={18} />
-        {t("backToGroup")}
-      </Link>
+      <div className="zTop zExpenseTop"><Link className="zBack" to={`/g/${slug}`} aria-label={t("backToGroup")}>&#8249;</Link>
+        <h1 className="zH2" style={{ flex: 1, textAlign: "center" }}>{editingExpense ? t("editExpense") : t("newExpense")}</h1><span style={{ width: 44 }} /></div>
 
+      <div className="zExpGrid">
       <section className="card formCard">
         <div className="sectionHeaderWithButton">
           <div>
-            <p className="eyebrow">{editingExpense ? t("editExpense") : t("newExpense")}</p>
-            <h2>{editingExpense ? t("editExpense") : t("newExpense")} · {currency}</h2>
+            <p className="zMuted" style={{ margin: 0 }}>{currency}</p>
           </div>
           <div className="randomSplitHeaderAction">
             <strong>{itemTotal.toFixed(2)}</strong>
-            {(editingExpense || entryMode === "items") && <button
-              type="button"
-              className="spinTriggerButton"
-              onClick={() => setRandomSplitTarget("global")}
-              disabled={group.locked || group.people.length === 0 || itemTotal <= 0}
-              title={t("randomSplitGlobal")}
-            >
-              <Dices size={17} />
-              <span>SPIN</span>
-            </button>}
           </div>
         </div>
 
         {/* ITEMS */}
         <div className="form">
+          {!editingExpense && entryMode === "equal" && <div className="zAmountHero">              <label className="zAmountLabel">
+                <span>{t("amount")} ({currency})</span>
+                <input
+                  className="equalExpenseAmount zAmountInput"
+                  type="text"
+                  inputMode="decimal"
+                  value={showDec(equalAmount)}
+                  onBlur={() => setEqualAmount((v) => fix2(v))}
+                  onChange={(event) => {
+                    setEqualAmount(sanitizeDecimalInput(event.target.value));
+                    setFieldErrors((current) => ({ ...current, equalAmount: "" }));
+                  }}
+                  placeholder={decSep === "," ? "0,00" : "0.00"}
+                  disabled={group.locked}
+                  aria-invalid={Boolean(fieldErrors.equalAmount)}
+                />
+                {fieldErrors.equalAmount && <span className="validationMessage">{fieldErrors.equalAmount}</span>}
+              </label>
+          </div>}
           {!editingExpense && <div className="expenseModeSelector" role="radiogroup" aria-label={t("newExpense")}>
             <button
               type="button"
@@ -819,29 +885,17 @@ export const GroupAddExpensePage = () => {
           {!editingExpense && entryMode === "items" && billParseRetryUsed && <p className="billImageHint">{t("billRetryGuidance")}</p>}
 
           <div className="rpTitle"><label className="rpCategory" title={t(labels[category])}><CategoryIcon category={category}/><select aria-label={t("categoryFilter")} value={override??"auto"} disabled={group.locked} onChange={e=>setOverride(e.target.value==="auto"?null:e.target.value as Category)}><option value="auto">Auto · {t(labels[inferCategory(note)])}</option>{(Object.keys(labels) as Category[]).map(k=><option value={k} key={k}>{t(labels[k])}</option>)}</select></label>
-          <input aria-label={t("note")} value={note} onChange={e=>setNote(e.target.value)} placeholder={t("billNote")} maxLength={200} disabled={group.locked}/></div>
-          <label>{t("billCurrency")}<select value={currency} disabled={group.locked} onChange={e=>setCurrency(e.target.value)}>{!currencies.some(c=>c.code===baseCurrency)&&<option>{baseCurrency}</option>}{currencies.map(c=><option key={c.code} value={c.code}>{c.code} · {c.name}</option>)}</select></label>
+          <input aria-label={t("note")} className="zTitleInput" autoFocus={!editingExpense} enterKeyHint="next" value={note} onChange={e=>setNote(e.target.value)} placeholder={t("billTitlePh")} maxLength={200} disabled={group.locked}/></div>
+          <label className="zCurrency">{t("billCurrency")}<select value={currency} disabled={group.locked} onChange={e=>setCurrency(e.target.value)}>{!currencies.some(c=>c.code===baseCurrency)&&<option>{baseCurrency}</option>}{currencies.map(c=><option key={c.code} value={c.code}>{c.code} · {c.name}</option>)}</select></label>
           {!editingExpense && entryMode === "equal" ? (
             <div className="equalExpenseSection">
-              <label>
-                <span>{t("amount")} ({currency})</span>
-                <input
-                  className="equalExpenseAmount"
-                  type="text"
-                  inputMode="decimal"
-                  value={equalAmount}
-                  onChange={(event) => {
-                    setEqualAmount(sanitizeDecimalInput(event.target.value));
-                    setFieldErrors((current) => ({ ...current, equalAmount: "" }));
-                  }}
-                  placeholder="0.00"
-                  disabled={group.locked}
-                  aria-invalid={Boolean(fieldErrors.equalAmount)}
-                />
-                {fieldErrors.equalAmount && <span className="validationMessage">{fieldErrors.equalAmount}</span>}
-              </label>
-              <div className="equalExpenseParticipants">
-                <strong>{t("selectedParticipants")}</strong>
+              <div className="zPeopleSummary">
+                <div className="grow"><strong>{t("selectedParticipants")}</strong>
+                  <span className="zMuted">{equalParticipantIds.length === group.people.length ? t("everyoneParticipates").replace("{n}", String(group.people.length)) : group.people.filter((p) => equalParticipantIds.includes(p.id)).map((p) => p.name).join(", ") || "—"}{equalSplitMode !== "equal" ? " · " + t(equalSplitMode === "amount" ? "splitModeAmounts" : equalSplitMode === "percent" ? "splitModePercent" : "splitModeWeights") : ""}</span></div>
+                <button type="button" className="zPill" aria-expanded={showPeople} onClick={() => setShowPeople((v) => !v)}>{showPeople ? t("doneLabel") : t("chooseWho")}</button>
+              </div>
+              {fieldErrors.equalParticipants && !showPeople && <p className="validationMessage">{fieldErrors.equalParticipants}</p>}
+              <div className="equalExpenseParticipants" hidden={!showPeople}>
                 <p className="muted">{t("chooseParticipantsHint")}</p>
                 <div className="sharePicker">
                   {group.people.map((person) => {
@@ -930,166 +984,88 @@ export const GroupAddExpensePage = () => {
             </div>
           ) : (
           <div hidden={!editingExpense && entryMode !== "items"}>
-            <div className="sectionHeaderWithButton sectionHeaderMargin">
-              <div>
-                <strong>{t("billItems")}</strong>
-              </div>
-              <button
-                type="button"
-                className="secondaryButton"
-                onClick={()=>{setScanPreview(false);addDraftItem()}}
-                disabled={group.locked}
-              >
-                <Plus size={18} />
-                {t("addItems")}
-              </button>
-            </div>
+            <h3 className="zLbl zItemsHead">{t("billItems")}</h3>
 
-            {scanPreview?<div className="rpPicker">{draftItems.map(i=><div className="rpContribution" key={i.id}><b>{i.name}</b><span>{i.quantity||1} × {i.price} · {lineTotal(i).toFixed(2)}</span></div>)}<button type="button" className="secondaryButton" onClick={()=>setScanPreview(false)}>{t("editExpense")}</button></div>:<div className="list">
-              <label><input type="checkbox" disabled={group.locked} checked={assignNow} onChange={e=>{
-                setAssignNow(e.target.checked);
-                if (editingExpense) {
-                  setDraftItems(current => current.map(item => ({ ...item, originalShares: undefined })));
-                }
-              }}/>{t("assignNow")}</label>
-              <p>{t("assignNowHint")}</p>
-              {draftItems.map((item, index) => (
-                <div
-                  key={item.id}
-                  className="card draftEditorCard"
-                >
-                  <div className="draftItemEditor">
-                    <div className="draftItemOrdinalNumber" aria-label={`Item ${item.ordinalNumber}`}>
-                      {item.ordinalNumber}.
-                    </div>
-                    <label>
-                      <span>{t("itemName")}</span>
-                      <input
-                        value={item.name}
-                        onChange={(event) =>
-                          updateDraftItem(item.id, "name", event.target.value)
-                        }
-                        placeholder={t("itemPlaceholder")}
-                        disabled={group.locked}
-                        aria-invalid={Boolean(fieldErrors[`item-${item.id}-name`])}
-                      />
+            {scanPreview?<div className="rpPicker zScanReview">{actor&&!assignNow&&<p className="zLbl">{t("markYoursNow")}</p>}{draftItems.map(i=>{const q=Number(i.quantity||1);const m=mine[i.id]??0;return <div className="rpContribution zMineRow" key={i.id}>{actor&&!assignNow&&(units(i)?<span className="zMineStep"><button type="button" aria-label={"− "+i.name} disabled={m<=0} onClick={()=>setMine(x=>({...x,[i.id]:Math.max(0,m-1)}))}>−</button><b>{m}</b><button type="button" aria-label={"+ "+i.name} disabled={m>=q} onClick={()=>setMine(x=>({...x,[i.id]:Math.min(q,m+1)}))}>+</button></span>:<button type="button" role="checkbox" aria-checked={!!m} aria-label={i.name} className={"zCheck"+(m?" on":"")} onClick={()=>setMine(x=>({...x,[i.id]:m?0:1}))}>{m?"✓":""}</button>)}<b>{i.name}</b><span>{q} × {i.price} · {lineTotal(i).toFixed(2)}</span></div>})}<button type="button" className="secondaryButton" onClick={()=>setScanPreview(false)}>{t("editExpense")}</button></div>:<div className="list">
+              <div className="zToggleRow">
+                <span className="grow"><b>{t("assignNow")}</b><small>{t("assignNowHint")}</small></span>
+                <button type="button" role="switch" aria-checked={assignNow} aria-label={t("assignNow")} disabled={group.locked} className={"zToggle" + (assignNow ? " on" : "")} onClick={() => {
+                  const next = !assignNow;
+                  setAssignNow(next);
+                  if (editingExpense) setDraftItems((current) => current.map((item) => ({ ...item, originalShares: undefined })));
+                }} />
+              </div>
+              <div className="zDraftList">
+              {draftItems.map((item) => {
+                const q = Number(item.quantity || 1);
+                const lt = lineTotal(item);
+                const left = Math.max(0, q - Object.values(item.assignedUnits ?? {}).reduce((n, u) => n + (u || 0), 0));
+                const setUnits = (personId: string, value: number) => {
+                  const other = Object.entries(item.assignedUnits ?? {}).reduce((n, [id, u]) => n + (id === personId ? 0 : u), 0);
+                  const v = Math.min(Math.max(0, q - other), Math.max(0, Math.floor(value)));
+                  setDraftItems((current) => current.map((entry) => {
+                    if (entry.id !== item.id) return entry;
+                    const assignedUnits = { ...entry.assignedUnits, [personId]: v };
+                    return { ...entry, originalShares: undefined, assignedUnits, assignedPersonIds: v > 0 ? [...new Set([...entry.assignedPersonIds, personId])] : entry.assignedPersonIds.filter((id) => id !== personId) };
+                  }));
+                };
+                const m = mine[item.id] ?? 0;
+                return (
+                <div key={item.id} className="zDraftItem">
+                  <div className="zDraftTop">
+                    <span className="zDraftNo">{item.ordinalNumber}</span>
+                    <label className="zDraftName">
+                      <input value={item.name} onChange={(event) => updateDraftItem(item.id, "name", event.target.value)} placeholder={t("itemName")} aria-label={t("itemName")} disabled={group.locked} aria-invalid={Boolean(fieldErrors[`item-${item.id}-name`])} />
                       {fieldErrors[`item-${item.id}-name`] && <span className="validationMessage">{fieldErrors[`item-${item.id}-name`]}</span>}
                     </label>
-
-                    <label>
-                      <span>{t("price")} ({currency})</span>
-                      <input
-                        type="text"
-                        inputMode="decimal"
-                        value={item.price}
-                        onChange={(event) =>
-                          updateDraftItem(
-                            item.id,
-                            "price",
-                            sanitizeDecimalInput(event.target.value)
-                          )
-                        }
-                        placeholder="0.00"
-                        disabled={group.locked}
-                        aria-invalid={Boolean(fieldErrors[`item-${item.id}-price`])}
-                      />
-                      {fieldErrors[`item-${item.id}-price`] && <span className="validationMessage">{fieldErrors[`item-${item.id}-price`]}</span>}
-                    </label>
-
-                    <label>
-                      {t("quantity")}
+                  <div className="zDraftMid">
+                      <label className="zDraftPrice">
+                        <input type="text" inputMode="decimal" value={showDec(item.price)} onChange={(event) => updateDraftItem(item.id, "price", sanitizeDecimalInput(event.target.value))} onBlur={() => { const f = fix2(item.price); if (f !== item.price) updateDraftItem(item.id, "price", f); }} placeholder={decSep === "," ? "0,00" : "0.00"} aria-label={`${t("price")} (${currency})`} disabled={group.locked} aria-invalid={Boolean(fieldErrors[`item-${item.id}-price`])} />
+                        <span>{currency}</span>
+                      </label>
+                      <span className="zDraftX">×</span>
                       <span className="rpQty"><button type="button" disabled={group.locked||Number(item.quantity||1)<=1} aria-label={"− "+item.name} onClick={()=>updateDraftItem(item.id,"quantity",String(Number(item.quantity||1)-1))}>−</button><input disabled={group.locked} type="number" min="1" max="999" step="1" value={item.quantity??"1"} onChange={e=>updateDraftItem(item.id,"quantity",e.target.value)} aria-invalid={Boolean(fieldErrors[`item-${item.id}-quantity`])}/><button type="button" disabled={group.locked||Number(item.quantity||1)>=999} aria-label={"+ "+item.name} onClick={()=>updateDraftItem(item.id,"quantity",String(Number(item.quantity||1)+1))}>+</button></span>
-                      {fieldErrors[`item-${item.id}-quantity`] && <span className="validationMessage">{fieldErrors[`item-${item.id}-quantity`]}</span>}
-                    </label>
-                    <div className="draftItemShares" hidden={!assignNow}>
-                      <div className="draftItemSharesHeader">
-                        <div className="draftItemSharesTitle">
-                          <span>{t("assignedTo")}</span>
-
-                        </div>
-                        <button
-                          type="button"
-                          className="miniSpinButton"
-                          onClick={() => setRandomSplitTarget(item.id)}
-                          disabled={group.locked || group.people.length === 0 || lineTotal(item) <= 0}
-                          title={t("randomSplitItem")}
-                        >
-                          <Dices size={15} />
-                          <span>SPIN</span>
-                        </button>
-                      </div>
-                      <div className="sharePicker">
-                        {group.people.map((person) => {
-                          const checked = item.assignedPersonIds.includes(person.id);
-                          if (units(item)) {
-                            return (
-                              <label key={person.id} className="shareOption">
-                                <span>{person.name}</span>
-                                <input
-                                  aria-label={`${person.name} · ${t("quantity")}`}
-                                  type="number"
-                                  min="0"
-                                  max={item.quantity ?? "1"}
-                                  step="1"
-                                  value={item.assignedUnits?.[person.id] ?? 0}
-                                  onChange={(event) => {
-                                    const units = Math.min(
-                                      Math.max(0,Number(item.quantity??1)-Object.entries(item.assignedUnits??{}).reduce((n,[id,u])=>n+(id===person.id?0:u),0)),
-                                      Math.max(0, Math.floor(Number(event.target.value) || 0)),
-                                    );
-                                    setDraftItems((current) => current.map((entry) => {
-                                      if (entry.id !== item.id) return entry;
-                                      const assignedUnits = { ...entry.assignedUnits, [person.id]: units };
-                                      return {
-                                        ...entry,
-                                        originalShares: undefined,
-                                        assignedUnits,
-                                        assignedPersonIds: units > 0
-                                          ? [...new Set([...entry.assignedPersonIds, person.id])]
-                                          : entry.assignedPersonIds.filter((id) => id !== person.id),
-                                      };
-                                    }));
-                                  }}
-                                />
-                              </label>
-                            );
-                          }
-                          return (
-                            <label key={person.id} className="shareOption">
-                              <input
-                                type="checkbox"
-                                checked={checked}
-                                disabled={group.locked}
-                                onChange={() => {
-                                  const next = checked
-                                    ? item.assignedPersonIds.filter((id) => id !== person.id)
-                                    : [...item.assignedPersonIds, person.id];
-                                  updateDraftItem(item.id, "assignedPersonIds", next);
-                                }}
-                              />
-                              <span>{person.name}</span>
-                            </label>
-                          );
-                        })}
-                      </div>
+                      <b className="zDraftTotal">{Number.isFinite(lt) ? lt.toFixed(2).replace(".", ",") : "0,00"} {currency}</b>
                     </div>
-
-                    <button
-                      type="button"
-                      className="iconButton"
-                      onClick={() => removeDraftItem(item.id)}
-                      disabled={group.locked || draftItems.length <= 1}
-                      title={t("removeItem")}
-                    >
-                      <Trash2 size={17} />
-                    </button>
+                    <button type="button" className="zDraftDel" onClick={() => removeDraftItem(item.id)} disabled={group.locked || draftItems.length <= 1} aria-label={`${t("removeItem")}: ${item.name || item.ordinalNumber}`} title={t("removeItem")}><Trash2 size={17} /></button>
                   </div>
-
-                  <small className="muted">
-                    {t("itemNumber")}: {index + 1}
-                  </small>
+                  {(fieldErrors[`item-${item.id}-price`] || fieldErrors[`item-${item.id}-quantity`]) && <span className="validationMessage">{fieldErrors[`item-${item.id}-price`] || fieldErrors[`item-${item.id}-quantity`]}</span>}
+                  {assignNow && (
+                    <div className="zDraftPeople" role="group" aria-label={t("assignedTo")}>
+                      {group.people.map((person) => {
+                        if (units(item)) {
+                          const u = item.assignedUnits?.[person.id] ?? 0;
+                          return (
+                            <span key={person.id} className={"zPChip zPChipStep" + (u > 0 ? " on" : "")}>
+                              <i>{person.name.charAt(0).toUpperCase()}</i><span>{person.name}</span>
+                              <button type="button" aria-label={`− ${person.name}`} disabled={group.locked || u <= 0} onClick={() => setUnits(person.id, u - 1)}>−</button>
+                              <b>{u}</b>
+                              <button type="button" aria-label={`+ ${person.name}`} disabled={group.locked || left <= 0} onClick={() => setUnits(person.id, u + 1)}>+</button>
+                            </span>
+                          );
+                        }
+                        const checked = item.assignedPersonIds.includes(person.id);
+                        return (
+                          <button key={person.id} type="button" role="checkbox" aria-checked={checked} disabled={group.locked} className={"zPChip" + (checked ? " on" : "")} onClick={() => updateDraftItem(item.id, "assignedPersonIds", checked ? item.assignedPersonIds.filter((id) => id !== person.id) : [...item.assignedPersonIds, person.id])}>
+                            <i>{checked ? "✓" : person.name.charAt(0).toUpperCase()}</i><span>{person.name}</span>
+                          </button>
+                        );
+                      })}
+                      {units(item) && <small className="zMuted">{t("unitsLeft").replace("{n}", String(left))}</small>}
+                    </div>
+                  )}
+                  {!assignNow && !editingExpense && actor && (
+                    <div className="zDraftPeople">
+                      {units(item)
+                        ? <span className={"zPChip zPChipStep" + (m > 0 ? " on" : "")}><span>{t("mineUnits")}</span><button type="button" aria-label={`− ${t("mineUnits")}`} disabled={m <= 0} onClick={() => setMine((x) => ({ ...x, [item.id]: Math.max(0, m - 1) }))}>−</button><b>{m}</b><button type="button" aria-label={`+ ${t("mineUnits")}`} disabled={m >= q} onClick={() => setMine((x) => ({ ...x, [item.id]: Math.min(q, m + 1) }))}>+</button></span>
+                        : <button type="button" role="checkbox" aria-checked={!!m} className={"zPChip" + (m ? " on" : "")} onClick={() => setMine((x) => ({ ...x, [item.id]: m ? 0 : 1 }))}><i>{m ? "✓" : "+"}</i><span>{t("thisIsMine")}</span></button>}
+                    </div>
+                  )}
                 </div>
-              ))}
+                );
+              })}
+              </div>
+              <button type="button" className="zAddItem" onClick={() => { setScanPreview(false); addDraftItem(); }} disabled={group.locked}><Plus size={18} />{t("addItems")}</button>
             </div>
             }{fieldErrors.items && <p className="validationMessage">{fieldErrors.items}</p>}
           </div>)}
@@ -1098,15 +1074,25 @@ export const GroupAddExpensePage = () => {
           <div
             className="payersSection"
           >
-            <button type="button" className="secondaryButton" aria-expanded={payerOpen} onClick={()=>setPayerOpen(!payerOpen)}>{t("paidBy")}: {multiple?t("manyPayers"):group.people.find(p=>p.id===single)?.name||t("billPayers")} ▾</button>
-            {payerOpen&&<div className="rpPicker"><div className="sharePicker">{[false,true].map(v=><button key={String(v)} type="button" className={"expenseModeParticipant"+(v===multiple?" selected":"")} aria-pressed={v===multiple} disabled={group.locked} onClick={()=>{setMultiple(v);setFieldErrors({})}}>{t(v?"manyPayers":"onePayer")}</button>)}</div>
-            {group.people.map(p=>multiple?<label className="rpContribution" key={p.id}>{p.name}<input inputMode="decimal" placeholder="0,00" disabled={group.locked} value={amounts[p.id]??""} onChange={e=>{const v=sanitizeDecimalInput(e.target.value);setAmounts(prev=>({...prev,[p.id]:v}))}} aria-invalid={!!fieldErrors["payer-"+p.id+"-amount"]}/></label>:<button type="button" key={p.id} aria-pressed={single===p.id} className={"expenseModeParticipant"+(single===p.id?" selected":"")} disabled={group.locked} onClick={()=>setSingle(p.id)}>{p.name}</button>)}</div>}
+            {(()=>{const payer=group.people.find(p=>p.id===single);return <>
+            <button type="button" className={"zPayerBtn"+(payerOpen?" open":"")} aria-expanded={payerOpen} onClick={()=>setPayerOpen(!payerOpen)}>
+              <span className="zPayerAv">{multiple?<Users size={18}/>:avInner(payer?.name||"?",avatars[single])}</span>
+              <span className="grow"><small>{t("paidBy")}</small><b>{multiple?t("manyPayers"):payer?.name||t("billPayers")}</b></span>
+              <ChevronDown size={20} className="zPayerChev"/>
+            </button>
+            {payerOpen&&<div className="zPayerPanel">
+              <div className="zSeg2" role="tablist">{[false,true].map(v=><button key={String(v)} type="button" role="tab" aria-selected={v===multiple} className={v===multiple?"on":""} disabled={group.locked} onClick={()=>{setMultiple(v);setFieldErrors({})}}>{t(v?"manyPayers":"onePayer")}</button>)}</div>
+              <div className="zPayerList">{group.people.map(p=>multiple
+                ?<label className="zPayerRow" key={p.id}><span className="zPayerAv sm">{avInner(p.name,avatars[p.id])}</span><span className="grow"><b>{p.name}</b></span><span className="zPayerAmt"><input inputMode="decimal" placeholder="0,00" disabled={group.locked} value={showDec(amounts[p.id])} onBlur={()=>setAmounts(prev=>({...prev,[p.id]:fix2(prev[p.id])}))} onChange={e=>{const v=sanitizeDecimalInput(e.target.value);setAmounts(prev=>({...prev,[p.id]:v}))}} aria-invalid={!!fieldErrors["payer-"+p.id+"-amount"]} aria-label={p.name}/><i>{currency==="EUR"?"€":currency}</i></span></label>
+                :<button type="button" key={p.id} role="radio" aria-checked={single===p.id} className={"zPayerRow"+(single===p.id?" on":"")} disabled={group.locked} onClick={()=>{setSingle(p.id);setPayerOpen(false)}}><span className="zPayerAv sm">{avInner(p.name,avatars[p.id])}</span><span className="grow"><b>{p.name}</b>{p.id===actor&&<small>{t("youShort")}</small>}</span><span className="zPayerCheck">{single===p.id&&<Check size={16}/>}</span></button>)}</div>
+            </div>}</>})()}
             {fieldErrors.payers && <p className="validationMessage">{fieldErrors.payers}</p>}
           </div>
 
           {/* TOTALS */}
           <div
             className="totalsCard"
+            hidden={equalMode || Math.abs(difference) < 0.01}
           >
             <div className="settlement">
               <span>{t("itemsTotal")}</span>
@@ -1122,7 +1108,7 @@ export const GroupAddExpensePage = () => {
             </div>
             <div className="settlement">
               <span>{t("difference")}</span>
-              <strong className={Math.abs(difference) < 0.01 ? "success" : "toastError"}>
+              <strong className={Math.abs(difference) < 0.01 ? "success" : "zNegText"}>
                 {difference.toFixed(2)}
               </strong>
             </div>
@@ -1132,49 +1118,27 @@ export const GroupAddExpensePage = () => {
           {fieldErrors.assignmentTotal && <p className="validationMessage">{fieldErrors.assignmentTotal}</p>}
 
           {(paymentOverpaid || assignmentAmountInvalid) && (
-            <div className="toastError" role="alert">
+            <div className="zInlineError" role="alert">
               {paymentOverpaid
-                ? `Paid amount (${payerTotal.toFixed(2)}) cannot be greater than the item total (${itemTotal.toFixed(2)}). Please check the payer amounts.`
-                : `Assigned amount cannot be greater than the item total (${itemTotal.toFixed(2)}). Please check the item assignments.`}
+                ? t("overpaidMsg").replace("{paid}", payerTotal.toFixed(2)).replace("{total}", itemTotal.toFixed(2))
+                : t("overassignedMsg").replace("{total}", itemTotal.toFixed(2))}
             </div>
           )}
 
-          <button
-            className="primaryButton"
+          <div className="zBottom"><button
+            className="zBtn"
             type="button"
             onClick={saveDraftBill}
             disabled={group.locked || saving}
           >
-            <Plus size={18} />
-            {editingExpense ? t("saveChanges") : t("createExpense")}
-          </button>
+            {editingExpense ? t("saveChanges") : t("createExpense")} · {itemTotal.toFixed(2).replace(".", ",")} {currency === "EUR" ? "€" : currency}
+          </button></div>
         </div>
       </section>
+      {previewPanel}
+      </div>
 
 
-      <RandomSplitWheel currency={currency}
-        open={randomSplitTarget !== null}
-        title={
-          randomSplitTarget === "global"
-            ? t("randomSplitGlobal")
-            : `${t("randomSplitItem")} ${draftItems.find((item) => item.id === randomSplitTarget)?.name || ""}`.trim()
-        }
-        amount={
-          randomSplitTarget === "global"
-            ? itemTotal
-            : Number(draftItems.find((item) => item.id === randomSplitTarget)?.price || 0)
-        }
-        people={group.people}
-        initialSelectedIds={
-          randomSplitTarget === "global"
-            ? draftItems.length > 0
-              ? draftItems[0].assignedPersonIds
-              : []
-            : draftItems.find((item) => item.id === randomSplitTarget)?.assignedPersonIds ?? []
-        }
-        onConfirm={applyRandomSplit}
-        onClose={() => setRandomSplitTarget(null)}
-      />
     </main>
   );
 };

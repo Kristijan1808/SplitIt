@@ -12,7 +12,7 @@ export const ApiLoadingOverlay = () => {
 
   return (
     <>
-      {loading && (
+      {!!loading && (
         <div
           className="screenLoader"
           role="status"

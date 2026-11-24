@@ -55,15 +55,9 @@ export function JoinGroupPage() {
 
   return (
     <main className="page">
-      <div className="topBar">
-        <Link className="backLink" to="/">
-          <ArrowLeft size={18} /> {t("home")}
-        </Link>
-      </div>
-
-      <header className="editorHeading">        <h1>{t("joinTitle")}</h1>
-        <p className="muted">{t("joinHint")}</p></header>
-      <section className="card">
+      <div className="zTop"><Link className="zBack" to="/" aria-label={t("home")}>&#8249;</Link><h1 className="zH2" style={{ flex: 1, textAlign: "center" }}>{t("joinTitle")}</h1><span style={{ width: 44 }} /></div>
+      <p className="zMuted" style={{ margin: "4px 0 0" }}>{t("joinHint")}</p>
+      <section className="zAuth">
         {/^[A-Z0-9]{6}$/.test(code) && (
           <a
             className="secondaryButton"
@@ -77,8 +71,8 @@ export function JoinGroupPage() {
 
 
         <form className="form" onSubmit={handleSubmit} noValidate>
-          <label>
-            {t("groupCodeInput")}
+          <label className="zField">
+            <b>{t("groupCodeInput")}</b>
             <input
               value={code}
               onChange={(event) => {
@@ -92,8 +86,8 @@ export function JoinGroupPage() {
             {fieldErrors.code && <span className="validationMessage">{fieldErrors.code}</span>}
           </label>
 
-          <label>
-            {t("password")}
+          <label className="zField">
+            <b>{t("password")}</b>
             <input
               type="password"
               value={password}

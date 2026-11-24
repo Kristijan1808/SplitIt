@@ -103,18 +103,25 @@ const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:4000";
 async function responseJson<T>(response: Response): Promise<T> {
   if (!response.ok) {
     const messages = translations[getStoredLanguage()];
-    if (response.status === 403) {
-      showToast(messages.forbiddenAction);
-    } else if (response.status === 401) {
-      showToast(messages.unauthorizedMessage);
-    }
-
     const error = await response
       .json()
       .catch(() => ({ error: "Request failed" }));
-    const requestError = new Error(
-      error.error ?? error.message ?? "Request failed",
-    ) as Error & { status: number };
+    const known: Record<string, keyof typeof messages> = {
+      "Username already exists": "usernameTaken",
+      "Email already exists": "emailTaken",
+      "Invalid username or password": "invalidLogin",
+      "Passwords do not match": "invalidPasswordMatch",
+      "Sign in and join this group to access it.": "signInToJoin",
+    };
+    const raw = error.error ?? error.message ?? "Request failed";
+    const text = known[raw] ? String(messages[known[raw]]) : raw;
+    // Kod 403 prikaži stvarni razlog sa servera (npr. „Ponovno se pridruži grupi kodom i lozinkom.”), a ne općenitu poruku.
+    if (response.status === 403) {
+      showToast(raw && raw !== "Request failed" && raw !== "Forbidden" ? text : messages.forbiddenAction);
+    } else if (response.status === 401) {
+      showToast(messages.unauthorizedMessage);
+    }
+    const requestError = new Error(text) as Error & { status: number };
     requestError.status = response.status;
     throw requestError;
   }
@@ -158,7 +165,9 @@ async function request<T>(
       ? getWhoAmI(decodeURIComponent(slug))?.participantId
       : null;
 
-    const response = await fetch(`${API_URL}${path}`, {
+    let response: Response;
+    try {
+    response = await fetch(`${API_URL}${path}`, {
       ...options,
       headers: {
         "Content-Type": "application/json",
@@ -169,6 +178,16 @@ async function request<T>(
         ...(options?.headers ?? {}),
       },
     });
+    } catch (networkError) {
+      const lang = getStoredLanguage();
+      const msg: Record<string, string> = {
+        hr: "Server nije dostupan. Provjeri je li API pokrenut (npm run dev) i pokušaj ponovno.",
+        en: "The server is unreachable. Check that the API is running (npm run dev) and try again.",
+        de: "Der Server ist nicht erreichbar. Prüfe, ob die API läuft (npm run dev), und versuche es erneut.",
+        ja: "サーバーに接続できません。API が起動しているか確認してください（npm run dev）。",
+      };
+      throw Object.assign(new TypeError(msg[lang] ?? msg.en), { cause: networkError, offline: true });
+    }
 
     const data = await responseJson<T>(response);
     if (slug && options?.method && options.method !== "GET") {
@@ -184,6 +203,10 @@ async function request<T>(
 
 export type FxQuote={id:string;rate:number;base:string;quote:string;expiresAt:string;rateDate:string};
 export const api = {
+  leaveGroup: (slug: string) => request<{ ok: boolean }>(`/groups/${encodeURIComponent(slug)}/workflow/leave`, { method: "POST", body: "{}" }),
+  me: () => request<{ user: AuthUser }>("/auth/me", undefined, { background: true }),
+  setProfileImage: (image: string | null) =>
+    request<{ ok: boolean }>("/auth/me/avatar", { method: "PATCH", body: JSON.stringify({ image }) }),
   settings:(slug:string,body:{currency?:string;avatar?:string;archived?:boolean})=>request(`/groups/${slug}/workflow/settings`,{method:"PATCH",body:JSON.stringify(body)}),
   release:(slug:string,id:string)=>request(`/groups/${slug}/workflow/people/${id}/release`,{method:"POST"}),
   role:(slug:string,id:string,role:"ADMIN"|"MEMBER")=>request(`/groups/${slug}/workflow/people/${id}/role`,{method:"PATCH",body:JSON.stringify({role})}),
@@ -192,7 +215,7 @@ export const api = {
   fxQuote:(slug:string,currency:string)=>request<FxQuote>(`/groups/${slug}/fx-quote`,{method:"POST",body:JSON.stringify({currency})},{background:true}),
   login: (body: { username: string; password: string }) =>
     authRequest<{ token: string; user: AuthUser }>("/login", body),
-  register: (body: { username: string; password: string; repeatPassword: string }) =>
+  register: (body: { username: string; email: string; password: string; repeatPassword: string }) =>
     authRequest<{ token: string; user: AuthUser }>("/register", body),
   googleSignIn: (credential: string) =>
     authRequest<{ token: string; user: AuthUser }>("/google", { credential }),

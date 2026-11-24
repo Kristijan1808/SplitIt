@@ -1,0 +1,136 @@
+/* Smjer A – točna replika PDF-a: okvir (sidebar / donja traka s "+"), početna, zaglavlje grupe, postavke. */
+.fl.dFrame{font-family:"Plus Jakarta Sans",system-ui,sans-serif;padding:0;display:block;min-height:100dvh}
+.fl.dFrame *{font-family:inherit}
+.dSide{display:none}
+.dMain{min-width:0;padding-bottom:calc(92px + env(safe-area-inset-bottom))}
+.dMain .page{max-width:680px;margin:0 auto;padding:16px 20px 24px}
+.dMain h1{letter-spacing:-.03em;font-weight:800}
+
+/* donja traka */
+.dTabs{position:fixed;left:0;right:0;bottom:0;z-index:20;display:grid;grid-template-columns:1fr 1fr 76px 1fr 1fr;align-items:center;background:var(--panel-bg);border-radius:24px 24px 0 0;box-shadow:0 -4px 20px rgb(35 30 69/.08);padding:8px 8px calc(10px + env(safe-area-inset-bottom));height:auto}
+.dTabs a{display:flex;flex-direction:column;align-items:center;gap:3px;color:var(--gray);font-size:12px;font-weight:700;padding:6px 0}
+.dTabs a.on{color:var(--accent)}
+.dTabs .dFab{width:56px;height:56px;border-radius:50%;background:var(--accent);color:var(--on-accent);justify-self:center;margin-top:-30px;padding:0;justify-content:center;box-shadow:0 6px 16px rgb(0 0 0/.2)}
+
+/* početna */
+.dHome{display:grid;gap:18px}
+.dHomeTop{display:flex;justify-content:space-between;align-items:center}
+.dHomeTop small{color:var(--gray);font-size:14px}.dHomeTop h1{margin:0;font-size:28px}
+.dAvatar,.dSideUser i,.dTile{display:grid;place-items:center;border-radius:50%;background:var(--tint);color:var(--black);font-weight:800;overflow:hidden;font-style:normal}
+.dAvatar{width:48px;height:48px;font-size:18px}.dAvatar img,.dSideUser i img,.dTile img{width:100%;height:100%;object-fit:cover}
+.dHero{background:var(--hero);color:#fff;border-radius:28px;padding:22px;display:grid;gap:14px}
+.dHero span{font-size:14px;opacity:.9}.dHero strong{display:block;font-size:clamp(38px,11vw,52px);letter-spacing:-.04em;line-height:1.1;font-weight:800}
+.dHeroGreet{display:none;font-size:16px}
+.dHeroTiles{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.dHeroTiles>div{background:var(--panel-bg);border-radius:18px;padding:10px 14px;display:grid}
+.dHeroTiles small{color:var(--gray);font-size:13px}.dHeroTiles b{font-size:18px;font-weight:800}
+.dHeroBtn{display:none;background:var(--panel-bg);color:var(--accent);border-radius:999px;font-weight:800;padding:16px 28px;font-size:15px}
+.pos{color:var(--success)}.neg{color:var(--debt)}
+.dHead{display:flex;justify-content:space-between;align-items:baseline;margin:6px 0 10px}.dHead h2{margin:0;font-size:20px;font-weight:800}.dHead a{color:var(--accent);font-weight:700;font-size:14px}
+.dGroups{display:grid;gap:10px}
+.dGroup{display:flex;align-items:center;gap:14px;background:var(--panel-bg);border-radius:20px;padding:14px 16px;box-shadow:var(--shadow-card)}
+.dTile{width:52px;height:52px;border-radius:16px;flex:none;font-size:20px;background:var(--tint)}
+.dTile.t1{background:var(--peach)}.dTile.t2{background:var(--success-tint)}.dTile.t3{background:var(--lavender,var(--tint))}
+.dGroupMid{flex:1;min-width:0;display:grid}.dGroupMid strong{font-size:17px;font-weight:800}.dGroupMid small{color:var(--gray);font-size:14px}
+.dGroupBal{display:grid;text-align:right}.dGroupBal small{color:var(--gray);font-size:13px}.dGroupBal b{font-size:18px;font-weight:800;color:var(--gray)}
+.dGroupBal b.pos{color:var(--success)}.dGroupBal b.neg{color:var(--debt)}
+.dJoin{margin-top:12px;width:100%;justify-content:center;text-align:center;display:flex;align-items:center}
+.dRecent{display:grid;gap:12px;background:var(--panel-bg);border-radius:20px;padding:14px 16px;box-shadow:var(--shadow-card)}
+.dRecent div{display:grid;gap:2px;border-bottom:1px solid var(--line);padding-bottom:10px}.dRecent div:last-child{border:0;padding:0}.dRecent small{color:var(--gray)}
+
+/* desktop */
+@media(min-width:1024px){
+ .dTabs{display:none}.dMain{padding:0 0 32px 250px}.dMain .page{max-width:1040px;padding:32px 40px}
+ .dSide{display:flex;flex-direction:column;gap:6px;position:fixed;top:0;bottom:0;left:0;width:250px;background:var(--panel-bg);border-right:1px solid var(--line);padding:24px 16px}
+ .dLogo{width:46px;height:46px;border-radius:14px;background:var(--accent);color:var(--on-accent);display:grid;place-items:center;font-size:22px;font-weight:800;margin:0 0 16px 0}
+ .dSide small{letter-spacing:.14em;font-size:12px;font-weight:700;color:var(--gray);margin:0 14px 6px}
+ .dSide>a:not(.dLogo):not(.dSideUser){padding:13px 14px;border-radius:14px;font-weight:700;font-size:17px;color:var(--gray)}
+ .dSide>a.on{background:var(--tint);color:var(--accent)}
+ .dSideUser{margin-top:auto;display:flex;align-items:center;gap:12px}.dSideUser i{width:46px;height:46px}.dSideUser b{display:block;font-size:17px}.dSideUser small{margin:0;letter-spacing:0;font-weight:400}
+ .dHomeTop{display:none}
+ .dHero{grid-template-columns:1fr auto;grid-template-areas:"a b" "c b";align-items:end;padding:28px 32px;border-radius:32px}
+ .dHero>div:first-child{grid-area:a}.dHeroTiles{grid-area:c;grid-template-columns:auto auto;justify-content:start}.dHeroTiles>div{min-width:106px}
+ .dHeroGreet{display:block}.dHeroBtn{display:block;grid-area:b;align-self:end}
+ .dCols{display:grid;grid-template-columns:1fr 320px;gap:32px;align-items:start}
+ .dGroups{grid-template-columns:1fr 1fr}.dGroup{flex-wrap:wrap}.dGroupBal{width:100%;text-align:left}
+ .dJoin{display:none}
+}
+/* grupa: okrugli gumb nazad i pill tabovi kao u dizajnu */
+.fl .backLink{display:inline-grid;place-items:center;width:44px;height:44px;border-radius:50%;background:var(--panel-bg);box-shadow:var(--shadow-card);font-size:0;color:var(--black)}
+.fl .backLink svg{width:20px;height:20px}
+.fl .groupHeader .eyebrow{display:none}
+.fl .groupHeader h1{font-size:22px;text-align:center}
+.fl .groupHeader .groupTitleRow{justify-content:center;text-align:center}
+/* postavke */
+.fl .flSettings{padding:8px 16px}
+.fl .flSettings .settingsField,.fl .flSettings>div{padding:14px 0;border-bottom:1px solid var(--line);font-weight:700}
+.fl .profileAvatar{border-radius:50%}
+.fl .dHero small.dHeroGreet{color:#fff;opacity:.95}
+@media(min-width:1024px){.dHero>div:first-child>span{display:none}.dCols:not(:has(#nedavno)){grid-template-columns:1fr}.dHero strong{font-size:56px}}
+
+/* grupa */
+.fl .dMain .page:has(.groupHeader){position:relative}
+.fl .backLink{position:absolute;left:20px;top:16px;z-index:2}
+.fl .groupHeader{padding-top:0}
+.fl .groupHeader>div:first-child{display:grid;justify-items:center}
+.fl .groupHeader .groupMetaRow{display:none}
+.fl .groupHeader .groupAvatar{width:40px;height:40px;flex-basis:40px;border-radius:12px;font-size:20px}
+.fl .groupHeader .groupTitleRow{min-height:44px;gap:10px}
+.fl .groupHeader .groupTitleRow p{display:none}
+.fl .headerActions{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin:4px 0}
+.fl .headerActions>*{min-height:36px;padding:6px 14px;font-size:13px;box-shadow:none;background:var(--tint)}
+.fl .facetTotal{display:none}
+.fl .facetBalance .textButton{background:#ffffff26}
+.owedCard{background:var(--panel-bg);border-radius:24px;padding:16px;box-shadow:var(--shadow-card)}
+.owedCard h3{margin:0 0 8px;font-size:17px;font-weight:800}
+.owedRow{display:flex;align-items:center;gap:12px;padding:10px 0;border-top:1px solid var(--line)}
+.owedRow i{width:44px;height:44px;border-radius:50%;background:var(--tint);display:grid;place-items:center;font-style:normal;font-weight:800}
+.owedRow span{flex:1;font-weight:700;font-size:16px}.owedRow b{color:var(--success);font-size:16px}
+@media(min-width:1024px){.fl .backLink{display:none}.fl .groupHeader>div:first-child{justify-items:start}.fl .groupHeader .groupTitleRow{justify-content:flex-start}.fl .groupHeader h1{text-align:left;font-size:34px}.fl .headerActions{justify-content:flex-start}}
+.fl .groupHeader{padding-left:56px;padding-right:56px}
+.fl .groupHeader h1{font-size:20px}
+.fl .groupHeader .groupTitleRow{justify-content:center}
+.fl .headerActions>*{white-space:nowrap}
+@media(min-width:1024px){.fl .groupHeader{padding-left:0}}
+.fl .groupHeader .headerActions{padding:0;display:flex;flex-wrap:nowrap;width:100%}
+.fl .headerActions>*{flex:1;min-width:0;font-size:12px;padding:6px 8px}
+
+/* === ostali ekrani === */
+.fl .backLink{position:static;display:inline-grid;margin-bottom:12px}
+.fl .page:has(.groupHeader) .backLink{position:absolute;left:20px;top:16px;margin:0}
+.fl .topBar{padding:0;border:0;background:transparent;display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+.fl .topBar .backLink{margin:0}
+.fl .editorHeading h1,.fl .page>h1{font-size:30px;font-weight:800;margin:4px 0}
+.fl .editorHeading .muted{font-size:14px}
+/* polja kao u dizajnu: bijela pločica, mala oznaka + podebljana vrijednost, bez okvira */
+.fl .card:has(>form.form),.fl .card:has(>.form){background:transparent;box-shadow:none;padding:0}
+.fl form.form{gap:12px}
+.fl form.form>label,.fl form.form label:not(.accessOption){display:grid;gap:2px;font-size:12px;font-weight:700;color:var(--gray);background:var(--panel-bg);border-radius:18px;padding:10px 16px;box-shadow:var(--shadow-card)}
+.fl form.form label:not(.accessOption) input{border:0;background:transparent;padding:0;min-height:28px;font-size:17px;font-weight:800;color:var(--black);box-shadow:none}
+.fl form.form fieldset.accessOptions{border:0;padding:0;display:grid;gap:10px}
+.fl fieldset.accessOptions legend{font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--gray);margin-bottom:8px;padding:0}
+.fl .accessOption{display:grid;gap:2px;background:var(--panel-bg);border:2px solid var(--line);border-radius:18px;padding:14px 16px;box-shadow:none}
+.fl .accessOption.selected{background:var(--tint);border-color:var(--accent)}
+.fl .accessOption input[type=radio]{display:none}
+.fl .accessOption strong{font-size:16px;font-weight:800;color:var(--black)}.fl .accessOption small{color:var(--gray);font-size:13px}
+.fl .peopleInputs{display:grid;gap:10px}
+.fl .inlineInput{display:flex;gap:8px;align-items:center}
+.fl .inlineInput input{flex:1;background:var(--panel-bg);border:0;border-radius:18px;min-height:56px;padding:0 16px;font-weight:800;box-shadow:var(--shadow-card)}
+.fl .add-participants-btn{background:transparent;box-shadow:none;justify-content:flex-start;padding:0;min-height:40px;color:var(--accent)}
+.fl .createdCodeBox{background:var(--tint);text-align:left}.fl .createdCodeBox strong{letter-spacing:.25em;font-size:32px}
+form.form>.primaryButton,.fl form.form>button[type=submit]{width:100%}
+/* prijava / pridruži se: kartice → pločice */
+.fl .authCard,.fl .loginCard{box-shadow:var(--shadow-card)}
+/* dugovanja */
+.settleHero{background:var(--hero);color:#fff;border-radius:24px;padding:16px 20px;display:grid;gap:2px}
+.settleHero span{font-size:14px;opacity:.9}.settleHero strong{font-size:32px;font-weight:800;letter-spacing:-.03em}
+.fl .settlement{background:var(--panel-bg);padding:12px 14px;display:flex;justify-content:space-between;align-items:center}
+.fl .groupOwed strong{color:var(--success)}.fl .groupOwes strong{color:var(--debt)}
+.fl .groupBalanceAmount{color:var(--success)}.fl .groupBalanceDebt{color:var(--debt)}
+/* planovi */
+.fl .planCard,.fl .plan{border-radius:24px}
+.fl .planCard.recommended,.fl .plan.recommended,.fl .plan.featured{background:var(--tint);border:2px solid var(--accent)}
+/* novi trošak: tablica stavki i fiksni donji gumbi */
+.fl .receiptItems,.fl .itemsTable{border-radius:24px}
+.fl .page .stickyActions,.fl .expenseSubmitBar{position:sticky;bottom:calc(84px + env(safe-area-inset-bottom));background:var(--panel-bg);border-radius:24px;padding:12px;box-shadow:var(--shadow-card)}
+.fl form.form label:not(.accessOption) input:not([type=checkbox]):not([type=radio]){border:0!important;background:transparent!important;border-radius:0;padding:0;min-height:28px;box-shadow:none}

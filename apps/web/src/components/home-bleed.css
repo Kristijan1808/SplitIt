@@ -1,0 +1,16 @@
+.fl .page.homeBleed {width:100%;max-width:none;padding:0 0 24px;margin:0;display:grid;grid-template-columns:minmax(0,1fr);gap:12px}
+.fl .homeBleed > :not(.fullHomeBanner){box-sizing:border-box;width:min(656px,calc(100% - 24px));margin-inline:auto}
+.fl .homeBleed > .fullHomeBanner{box-sizing:border-box;display:flex;align-items:center;justify-content:space-between;gap:12px;position:relative;isolation:isolate;overflow:hidden;width:100%;min-height:clamp(145px,15vw,236px);padding:22px clamp(18px,4vw,72px);border:0;border-radius:0;background:var(--hero) url('../styles/facet-mesh.svg') center/cover;color:white}
+.fl .fullHomeBanner h1{color:white;white-space:pre-line;line-height:1.08;margin:0;font-size:clamp(27px,3.4vw,48px)}
+.fl .fullHomeBanner svg{flex:none;width:clamp(64px,9vw,110px)}
+.fullHomeBanner::after{content:"";position:absolute;inset:0 0 0 auto;width:26%;pointer-events:none;z-index:-1;background:linear-gradient(52deg,transparent 48.9%,#ffffff36 49%,transparent 49.3%),linear-gradient(-38deg,transparent 48.9%,#ffffff36 49%,transparent 49.3%)}
+.fl:has(.homeBleed) > .flHeader{display:none}
+.fl :is(.primaryButton,.secondaryButton,.expenseEditButton,.flGroup){transition:filter 140ms ease-out,background-color 140ms ease-out}
+@media(hover:hover){.fl :is(.primaryButton,.secondaryButton,.expenseEditButton,.flGroup):hover:not(:disabled){filter:brightness(.95)}}
+.fl .flStepper{font-variant-numeric:tabular-nums}
+.fl .billReveal{display:grid;grid-template-rows:0fr;opacity:0;transition:grid-template-rows 200ms ease-out,opacity 160ms ease-out}
+.fl .billReveal[data-open=true]{grid-template-rows:1fr;opacity:1}
+.billReveal>div{min-height:0;overflow:hidden}
+.fl .billReveal .expenseDetails{animation:none}
+.fl .expenseSummaryMain .billPayerLine{white-space:normal;overflow-wrap:anywhere;display:block}
+@media(prefers-reduced-motion:reduce){.fl :is(.billReveal,.billReveal *,.fullHomeBanner,.homeBleed a,.expenseEditButton){animation:none!important;transition:none!important}}

@@ -1,0 +1,799 @@
+/* Komponente iz HTML reference (59 prikaza). Sve boje dolaze iz tokena aktivne palete, pa radi u svim paletama i tamnoj temi. */
+.fl{--z-a3:#FBEFC8;--z-a4:var(--peach,#FBE3C6);--z-sh:0 -4px 20px rgb(27 26 46/.08)}
+:root[data-theme=dark] .fl{--z-a3:#4A4128;--z-sh:0 -4px 20px rgb(0 0 0/.4)}
+.zPage{display:grid;gap:14px;align-content:start}
+.zTop{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.zTop h1,.zH1{margin:0;font-size:28px;font-weight:800;letter-spacing:-.04em}
+.zH2{font-weight:800;font-size:17px;margin:0}
+.zMuted{font-size:12px;color:var(--gray)}
+.zBack{width:44px;height:44px;border-radius:22px;border:0;background:var(--panel-bg);color:var(--black);font-size:20px;display:inline-grid;place-items:center;flex:none;box-shadow:var(--shadow-card)}
+.zCard{background:var(--panel-bg);border-radius:22px;padding:14px 16px;box-shadow:var(--shadow-card)}
+.zBtn,.zBtnG,.zBtnD{display:flex;align-items:center;justify-content:center;width:100%;min-height:56px;border-radius:28px;border:0;font-weight:800;font-size:16px;cursor:pointer;text-align:center}
+.zBtn{background:var(--accent);color:var(--on-accent)}
+.zBtnG{background:var(--panel-bg);color:var(--accent);border:2px solid var(--line);font-size:15px}
+.zBtnD{background:var(--debt-tint);color:var(--debt);font-size:15px}
+.zBtn.sm,.zBtnG.sm{min-height:44px;width:auto;padding:0 20px;font-size:14px}
+.zPill{height:40px;padding:0 14px;border-radius:20px;border:0;background:var(--tint);color:var(--accent);font-weight:700;font-size:13px;white-space:nowrap;cursor:pointer;display:inline-flex;align-items:center}
+.zTabs{display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;padding:2px 0}.zTabs::-webkit-scrollbar{display:none}
+.zTab{height:44px;padding:0 16px;border-radius:22px;border:0;background:var(--panel-bg);font-weight:700;font-size:14px;color:var(--gray);white-space:nowrap;cursor:pointer;flex:none}
+.zTab.on{background:var(--accent);color:var(--on-accent)}
+.zTabs.small .zTab{height:38px}
+.zField{display:grid;background:var(--panel-bg);border-radius:16px;padding:8px 14px;box-shadow:var(--shadow-card)}
+.zField>b,.zField>label{font-size:11px;color:var(--gray);font-weight:700}
+.zField input,.zField select,.zField textarea{border:0!important;background:transparent!important;box-shadow:none!important;padding:4px 0!important;min-height:0!important;font-size:16px;font-weight:800;color:var(--black);width:100%;outline:0}
+.zAv{width:44px;height:44px;border-radius:50%;display:grid;place-items:center;font-weight:800;flex:none;background:var(--tint);color:var(--black);overflow:hidden;font-style:normal}
+.zAv img{width:100%;height:100%;object-fit:cover}
+.zAv.s{width:26px;height:26px;font-size:11px;border:2px solid var(--panel-bg);margin-left:-6px}
+.zAv.c1{background:var(--tint)}.zAv.c2{background:var(--success-tint)}.zAv.c3{background:var(--z-a3)}.zAv.c4{background:var(--z-a4)}
+.zRow{display:flex;align-items:center;gap:12px;padding:10px 0}.zRow+.zRow{border-top:1px solid var(--line)}
+.zRow .grow{flex:1;min-width:0}.zRow .grow b{display:block}
+.zHero{background:var(--hero);color:#fff;border-radius:28px;padding:22px 24px;display:grid;gap:2px}
+.zHero small{font-size:13px;opacity:.92}.zHero strong{font-size:clamp(34px,10vw,44px);font-weight:800;letter-spacing:-.04em;line-height:1.1}
+.zHero.neg{background:var(--debt)}
+.zPos{color:var(--success);font-weight:800}.zNeg{color:var(--debt);font-weight:800}
+.zOpt{display:grid;gap:2px;text-align:left;border-radius:18px;padding:12px 14px;border:2px solid var(--line);background:var(--panel-bg);cursor:pointer;width:100%;font:inherit;color:inherit}
+.zOpt.on{border-color:var(--accent);background:var(--tint)}.zOpt b{font-size:15px}.zOpt span{font-size:12px;color:var(--gray)}
+.zTile{width:52px;height:52px;border-radius:16px;display:grid;place-items:center;font-weight:800;font-size:20px;background:var(--tint);color:var(--black);overflow:hidden;flex:none;font-style:normal}.zTile img{width:100%;height:100%;object-fit:cover}
+.zTile.t1{background:var(--z-a4)}.zTile.t2{background:var(--success-tint)}.zTile.t3{background:var(--z-a3)}
+.zTl{display:flex;gap:12px;padding:8px 0}.zTl:before{content:'';width:10px;height:10px;border-radius:5px;background:var(--accent);margin-top:5px;flex:none}
+.zCheck{width:28px;height:28px;border-radius:9px;border:2px solid var(--accent);background:var(--panel-bg);flex:none;color:var(--on-accent);font-weight:800;display:grid;place-items:center;cursor:pointer;padding:0}.zCheck.on{background:var(--accent)}
+.zBar{height:8px;border-radius:4px;background:var(--line);overflow:hidden}.zBar i{display:block;height:100%;background:var(--accent);border-radius:4px}
+.zSteps{display:flex;gap:8px}.zSteps i{flex:1;height:5px;border-radius:3px;background:var(--line)}.zSteps i.on{background:var(--accent)}
+.zToggle{width:48px;height:28px;border-radius:14px;background:var(--line);position:relative;border:0;flex:none;cursor:pointer}.zToggle:after{content:'';position:absolute;left:3px;top:3px;width:22px;height:22px;border-radius:11px;background:var(--panel-bg);transition:.15s}.zToggle.on{background:var(--accent)}.zToggle.on:after{left:23px;background:var(--on-accent)}
+.zOverlay{position:fixed;inset:0;background:rgb(20 16 40/.5);z-index:60;display:flex;align-items:flex-end;justify-content:center}
+.zSheet{width:100%;max-width:520px;background:var(--page-bg);border-radius:28px 28px 0 0;padding:12px 20px calc(24px + env(safe-area-inset-bottom));display:grid;gap:10px}
+.zSheet:before{content:'';display:block;width:40px;height:5px;border-radius:3px;background:var(--line);margin:0 auto 6px}
+.zModal{background:var(--page-bg);border-radius:28px;padding:24px;width:min(480px,calc(100% - 32px));display:grid;gap:10px;align-self:center}
+@media(min-width:1024px){.zOverlay{align-items:center}.zSheet{border-radius:28px}.zSheet:before{display:none}}
+.zBottom{position:fixed;left:0;right:0;bottom:calc(78px + env(safe-area-inset-bottom));z-index:15;background:var(--panel-bg);padding:14px 20px;border-radius:24px 24px 0 0;box-shadow:var(--z-sh)}
+@media(min-width:1024px){.zBottom{left:250px;bottom:0;border-radius:0}}
+.zGrid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.zFeed .zRow b+span{color:var(--black)}
+.zSectionLabel{font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--gray);margin:6px 0 0}
+@media(min-width:1024px){.zCols{display:grid;grid-template-columns:minmax(0,3fr) minmax(0,2fr);gap:24px;align-items:start}}
+/* popis grupa */
+.zGroups{display:grid;gap:10px}
+.zGroupWrap{position:relative}
+.zGroup{display:flex;align-items:center;gap:14px;background:var(--panel-bg);border-radius:20px;padding:14px 16px;box-shadow:var(--shadow-card)}
+.zGroupMid{flex:1;min-width:0;display:grid}.zGroupMid strong{font-size:17px;font-weight:800}.zGroupMid small{color:var(--gray);font-size:14px}
+.zGroupBal{display:grid;text-align:right}.zGroupBal small{display:none}.zGroupBal b{font-size:18px;font-weight:800;color:var(--gray)}
+.zGroupX{position:absolute;top:-6px;right:-4px;width:26px;height:26px;border-radius:13px;border:0;background:var(--panel-bg);color:var(--gray);box-shadow:var(--shadow-card);display:grid;place-items:center}
+@media(min-width:1024px){.zGroups{grid-template-columns:repeat(3,1fr)}.zGroup{flex-wrap:wrap}.zGroupBal{width:100%;text-align:left}}
+.zMember{flex-wrap:wrap}.zMemberActions{display:flex;gap:6px;flex-wrap:wrap;width:100%;padding-left:56px}
+.zMemberActions:empty{display:none}.zMemberActions .zPill{height:34px;font-size:12px}
+.zManageRow{display:flex;justify-content:space-between;align-items:center;border:0;width:100%;font:inherit;color:inherit;cursor:pointer;margin:0}
+.fl .zHero small,.fl .zHero strong{color:#fff}
+
+/* ===== novi trošak (GroupAddExpensePage) ===== */
+.fl .page.wide:has(.zExpenseTop){padding-bottom:150px;max-width:760px}
+.zExpenseTop{margin-bottom:8px}.zExpenseTop .zH2{font-size:17px}
+.fl .page.wide .card.formCard{background:transparent;box-shadow:none;padding:0}
+.fl .page.wide .sectionHeaderWithButton{margin-bottom:6px}
+.fl .page.wide .expenseModeSelector{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.fl .page.wide .expenseModeOption{background:var(--panel-bg);border:2px solid var(--line);border-radius:20px;padding:12px 14px;text-align:left;display:grid;gap:2px;color:var(--black)}
+.fl .page.wide .expenseModeOption.selected{background:var(--tint);border-color:var(--accent)}
+.fl .page.wide .expenseModeOption strong{font-size:15px}.fl .page.wide .expenseModeOption span{font-size:12px;color:var(--gray)}
+.fl .page.wide .billImageActions{background:var(--tint);border-radius:22px;padding:14px}
+.fl .page.wide .form>label,.fl .page.wide .form label.fieldLabel{background:var(--panel-bg);border-radius:16px;padding:8px 14px;box-shadow:var(--shadow-card);font-size:11px;font-weight:700;color:var(--gray)}
+.fl .page.wide .form input:not([type=checkbox]):not([type=radio]),.fl .page.wide .form select{background:var(--panel-bg);border:0;border-radius:16px;font-weight:800;box-shadow:var(--shadow-card)}
+.fl .page.wide .equalExpenseSection,.fl .page.wide .payersSection{background:var(--panel-bg);border-radius:22px;padding:16px;box-shadow:var(--shadow-card)}
+.fl .page.wide .draftItem,.fl .page.wide .rpPicker>*{background:var(--panel-bg);border-radius:20px;box-shadow:var(--shadow-card)}
+.fl .page.wide .settlement{background:var(--panel-bg)}
+.fl .page.wide .participantChoice,.fl .page.wide .equalSplitModes button{border-radius:22px;min-height:40px}
+.fl .page.wide .randomSplitHeaderAction strong{display:none}
+.zSettingsList.flSettings{padding:6px 16px}
+.zSettingsList .settingsField{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 0;border-bottom:1px solid var(--line)}
+.zSettingsList .settingsField>label,.zSettingsList .settingsField>b{font-weight:800;font-size:16px}
+
+/* ===== desktop: grupa u dva stupca ===== */
+@media(min-width:1024px){
+ .fl .page:has(.groupHeader) .backLink{display:none}
+ .fl .groupHeader{padding-left:0}
+ .fl .flActions{position:fixed;top:28px;bottom:auto;left:auto;right:40px;width:auto;display:flex;gap:12px;z-index:30}
+ .fl .flActions>*{width:auto;min-width:170px}
+ .fl .card:has(>.facetStats){grid-template-columns:minmax(0,3fr) minmax(0,2fr);align-items:start;gap:16px 24px}
+ .fl .card:has(>.facetStats)>*{grid-column:1}
+ .fl .card:has(>.facetStats)>.facetStats{grid-column:2;grid-row:1}
+ .fl .card:has(>.facetStats)>.owedCard{grid-column:2;grid-row:2}
+ .fl .card:has(>.facetStats)>.expenseFilters{grid-row:1}
+}
+
+/* ===== označavanje stavki i podjela ===== */
+.zClaimBanner{display:flex;align-items:center;gap:10px;background:var(--tint);border-radius:18px;padding:12px 14px;margin:8px 0}
+.zClaimBanner b{display:block;font-size:15px}.zClaimBanner span:not(.zAvs){font-size:12px;color:var(--gray)}
+.zAvs{display:inline-flex;padding-left:6px}
+.zItems{background:var(--panel-bg);border-radius:22px;padding:4px 14px;box-shadow:var(--shadow-card)}
+.zItem{display:flex;align-items:center;gap:12px;min-height:60px;padding:8px 0}.zItem+.zItem{border-top:1px solid var(--line)}
+.zItem .grow{flex:1;min-width:0}.zItem .grow>b{display:block;font-size:15px}
+.zWho{display:flex;align-items:center;gap:6px;margin-top:2px}.zWho .zMuted{font-size:12px}
+.zItemPrice{font-size:15px;white-space:nowrap}
+.zStep{display:flex;align-items:center;gap:8px}.zStep button{width:36px;height:36px;border-radius:18px;border:0;background:var(--tint);color:var(--accent);font-weight:800;font-size:18px}.zStep output{min-width:16px;text-align:center;font-weight:800}
+.zShareBar{position:sticky;bottom:calc(86px + env(safe-area-inset-bottom));display:flex;justify-content:space-between;align-items:center;gap:12px;background:var(--panel-bg);border-radius:22px;padding:12px 16px;box-shadow:var(--z-sh);margin-top:10px;z-index:5}
+.zShareBar small{display:block;font-size:11px;font-weight:700;color:var(--gray)}.zShareBar strong{font-size:26px;font-weight:800;letter-spacing:-.03em}
+.zSplit{display:grid;gap:10px}
+@media(min-width:1024px){.zShareBar{bottom:16px}.zSplit{grid-template-columns:repeat(2,1fr)}}
+
+/* ===== ispravci preklapanja / preljevanja ===== */
+.fl .expenseCard,.fl .expenseDetails,.fl .zItems,.fl .zSplit,.fl .zSplit>*,.fl .zItem .grow{min-width:0;max-width:100%}
+.fl .expenseDetails{overflow:hidden;padding:4px 0 8px}
+.fl .zSplit .zMuted{overflow-wrap:anywhere}
+.fl .zItemPrice{flex:none}
+.fl .expenseCard{overflow:hidden}
+.fl .expenseSummary{min-width:0}
+.fl .expenseSummaryAmount{white-space:nowrap}
+.fl .expenseFilters{display:grid;grid-template-columns:1fr 1fr;gap:10px;align-items:end}
+.fl .expenseFilters>*{min-width:0}
+.fl .expenseFilters>*:first-child{grid-column:1/-1}
+.fl .expenseFilters .secondaryButton{min-height:40px;width:auto;padding:0 14px;font-size:13px}
+.fl .expenseFilters label{display:grid;gap:2px;font-size:11px;font-weight:700;color:var(--gray)}
+.fl .expenseFilters input,.fl .expenseFilters select{min-height:44px}
+.fl .page,.fl .groupTabContent{min-width:0}
+.fl .dMain{overflow-x:clip}
+.fl .flActions{pointer-events:none}.fl .flActions>*{pointer-events:auto}
+.fl .page:has(.flActions),.fl main.page{padding-bottom:calc(150px + env(safe-area-inset-bottom))}
+@media(min-width:1024px){.fl .page:has(.flActions),.fl main.page{padding-bottom:48px}}
+
+/* ===== prijava / pridruživanje / nova grupa / planovi ===== */
+.zAuth{display:grid;gap:12px}
+.zAuth .authForm{margin-top:4px}
+.zAuth .authDivider{display:none}
+.zTextBtn{background:transparent!important;box-shadow:none!important;border:0;color:var(--accent);font-weight:800;font-size:15px;min-height:40px;padding:0;text-align:left;display:inline-flex;align-items:center;gap:6px;cursor:pointer}
+.fl form.form>.primaryButton{background:var(--accent)}
+.fl form.form>.primaryButton,.fl form.form>button[type=submit]{min-height:56px;border-radius:28px}
+.fl .subscriptionPlans{display:grid;gap:12px}
+.fl .subscriptionPlan{border-radius:24px;padding:18px;border:2px solid transparent;position:relative}
+.fl .subscriptionPlan.subscriptionPlanFeatured{background:var(--tint);border-color:var(--accent)}
+.fl .subscriptionFeaturedBadge{position:absolute;top:14px;right:14px;background:var(--accent);color:var(--on-accent);border-radius:999px;padding:4px 10px;font-size:11px;font-weight:800;display:inline-flex;gap:4px;align-items:center}
+.fl .subscriptionPlanIcon{display:none}
+.fl .subscriptionPlanHeading h2{font-size:22px;font-weight:800;margin:0}
+.fl .subscriptionFeatureList{list-style:none;padding:0;margin:10px 0 0;display:grid;gap:6px;font-size:14px}
+.fl .subscriptionFeatureList li{display:flex;gap:8px;align-items:flex-start}.fl .subscriptionFeatureList svg{color:var(--accent);flex:none;margin-top:2px}
+.fl .subscriptionScope{border-radius:24px}
+@media(min-width:1024px){.fl .subscriptionPlans{grid-template-columns:repeat(3,1fr);align-items:stretch}}
+@media(min-width:1024px){.fl .page:has(.zAuth){max-width:560px}}
+
+/* ===== dijalozi i postavke grupe ===== */
+.confirmationModalBackdrop{background:rgb(20 16 40/.5)!important;backdrop-filter:none!important}
+.confirmationModal{border:0!important;border-radius:28px!important;background:var(--page-bg)!important;text-align:center;padding:24px!important}
+.confirmationModal h2,.confirmationModal h3{font-size:22px;font-weight:800;letter-spacing:-.03em}
+.confirmationModal p{font-size:14px;color:var(--gray)}
+.confirmationModal button{min-height:52px;border-radius:26px;font-weight:800;border:0}
+.confirmationModalActions,.confirmationModal footer{display:grid;gap:8px}
+.zAdmin{border:0;padding:0;margin:0;display:grid;gap:12px;min-width:0}
+.zAdmin label{display:grid;gap:2px;background:var(--panel-bg);border-radius:16px;padding:8px 14px;box-shadow:var(--shadow-card);font-size:11px;font-weight:700;color:var(--gray)}
+.zAdmin input:not([type=file]),.zAdmin select{border:0;background:transparent;font-size:16px;font-weight:800;padding:4px 0;min-height:0;box-shadow:none}
+.zAdmin button{min-height:44px;border-radius:22px;border:0;background:var(--tint);color:var(--accent);font-weight:700;padding:0 16px}
+.zAdmin button[aria-pressed=true]{background:var(--accent);color:var(--on-accent)}
+.zAdmin .sharePicker{display:flex;flex-wrap:wrap;gap:8px}
+.zAdmin>button:last-of-type{background:var(--debt-tint);color:var(--debt)}
+.fl .zTop .zH2{font-size:17px!important;letter-spacing:0!important}
+.fl .inlineInput input{border:0!important;background:var(--panel-bg)!important}
+.fl .zField input{min-height:28px!important}
+.fl form.form .zField,.fl .zAuth .zField{min-height:0}
+.zLoginHero{display:none}
+@media(min-width:1024px){
+ .dFrame:has(.zLoginPage) .dSide{display:none}.dFrame:has(.zLoginPage) .dMain{padding-left:0}
+ .fl .page.zLoginPage{max-width:none!important;padding:0!important;display:grid;grid-template-columns:minmax(0,5fr) minmax(0,7fr);min-height:100dvh}
+ .zLoginHero{display:flex;flex-direction:column;justify-content:flex-end;background:var(--hero);color:#fff;padding:64px}
+ .zLoginHero i{width:58px;height:58px;border-radius:16px;background:#fff;color:var(--accent);display:grid;place-items:center;font-size:28px;font-weight:800;font-style:normal}
+ .zLoginHero h2{font-size:46px;line-height:1.05;letter-spacing:-.04em;font-weight:800;margin:32px 0 0;color:#fff}
+ .zLoginBody{display:grid;align-content:center;justify-items:center;padding:40px}.zLoginBody>*{width:min(420px,100%)}
+}
+
+/* Prozor: tko je što jeo */
+.zClaimSheet{max-height:92dvh;grid-template-rows:auto auto minmax(0,1fr);gap:8px;padding-bottom:0;overflow:hidden}
+@media(min-width:1024px){.zClaimSheet{max-width:640px;max-height:86dvh}}
+.zSheetHead{display:flex;align-items:center;gap:12px}
+.zSheetHead .grow{flex:1;min-width:0;display:grid;gap:2px}
+.zSheetHead b{font-size:20px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.zSheetHead small{color:var(--gray);font-size:14px;font-weight:700}
+.zSheetHead .zBack{position:static;flex:none;width:40px;height:40px;border-radius:50%;border:0;background:var(--panel-bg);color:var(--black);display:grid;place-items:center;cursor:pointer}
+.zSheetBody{overflow-y:auto;min-height:0;padding-bottom:calc(16px + env(safe-area-inset-bottom));-webkit-overflow-scrolling:touch}
+.zSheetBody .zShareBar{position:sticky;bottom:0}
+
+/* ===== Dorada dizajna: segmentirani tabovi grupe ===== */
+.fl .groupTabBar{display:grid!important;grid-template-columns:repeat(4,minmax(0,1fr));gap:2px;padding:4px;border-radius:24px;background:var(--panel-bg);box-shadow:var(--shadow-card,none);overflow:visible;margin:12px 0 8px}
+.fl .groupTabBar .groupTab{flex:none;min-width:0;min-height:40px;padding:0 4px;border-radius:20px;background:transparent;box-shadow:none;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:flex;align-items:center;justify-content:center;gap:6px;border:0}
+.fl .groupTabBar .groupTab svg{display:none}
+@media(min-width:1024px){.fl .groupTabBar{max-width:560px}.fl .groupTabBar .groupTab svg{display:inline}}
+.fl .groupTabBar .groupTabActive{background:var(--accent);color:var(--on-accent)}
+
+/* ===== Donja navigacija s ikonama ===== */
+.dTabs{padding-top:10px;align-items:start}
+.dTabs a{font-size:11px;gap:3px}
+.dTabs .dTi{width:44px;height:28px;border-radius:14px;display:flex;align-items:center;justify-content:center;transition:background .15s}
+.dTabs a.on .dTi{background:var(--tint)}
+.dTabs .dFab{width:60px;height:60px;border-radius:50%;border:5px solid var(--page-bg);background:var(--accent);color:var(--on-accent);margin:-30px auto 0;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 6px 16px rgb(0 0 0/.18);padding:0;box-sizing:border-box}
+.dSideAdd{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;height:48px;margin:18px 0 8px;border:0;border-radius:24px;background:var(--accent);color:var(--on-accent);font:inherit;font-weight:800;font-size:15px;cursor:pointer}
+
+/* ===== Brzo dodavanje troška ===== */
+.zQuickOverlay{z-index:60}
+@media(max-width:1023px){.zQuickOverlay{z-index:15}}
+@media(max-width:1023px){.zQuick{padding-bottom:calc(110px + env(safe-area-inset-bottom))}.zQuickOverlay{bottom:0}}
+.zQuick{display:grid;gap:12px}
+.zQuickGroups{display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;padding:2px}
+.zQuickGroups::-webkit-scrollbar{display:none}
+.zQuickChip{flex:none;display:flex;align-items:center;gap:8px;height:48px;padding:0 14px 0 6px;border-radius:24px;border:2px solid var(--line);background:var(--panel-bg);color:var(--gray);font:inherit;font-weight:700;font-size:14px;cursor:pointer;max-width:220px}
+.zQuickChip span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.zQuickChip i.zTile{width:34px;height:34px;font-size:14px;border-radius:50%}
+.zQuickChip.on{border-color:var(--accent);background:var(--tint);color:var(--black);font-weight:800}
+.zQuickChip img,.zQuickChip i{width:34px;height:34px;border-radius:50%;flex:none;object-fit:cover;display:flex;align-items:center;justify-content:center;font-style:normal;font-weight:800;color:var(--black)}
+.zQuickGrid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.zQuickBig{display:flex;flex-direction:column;justify-content:space-between;align-items:flex-start;gap:16px;min-height:128px;padding:16px;border:0;border-radius:22px;background:var(--panel-bg);color:var(--accent);font:inherit;text-align:left;cursor:pointer}
+.zQuickBig span{display:grid;gap:2px}.zQuickBig b{color:var(--black);font-size:16px}.zQuickBig small{color:var(--gray);font-size:12px;font-weight:600}
+.zQuickBig.on{background:var(--accent);color:var(--on-accent)}.zQuickBig.on b,.zQuickBig.on small{color:var(--on-accent)}
+.zQuickRow{display:flex;align-items:center;gap:12px;width:100%;padding:12px 16px;border:0;border-radius:18px;background:var(--panel-bg);color:var(--accent);font:inherit;text-align:left;cursor:pointer}
+.zQuickRow span{flex:1;display:grid}.zQuickRow b{color:var(--black);font-size:15px}.zQuickRow small{color:var(--gray);font-size:12px}.zQuickRow em{font-style:normal;font-weight:800}
+.zQuick button:disabled{opacity:.5;cursor:not-allowed}
+/* Ekran grupe nema donju navigaciju: akcije sjede na dnu, na podlozi */
+@media(max-width:1023px){
+ .fl .flActions{bottom:0;left:0;right:0;padding:14px 16px calc(14px + env(safe-area-inset-bottom));background:var(--panel-bg);border-radius:24px 24px 0 0;box-shadow:0 -4px 20px rgb(27 26 46/.08);pointer-events:auto;z-index:12}
+ .fl .flActions>*{white-space:nowrap;min-height:52px}
+ .fl .dMain:has(.flActions){padding-bottom:0}
+ .fl .page:has(.flActions){padding-bottom:calc(110px + env(safe-area-inset-bottom))}
+}
+
+/* ===== UX: brzi unos troška ===== */
+.zExpGrid{display:grid;gap:16px}
+@media(min-width:1024px){.zExpGrid{grid-template-columns:minmax(0,1fr) 340px;align-items:start}.zExpPreview{position:sticky;top:24px}.zExpGrid .zBottom{display:none}}
+.zExpPreview{background:var(--panel-bg);border-radius:24px;padding:20px 22px;display:grid;gap:4px;box-shadow:var(--shadow-card,none)}
+@media(max-width:1023px){.zExpPreview{padding:16px 18px}.zExpPreviewSave,.zExpPreview .zExpPreviewTotal{display:none}}
+.zLbl{font-size:11px;font-weight:800;letter-spacing:1px;color:var(--gray);text-transform:uppercase}
+.zExpPreviewTotal{font-size:36px;font-weight:800;letter-spacing:-1px;line-height:1.1;margin-top:4px}
+.zExpPreviewRows{display:grid;margin-top:10px}
+.zExpPreviewRow{display:flex;align-items:center;gap:10px;padding:9px 0;border-top:1px solid var(--line)}
+.zExpPreviewRow b{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:15px}
+.zExpPreviewRow span:last-child{font-weight:800}
+.zExpPreviewRow.open b{color:var(--gray);font-weight:600}
+.zExpPreviewMine{display:flex;justify-content:space-between;align-items:baseline;background:var(--tint);border-radius:14px;padding:10px 14px;margin-top:10px}
+.zExpPreviewMine b{font-size:20px}
+.zExpPreviewSave{margin-top:14px;gap:10px}
+.zExpPreviewSave .kbd,.kbd{display:inline-flex;align-items:center;height:20px;padding:0 6px;border-radius:6px;background:rgb(255 255 255/.18);font-size:11px;font-weight:800}
+.zAmountHero{text-align:center;padding:8px 0 4px}
+.zAmountLabel{display:grid!important;justify-items:center;gap:2px}
+.zAmountLabel>span:first-child{font-size:13px;color:var(--gray);font-weight:600}
+.fl .zAmountInput{font-size:52px!important;font-weight:800;letter-spacing:-2px;text-align:center;border:0!important;background:transparent!important;box-shadow:none!important;width:100%;max-width:360px;min-height:72px!important;padding:0!important;color:var(--black)}
+.fl .zAmountInput:focus{outline:none;border-bottom:3px solid var(--accent)!important}
+.fl .expenseModeSelector{display:grid;grid-template-columns:1fr 1fr;gap:2px;padding:4px;border-radius:22px;background:var(--page-bg)}
+.fl .expenseModeSelector .expenseModeOption{border:0;border-radius:18px;padding:8px 10px;background:transparent;min-height:44px;box-shadow:none}
+.fl .expenseModeSelector .expenseModeOption span{display:none}
+.fl .expenseModeSelector .expenseModeOption.selected{background:var(--accent);color:var(--on-accent)}
+.fl .expenseModeSelector .expenseModeOption.selected strong{color:var(--on-accent)}
+.zScanReview{display:grid;gap:0}
+.zMineRow{display:flex!important;align-items:center;gap:12px;padding:10px 0;border-top:1px solid var(--line)}
+.zMineRow>b{flex:1;min-width:0}
+.zMineStep{display:inline-flex;align-items:center;gap:4px}
+.zMineStep button{width:32px;height:32px;border-radius:50%;border:0;background:var(--tint);color:var(--accent);font-weight:800;cursor:pointer}
+.zMineStep button:disabled{opacity:.4}
+.zMineStep b{min-width:16px;text-align:center}
+.zMineInline{display:flex!important;align-items:center;gap:8px;font-weight:700;color:var(--accent)}
+.zMineInline input[type=number]{width:64px}
+@media(min-width:1024px){.dMain .page.wide:has(.zExpGrid){max-width:1120px}}
+.fl .expenseModeSelector .expenseModeOption.selected,.fl .expenseModeSelector .expenseModeOption.selected:hover{background:var(--accent)!important;color:var(--on-accent)!important;border:0!important}
+.fl .expenseModeSelector .expenseModeOption:not(.selected){border:0!important;background:transparent!important}
+.zExpGrid .formCard>.sectionHeaderWithButton:first-child{display:none}
+.zExpGrid .formCard .form{display:flex;flex-direction:column}
+.zExpGrid .zAmountHero{order:-3}.zExpGrid .expenseModeSelector{order:-2}.zExpGrid .payersSection{order:-1}
+.zExpGrid .payersSection>.secondaryButton{width:100%;justify-content:space-between;min-height:52px;border-radius:16px;background:var(--page-bg);border:0;color:var(--black);font-weight:800}
+
+/* ===== UX: Čeka tebe ===== */
+.zTodo{margin:18px 0 6px}
+.zTodo .dHead h2{display:flex;align-items:center;gap:8px}
+.zCount{display:inline-grid;place-items:center;min-width:24px;height:24px;padding:0 7px;border-radius:12px;background:var(--tint);color:var(--accent);font-size:12px;font-weight:800}
+.zTodoList{background:var(--panel-bg);border-radius:22px;padding:4px 16px;box-shadow:var(--shadow-card,none)}
+.zTodoRow{display:flex;align-items:center;gap:12px;padding:12px 0;color:inherit;text-decoration:none;min-width:0}
+.zTodoRow+.zTodoRow{border-top:1px solid var(--line)}
+.zTodoIc{width:40px;height:40px;border-radius:50%;display:grid;place-items:center;flex:none;background:var(--tint);color:var(--accent)}
+.zTodoRow.pay .zTodoIc{background:var(--debt-tint);color:var(--debt)}
+.zTodoRow.remind .zTodoIc{background:var(--success-tint);color:var(--success)}
+.zTodoTxt{flex:1;min-width:0;display:grid}
+.zTodoTxt b{font-size:15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.zTodoTxt small{color:var(--gray);font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.zTodoRow .zPill{flex:none}
+.zTodoRow.remind .zPill{background:var(--page-bg);color:var(--gray)}
+.zTodoEmpty{background:var(--panel-bg);border-radius:22px;padding:16px;display:grid;gap:2px}
+.zTodoEmpty small{color:var(--gray)}
+.zTodoRow:hover .zTodoTxt b{color:var(--accent)}
+
+/* ===== UX: desktop popis + detalj računa ===== */
+@media(min-width:1024px){
+ .fl .card:has(>.facetStats)>.zDetailSlot{grid-column:2;grid-row:2 / span 30;align-self:start;position:sticky;top:20px}
+ .fl .card:has(>.zDetailSlot:not(:empty))>.owedCard{display:none}
+ .zDetailSlot:empty{display:none}
+ .zDetail{background:var(--panel-bg);border-radius:24px;padding:18px 20px 0;display:grid;grid-template-rows:auto minmax(0,1fr);max-height:calc(100dvh - 240px);overflow:hidden;box-shadow:var(--shadow-card,none);border:1px solid var(--line)}
+ .zDetail .zSheetHead{padding-bottom:8px}
+ .zDetail .zSheetBody{overflow-y:auto;padding-bottom:0}
+ .zDetail .zShareBar{position:sticky;bottom:0;margin:0 -20px;border-radius:0 0 24px 24px}
+ .fl .expenseCard.zSel,.fl .expenseCard:has(.expenseSummary[aria-current="true"]){outline:2px solid var(--accent);background:var(--tint)}
+}
+@media(min-width:1024px){
+ .fl .card:has(>.zDetailSlot:not(:empty)){grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+ .zDetail .zShareBar{margin:0;border-radius:18px;bottom:12px}
+ .zDetail [class*="zSplit"]{grid-template-columns:1fr!important}
+ .zDetail .zSheetBody{padding-bottom:16px}
+}
+.dSideGroupsHead{margin-top:18px}
+.dSideGroups{display:grid;gap:2px;overflow-y:auto;min-height:0;flex:0 1 auto}
+.dSideGroups a{display:flex;align-items:center;gap:10px;min-height:42px;padding:0 10px;border-radius:12px;color:var(--black);text-decoration:none;font-weight:600;font-size:14px}
+.dSideGroups a span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dSideGroups a.on{background:var(--tint);font-weight:800}
+.dSideGroups a:hover{background:var(--tint)}
+.dSideGroups .dTile{width:28px;height:28px;border-radius:8px;font-size:12px;flex:none}
+.dSideGroups .dSideNew{color:var(--accent);font-weight:700;font-size:13px}
+.zDayHead{font-size:11px;font-weight:800;letter-spacing:1px;text-transform:uppercase;color:var(--gray);margin:14px 4px 4px}
+.list>.zDayHead:first-child{margin-top:4px}
+.fl .zScanReview{background:var(--panel-bg)!important;border-radius:22px;padding:6px 16px!important;border:0!important}
+.fl .zScanReview .zMineRow{background:transparent!important;box-shadow:none!important;border:0!important;border-top:1px solid var(--line)!important;border-radius:0!important;padding:10px 0!important;margin:0!important}
+.fl .zScanReview .zLbl{margin:8px 0 4px}
+.fl .zScanReview>.secondaryButton{margin:10px 0 6px}
+
+/* ===== Dobrodošlica ===== */
+.zBare .dMain,.zBare{padding:0!important}
+.zWelcome{min-height:100dvh;display:grid;background:var(--page-bg)}
+.zWelcomeHero{display:none}
+.zWelcomeBody{display:flex;flex-direction:column;justify-content:space-between;gap:28px;padding:max(40px,env(safe-area-inset-top)) 20px calc(24px + env(safe-area-inset-bottom));max-width:460px;width:100%;margin:0 auto;box-sizing:border-box}
+.zWelcomeLogo{width:64px;height:64px;border-radius:20px;background:var(--accent);color:var(--on-accent);display:grid;place-items:center;font-style:normal;font-size:34px;font-weight:800}
+.zWelcomeTop h1{font-size:34px;line-height:1.08;letter-spacing:-.03em;font-weight:800;margin:28px 0 10px}
+.zWelcomeTop p{color:var(--gray);font-size:15px;margin:0}
+.zWelcomeActions{display:grid;gap:10px}
+.zWelcomeActions .zLbl{margin:0 0 2px}
+.zWelcomeActions .zBtn,.zWelcomeActions .zBtnG{gap:10px;text-decoration:none}
+.zWelcomeActions .zBtn{background:var(--accent);color:var(--on-accent)}
+.zWelcomeOr{display:flex;align-items:center;gap:10px;color:var(--gray);font-size:13px;margin:6px 0}
+.zWelcomeOr:before,.zWelcomeOr:after{content:"";flex:1;height:1px;background:var(--line)}
+.zWelcomeGuest{display:flex;align-items:center;gap:12px;width:100%;padding:16px 18px;border-radius:22px;border:2px solid var(--line);background:var(--panel-bg);color:var(--accent);font:inherit;text-align:left;cursor:pointer}
+.zWelcomeGuest span{flex:1;display:grid;gap:2px}.zWelcomeGuest b{color:var(--black);font-size:16px}.zWelcomeGuest small{color:var(--gray);font-size:12px}
+.zWelcomeGuest:hover{border-color:var(--accent)}
+.zWelcomeCode{display:flex;align-items:flex-end;gap:8px}
+.zWelcomeCode .zField{flex:1;margin:0}
+.zWelcomeCode .zPill{height:56px;padding:0 18px}
+@media(min-width:1024px){
+ .zWelcome{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+ .zWelcomeHero{display:flex;flex-direction:column;justify-content:flex-end;padding:64px;background:var(--accent);color:var(--on-accent)}
+ .zWelcomeHero i{width:64px;height:64px;border-radius:20px;background:var(--panel-bg);color:var(--accent);display:grid;place-items:center;font-style:normal;font-size:34px;font-weight:800}
+ .zWelcomeHero h2{font-size:52px;line-height:1.05;letter-spacing:-.03em;margin:36px 0 12px;max-width:520px;color:var(--on-accent)}
+ .zWelcomeHero p{font-size:17px;max-width:460px;opacity:.9;margin:0}
+ .zWelcomeBody{justify-content:center}
+ .zWelcomeTop{display:none}
+}
+.zWelcomeCode .zField>span{font-size:11px;color:var(--gray);font-weight:700}.zWelcomeCode .zField input{border:0;background:none;font-size:16px;font-weight:800;padding:4px 0;color:var(--black);min-height:0;box-shadow:none}
+.zWelcomeActions h2.zLbl{font-size:12px;margin:0 0 4px}
+
+/* ===== Ispravci rasporeda (desktop u sredini, puna širina tabova) ===== */
+.fl .groupTabContent.zPage{grid-template-columns:minmax(0,1fr)}
+.fl .groupTabContent.zPage>*{grid-column:1 / -1;min-width:0}
+@media(min-width:1024px){
+ .dMain .page{max-width:1200px;margin-inline:auto}
+ .fl .dMain .page:has(.groupHeader){position:relative}
+ .fl .flActions{position:absolute;top:28px;right:40px}
+ .zCols{grid-template-columns:minmax(0,1.5fr) minmax(0,1fr)}
+}
+/* kod grupe: gumb ne smije preko koda */
+.zCodeRow,.zCard.zCode{flex-wrap:wrap}
+.zCodeBig{display:block;font-size:28px;letter-spacing:.18em;font-weight:800;overflow-wrap:anywhere;margin:2px 0 12px}
+.zCodeBtns{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.zCodeBtns .zBtn,.zCodeBtns .zBtnG{min-height:48px;font-size:14px;padding:0 10px;white-space:nowrap}
+
+/* ===== Postavke ===== */
+.fl .page.zSettings{max-width:680px;gap:10px}
+.zSettings .zH1{margin-bottom:6px}
+.zSettings>.zLbl{margin:16px 6px 0}
+.zSetCard{padding:22px 24px!important;border-radius:24px}
+.zSetProfile{display:flex;align-items:center;gap:16px}
+.zSetProfile .grow{display:grid;gap:4px;min-width:0}
+.zSetBtns{display:flex;flex-wrap:wrap;gap:10px;margin-top:18px}
+.zSetBtns>*{flex:1 1 160px;width:auto;text-decoration:none;min-height:48px}
+.zSetBtns .zSetOut{color:var(--debt)}
+.fl .zSettingsList.flSettings.zSetCard{padding:8px 24px!important;display:block}
+.zSettingsList .settingsField{padding:18px 0}
+.zSettingsList .settingsField select,.zSettingsList select{min-height:48px;border-radius:14px;padding:0 14px;min-width:180px}
+.zSettingsList .appearanceSettings{display:grid;gap:12px;padding:18px 0 16px;border:0}
+.zSettingsList .appearanceSettings .themeSelectLabel,.zSettingsList .appearanceSettings h2{font-weight:800;font-size:16px;margin:0}
+.zSettingsList .appearanceSettings h2{margin-top:10px;padding-top:18px;border-top:1px solid var(--line)}
+.zSettingsList .themeSelectRow{display:flex;align-items:center;gap:12px}
+.zSettingsList .themeSelectRow select{flex:1}
+.zSettingsList .themeModes{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;padding:4px;border-radius:22px;background:var(--page-bg)}
+.fl .zSettingsList .themeModes button{min-height:44px;border-radius:18px;border:0;background:transparent;color:var(--gray);font-weight:700;box-shadow:none}
+.fl .zSettingsList .themeModes button[aria-pressed="true"]{background:var(--accent);color:var(--on-accent)}
+.zSetLink{display:flex;align-items:center;gap:12px;text-decoration:none;color:inherit}
+.zSetLink .grow{display:grid;gap:2px}.zSetLink b{font-size:16px}
+.zSetLink>span:last-child{color:var(--accent);font-weight:800;font-size:20px}
+.fl .zSettings>h2.zLbl{font-size:12px;letter-spacing:1px;font-weight:800;color:var(--gray)}
+.zSetLink .grow{flex:1}
+
+/* ===== Detaljna povijest ===== */
+.zHist{display:grid}
+.zHistRow{display:flex;gap:12px;padding:12px 0;border-top:1px solid var(--line)}
+.zHist .zDayHead+.zHistRow{border-top:0}
+.zHistIc{width:36px;height:36px;border-radius:50%;background:var(--tint);color:var(--accent);display:grid;place-items:center;flex:none}
+.zHistRow.neg .zHistIc{background:var(--debt-tint);color:var(--debt)}
+.zHistTxt{display:grid;gap:3px;min-width:0}
+.zHistTxt b{font-size:15px;line-height:1.3;overflow-wrap:anywhere}
+.zHistDet{font-size:13px;color:var(--black)}
+.zHistTxt small{color:var(--gray);font-size:12px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.zHistKind{display:inline-flex;align-items:center;height:20px;padding:0 8px;border-radius:10px;background:var(--page-bg);font-weight:800;font-size:11px;color:var(--gray)}
+
+/* ===== Unos računa: redoslijed i pregled na dnu ===== */
+@media(min-width:1024px){.zExpGrid{grid-template-columns:minmax(0,1fr)!important}.zExpPreview{position:static!important}.dMain .page.wide:has(.zExpGrid){max-width:760px!important}}
+.zExpGrid .zBottom{display:none!important}
+.zExpPreview{display:grid!important}
+.zExpPreview .zExpPreviewTotal,.zExpPreview .zExpPreviewSave{display:flex!important}
+.zExpPreview .zExpPreviewTotal{display:block!important}
+.zExpGrid .expenseModeSelector{order:-10}
+.zExpGrid .rpTitle{order:-9}
+.zExpGrid .zCurrency{order:-8}
+.zExpGrid .payersSection{order:-7}
+.zExpGrid .zAmountHero{order:-6}
+.zExpGrid .billImageActions,.zExpGrid .billImageHint{order:-5}
+.zExpGrid .totalsCard{order:5}
+.zExpGrid .formCard .form>*{margin-top:0}
+.zExpGrid .formCard .form{gap:12px}
+.zCurrency{display:grid;gap:6px;background:var(--panel-bg);border-radius:16px;padding:10px 14px;font-size:12px;font-weight:700;color:var(--gray)}
+.zCurrency select{min-height:44px;border-radius:12px}
+.zPeopleSummary{display:flex;align-items:center;gap:12px;background:var(--panel-bg);border-radius:16px;padding:12px 14px}
+.zPeopleSummary .grow{flex:1;min-width:0;display:grid;gap:2px}
+.equalExpenseSection{display:grid;gap:10px}
+.equalExpenseParticipants[hidden]{display:none!important}
+.zExpPreviewSave{justify-content:center;align-items:center;min-height:56px}
+@media(max-width:1023px){.zExpPreview{padding:18px!important;margin-bottom:calc(16px + env(safe-area-inset-bottom))}}
+.fl .zExpGrid .equalExpenseSection,.fl .zExpGrid .payersSection{background:transparent!important;border:0!important;box-shadow:none!important;padding:0!important}
+.fl .zExpGrid .payersSection>.secondaryButton{box-shadow:none!important;background:var(--panel-bg)!important;border-radius:16px!important;min-height:56px;padding:0 16px!important}
+.fl .zExpGrid .equalExpenseParticipants{background:var(--panel-bg);border-radius:16px;padding:14px;border:0}
+.zPeopleSummary{border:0}
+@media(max-width:1023px){.zExpPreviewSave .kbd{display:none}}
+
+/* ===== Mobitel: odabir stavki preko cijelog ekrana ===== */
+@media(max-width:1023px){
+ .zOverlay:has(.zClaimSheet){align-items:stretch;background:var(--page-bg)}
+ .zClaimSheet{width:100%;max-width:none;height:100dvh;max-height:none!important;border-radius:0!important;padding:max(16px,env(safe-area-inset-top)) 16px 0!important}
+ .zClaimSheet:before{display:none!important}
+ .zClaimSheet .zSheetHead{flex-direction:row-reverse;justify-content:flex-end}
+ .zClaimSheet .zSheetHead .grow{text-align:left}
+ .zClaimSheet .zSheetBody{padding-bottom:calc(24px + env(safe-area-inset-bottom))}
+}
+
+/* ===== Kartica troška: bez rezanja teksta i preklapanja ===== */
+.fl .expenseSummaryRow{display:flex;align-items:stretch;gap:8px;position:relative}
+.fl .expenseSummary{flex:1;display:grid!important;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:12px;text-align:left}
+.fl .expenseSummary small,.fl .expenseSummary strong:not(.expenseSummaryAmount){white-space:normal!important;overflow:visible!important;text-overflow:clip!important;display:block}
+.fl .expenseSummaryAmount{align-self:start;font-size:15px}
+.fl .expenseSummaryRow>button:not(.expenseSummary),.fl .expenseSummaryRow>a{align-self:center;flex:none}
+@media(max-width:600px){.fl .expenseSummary{gap:10px}.fl .expenseSummaryAmount{font-size:14px}}
+
+/* ===== v15: kartica troška ===== */
+.zExp{display:flex;align-items:center;gap:6px;background:var(--panel-bg);border-radius:20px;padding:4px 8px 4px 4px;box-shadow:var(--shadow-card,none);border:2px solid transparent;transition:border-color .15s,background .15s}
+.zExp+.zExp{margin-top:8px}
+.zExp.sel{border-color:var(--accent);background:var(--tint)}
+.zExpMain{flex:1;min-width:0;display:flex;align-items:center;gap:12px;padding:10px 8px 10px 10px;border:0;background:transparent;color:inherit;font:inherit;text-align:left;cursor:pointer;border-radius:16px}
+.zExpIc{width:44px;height:44px;border-radius:14px;background:var(--tint);color:var(--accent);display:grid;place-items:center;flex:none}
+.zExp.sel .zExpIc{background:var(--panel-bg)}
+.zExpIc svg{width:22px;height:22px}
+.zExpTxt{flex:1;min-width:0;display:grid;gap:3px}
+.zExpTxt b{font-size:16px;font-weight:800;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.zExpTxt small{font-size:13px;color:var(--gray);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.zExpPills{display:flex;gap:6px;flex-wrap:wrap;margin-top:2px}
+.zTag{display:inline-flex;align-items:center;height:22px;padding:0 9px;border-radius:11px;font-size:11px;font-weight:800;white-space:nowrap}
+.zTag.warn{background:#FFF1D6;color:#8A5A00}
+:root[data-theme=dark] .zTag.warn{background:#3d3220;color:#f5c66b}
+.zExpRight{display:grid;justify-items:end;gap:3px;flex:none;text-align:right}
+.zExpRight b{font-size:16px;font-weight:800;white-space:nowrap}
+.zExpRight small{font-size:12px;font-weight:700;white-space:nowrap}
+.zExpRight .pos{color:var(--success)}.zExpRight .neg{color:var(--debt)}.zExpRight .muted{color:var(--gray);font-weight:600}
+.zExpEdit{width:36px;height:36px;border-radius:50%;border:0;background:transparent;color:var(--gray);display:grid;place-items:center;flex:none;cursor:pointer}
+.zExpEdit:hover{background:var(--tint);color:var(--accent)}
+@media(max-width:420px){.zExpIc{width:40px;height:40px}.zExpTxt b,.zExpRight b{font-size:15px}.zExpMain{gap:10px;padding:10px 4px 10px 8px}}
+
+/* ===== v15: filteri iza gumba ===== */
+.zFilterBar{display:flex;gap:8px;align-items:center}
+.zSearch{flex:1;min-width:0;display:flex;align-items:center;gap:8px;height:48px;padding:0 14px;border-radius:24px;background:var(--panel-bg);color:var(--gray);box-shadow:var(--shadow-card,none)}
+.fl .zSearch input{flex:1;min-width:0;border:0!important;background:transparent!important;box-shadow:none!important;padding:0!important;min-height:0!important;height:100%;font-size:15px;color:var(--black)}
+.fl .zSearch input:focus{outline:none}
+.zSearch:focus-within{outline:2px solid var(--accent)}
+.zFilterBtn{display:flex;align-items:center;gap:8px;height:48px;padding:0 16px;border-radius:24px;border:0;background:var(--panel-bg);color:var(--black);font:inherit;font-weight:700;font-size:14px;cursor:pointer;box-shadow:var(--shadow-card,none)}
+.zFilterBtn.on{background:var(--accent);color:var(--on-accent)}
+.zFilterBtn .zCount{font-style:normal;min-width:20px;height:20px;font-size:11px}
+.zFilterBtn.on .zCount{background:var(--panel-bg)}
+@media(max-width:420px){.zFilterBtn span{display:none}.zFilterBtn{width:48px;justify-content:center;padding:0;position:relative}.zFilterBtn .zCount{position:absolute;top:-4px;right:-4px}}
+.fl .zFilterPanel{display:grid!important;grid-template-columns:1fr 1fr;gap:10px;background:var(--panel-bg);border-radius:20px;padding:14px;margin-top:8px;box-shadow:var(--shadow-card,none)}
+.fl .zFilterPanel[hidden]{display:none!important}
+.fl .zFilterPanel label{display:grid;gap:6px;font-size:12px;font-weight:700;color:var(--gray);min-width:0}
+.fl .zFilterPanel input,.fl .zFilterPanel select{width:100%;min-height:44px;border-radius:14px}
+.zFilterChips{grid-column:1 / -1;display:flex;gap:8px;flex-wrap:wrap}
+.fl .zFilterPanel .textButton{grid-column:1 / -1;justify-self:start}
+@media(max-width:420px){.fl .zFilterPanel{grid-template-columns:1fr}}
+.fl .card:has(>.facetStats)>.zFilterBar{grid-column:1}
+.fl .card:has(>.facetStats)>.zFilterPanel{grid-column:1}
+
+/* ===== v15: detalj računa bez pomaka i bez dvostrukih okvira ===== */
+@media(min-width:1024px){
+ .fl .card:has(>.facetStats),.fl .card:has(>.zDetailSlot:not(:empty)){grid-template-columns:minmax(0,1fr) minmax(360px,440px)!important}
+}
+.zDetail,.zClaimSheet{--zd-pad:20px}
+.zDetail .zItems,.zClaimSheet .zItems{background:transparent!important;box-shadow:none!important;border:0!important;padding:0!important;border-radius:0!important;margin:4px 0}
+.zDetail .zItems.expense-items,.zClaimSheet .zItems.expense-items{border-left:0!important;outline:0!important}
+.zDetail .zItem,.zClaimSheet .zItem{padding:10px 2px;min-height:56px;background:transparent!important;box-shadow:none!important;border-radius:0!important}
+.zDetail .zClaimBanner,.zClaimSheet .zClaimBanner{margin:4px 0 6px;border-radius:16px}
+.zDetail .zShareBar,.zClaimSheet .zShareBar{background:var(--tint)!important;box-shadow:none!important;border:0!important;border-radius:18px!important;padding:12px 14px!important;margin:8px 0 0!important;display:flex;align-items:center;justify-content:space-between}
+.zShareBar small{font-size:11px;font-weight:800;letter-spacing:1px;color:var(--gray);display:block}
+.zShareBar strong{font-size:24px;font-weight:800}
+.zWhoHead{margin:18px 2px 6px}
+.zWhoList{display:grid}
+.zWhoRow{display:flex;align-items:center;gap:12px;padding:10px 2px;border-top:1px solid var(--line)}
+.zWhoRow:first-child{border-top:0}
+.zWhoRow .grow{flex:1;min-width:0;display:grid;gap:2px}
+.zWhoRow .grow b{font-size:15px}
+.zWhoRow .grow small{font-size:12px;color:var(--gray);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.zWhoAmt{display:grid;justify-items:end;gap:6px;width:96px;flex:none}
+.zWhoAmt b{font-size:15px}
+.zWhoAmt i{display:block;height:4px;border-radius:2px;background:var(--accent);justify-self:end;min-width:4px}
+.zDetail .zSheetHead b{font-size:20px}
+.zClaimSheet{background:var(--panel-bg)}
+
+/* ===== v15: desni stupac grupe kao jedan blok ===== */
+.zSideCol{display:grid;gap:16px;min-width:0}
+@media(min-width:1024px){
+ .fl .card:has(>.zSideCol){display:grid!important;grid-template-columns:minmax(0,1fr) minmax(360px,440px)!important;grid-template-rows:auto auto 1fr;column-gap:24px;row-gap:12px;align-items:start}
+ .fl .card:has(>.zSideCol)>*{grid-column:1}
+ .fl .card:has(>.zSideCol)>.zSideCol{grid-column:2;grid-row:1 / 4;position:sticky;top:20px;align-self:start}
+ .zSideCol:has(.zDetailSlot:not(:empty)) .owedCard{display:none}
+ .zSideCol .zDetail{max-height:calc(100dvh - 230px)}
+}
+.fl .card:has(>.zSideCol){background:transparent!important;box-shadow:none!important;padding:0!important;border:0!important}
+.zItem .zWho .zAvs:empty{display:none}
+.zItem .zWho{display:flex;align-items:center;gap:6px}
+
+/* ===== v15: uređivač stavki ===== */
+.zItemsHead{margin:6px 4px 8px}
+.zToggleRow{display:flex;align-items:center;gap:14px;background:var(--panel-bg);border-radius:18px;padding:14px 16px;margin-bottom:10px;box-shadow:var(--shadow-card,none)}
+.zToggleRow .grow{flex:1;min-width:0;display:grid;gap:3px}
+.zToggleRow b{font-size:15px}.zToggleRow small{font-size:12px;color:var(--gray);line-height:1.4}
+.zDraftList{display:grid;gap:10px}
+.zDraftItem{display:grid;gap:10px;background:var(--panel-bg);border-radius:20px;padding:14px;box-shadow:var(--shadow-card,none)}
+.zDraftTop{display:flex;align-items:center;gap:10px}
+.zDraftNo{width:28px;height:28px;border-radius:50%;background:var(--tint);color:var(--accent);display:grid;place-items:center;font-size:12px;font-weight:800;flex:none}
+.zDraftName{flex:1;min-width:0;display:grid;gap:4px;margin:0!important}
+.fl .zDraftName input{width:100%;min-height:44px;border-radius:12px;border:1px solid var(--line);background:var(--page-bg);padding:0 12px;font-weight:700;font-size:15px;box-shadow:none}
+.zDraftDel{width:40px;height:40px;border-radius:50%;border:0;background:transparent;color:var(--gray);display:grid;place-items:center;cursor:pointer;flex:none}
+.zDraftDel:hover:not(:disabled){background:var(--debt-tint);color:var(--debt)}
+.zDraftDel:disabled{opacity:.3;cursor:default}
+.zDraftMid{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding-left:38px}
+.zDraftPrice{display:flex;align-items:center;gap:6px;height:44px;border-radius:12px;border:1px solid var(--line);background:var(--page-bg);padding:0 10px;margin:0!important;width:120px}
+.fl .zDraftPrice input{flex:1;min-width:0;border:0!important;background:transparent!important;box-shadow:none!important;padding:0!important;min-height:0!important;font-weight:700;font-size:15px;text-align:right}
+.zDraftPrice span{font-size:12px;color:var(--gray);font-weight:700}
+.zDraftX{color:var(--gray);font-weight:700}
+.fl .zDraftMid .rpQty{display:inline-flex;align-items:center;height:44px;border-radius:22px;background:var(--page-bg);border:1px solid var(--line);overflow:hidden}
+.fl .zDraftMid .rpQty button{width:38px;height:42px;border:0;background:transparent;color:var(--accent);font-size:18px;font-weight:800;cursor:pointer}
+.fl .zDraftMid .rpQty button:disabled{opacity:.35}
+.fl .zDraftMid .rpQty input{width:40px;border:0!important;background:transparent!important;text-align:center;font-weight:800;padding:0!important;min-height:0!important;box-shadow:none!important;-moz-appearance:textfield}
+.zDraftMid .rpQty input::-webkit-inner-spin-button{-webkit-appearance:none}
+.zDraftTotal{margin-left:auto;font-size:16px;white-space:nowrap}
+.zDraftPeople{display:flex;flex-wrap:wrap;gap:8px;padding-left:38px;align-items:center}
+.zPChip{display:inline-flex;align-items:center;gap:8px;height:40px;padding:0 14px 0 4px;border-radius:20px;border:2px solid var(--line);background:var(--panel-bg);color:var(--gray);font:inherit;font-weight:700;font-size:14px;cursor:pointer}
+.zPChip i{width:30px;height:30px;border-radius:50%;background:var(--page-bg);display:grid;place-items:center;font-style:normal;font-size:12px;font-weight:800;color:var(--black)}
+.zPChip.on{border-color:var(--accent);background:var(--tint);color:var(--black)}
+.zPChip.on i{background:var(--accent);color:var(--on-accent)}
+.zPChipStep{cursor:default;padding-right:4px}
+.zPChipStep>span{white-space:nowrap}
+.zPChipStep button{width:30px;height:30px;border-radius:50%;border:0;background:var(--page-bg);color:var(--accent);font-weight:800;cursor:pointer}
+.zPChipStep.on button{background:var(--panel-bg)}
+.zPChipStep button:disabled{opacity:.35;cursor:default}
+.zPChipStep b{min-width:16px;text-align:center;color:var(--black)}
+.zAddItem{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;min-height:52px;margin-top:10px;border:2px dashed var(--line);border-radius:18px;background:transparent;color:var(--accent);font:inherit;font-weight:800;font-size:15px;cursor:pointer}
+.zAddItem:hover:not(:disabled){border-color:var(--accent);background:var(--tint)}
+@media(max-width:480px){.zDraftMid,.zDraftPeople{padding-left:0}.zDraftPrice{width:110px}}
+
+/* ===== v15: vrh unosa (način + valuta) ===== */
+.fl .zExpGrid .expenseModeSelector{display:grid!important;grid-template-columns:1fr 1fr;gap:4px;padding:4px;border-radius:24px;background:var(--panel-bg);box-shadow:var(--shadow-card,none);border:0}
+.fl .zExpGrid .expenseModeSelector .expenseModeOption{min-height:44px;border-radius:20px!important;justify-content:center;text-align:center;display:flex;align-items:center}
+.fl .zExpGrid .expenseModeSelector .expenseModeOption strong{font-size:14px}
+.fl .zExpGrid .zCurrency{display:flex!important;align-items:center;justify-content:space-between;gap:12px;min-height:56px;padding:6px 8px 6px 16px;border-radius:18px;box-shadow:var(--shadow-card,none);font-size:14px;font-weight:700;color:var(--black)}
+.fl .zExpGrid .zCurrency select{width:auto;min-width:150px;min-height:44px;border-radius:14px;border:1px solid var(--line);background:var(--page-bg);font-weight:800;padding:0 12px;box-shadow:none}
+.fl .zExpGrid .rpTitle{gap:10px}
+
+/* Obavijest gore, da ne prekriva gumbe na dnu */
+.toastError{top:calc(16px + env(safe-area-inset-top));bottom:auto!important;max-width:min(92vw,520px);text-align:center}
+.zNegText{color:var(--debt)}
+.zInlineError{background:var(--debt-tint);color:var(--debt);border-radius:14px;padding:12px 14px;font-weight:700;font-size:14px}
+.zSeg2{display:grid;grid-template-columns:1fr 1fr;gap:4px;padding:4px;border-radius:22px;background:var(--page-bg);margin:8px 0 4px}
+.zSeg2 button{min-height:42px;border:0;border-radius:18px;background:transparent;color:var(--gray);font:inherit;font-weight:700;font-size:14px;cursor:pointer}
+.zSeg2 button.on{background:var(--accent);color:var(--on-accent)}
+.zPill.zPillGhost{background:var(--page-bg);color:var(--gray)}
+
+/* ===== v17: offline ===== */
+.fl .zOffline{display:flex;align-items:center;gap:10px;margin:0 auto 14px;max-width:1120px;padding:10px 14px;border-radius:14px;background:var(--debt-tint);color:var(--black);font-size:13px;font-weight:600}
+.fl .zOffline svg{flex:none;color:var(--debt)}
+.fl .zPending{display:grid;gap:8px;margin:4px 0 18px}
+.fl .zPendTitle{display:flex;align-items:center;gap:8px;margin:6px 4px 2px!important}
+.fl .zPendTitle svg{color:var(--accent)}
+.fl .zPendTitle .zCount{margin-left:2px}
+.fl .zPendExp{border:2px dashed var(--line);box-shadow:none;background:color-mix(in srgb,var(--panel-bg) 70%,transparent)}
+.fl .zPendExp+.zPendExp{margin-top:0}
+.fl .zPendExp .zExpMain{cursor:default;padding:12px 10px 12px 12px}
+.fl .zPendExp .zExpIc{background:var(--page-bg);color:var(--gray)}
+.fl .zPendBadge{display:inline-flex;align-items:center;gap:5px;justify-self:start;max-width:100%;padding:3px 10px 3px 8px;border-radius:999px;background:var(--tint);color:var(--accent);font-size:12px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fl .zPendBadge.err{background:var(--debt-tint);color:var(--debt)}
+.fl .zPendExp .zExpRight b{font-size:16px;font-weight:800;color:var(--gray)}
+.fl .zPendFoot{display:flex;align-items:center;gap:12px;padding:4px 6px 0}
+.fl .zPendFoot small{flex:1;font-size:12.5px;color:var(--gray);line-height:1.4}
+.fl .zPendFoot .zPill{flex:none}
+
+/* ===== v17: iznos — jasno polje za unos ===== */
+.fl .zExpGrid .zAmountHero,.fl .zAmountHero{background:var(--panel-bg);border-radius:22px;padding:14px 16px 16px;text-align:center}
+.fl .zAmountLabel{gap:8px!important}
+.fl .zAmountInput{max-width:none!important;width:100%;min-height:84px!important;border:2px solid var(--line)!important;border-radius:18px!important;background:var(--page-bg)!important;font-size:46px!important;cursor:text;transition:border-color .15s,box-shadow .15s}
+.fl .zAmountInput:hover{border-color:color-mix(in srgb,var(--accent) 45%,var(--line))!important}
+.fl .zAmountInput:focus{outline:none;border:2px solid var(--accent)!important;box-shadow:0 0 0 4px var(--tint)!important;background:var(--panel-bg)!important}
+.fl .zAmountInput::placeholder{color:color-mix(in srgb,var(--gray) 55%,transparent)}
+
+/* ===== v17: tko je platio ===== */
+.fl .zPayerBtn{display:flex;align-items:center;gap:12px;width:100%;min-height:64px;padding:10px 16px;border:0;border-radius:20px;background:var(--panel-bg);color:var(--black);font:inherit;text-align:left;cursor:pointer}
+.fl .zPayerBtn .grow{flex:1;min-width:0;display:grid;gap:1px}
+.fl .zPayerBtn small{font-size:12px;font-weight:600;color:var(--gray)}
+.fl .zPayerBtn b{font-size:16px;font-weight:800;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fl .zPayerChev{color:var(--gray);transition:transform .2s;flex:none}
+.fl .zPayerBtn.open .zPayerChev{transform:rotate(180deg)}
+.fl .zPayerBtn.open{border-radius:20px 20px 0 0}
+.fl .zPayerAv{width:40px;height:40px;border-radius:50%;display:grid;place-items:center;background:var(--tint);color:var(--accent);font-weight:800;flex:none}
+.fl .zPayerAv.sm{width:34px;height:34px;font-size:14px}
+.fl .zPayerPanel{background:var(--panel-bg);border-radius:0 0 20px 20px;padding:0 12px 12px;margin-top:-2px;border-top:1px solid var(--line)}
+.fl .zPayerPanel .zSeg2{margin:12px 0 8px}
+.fl .zPayerList{display:grid;gap:4px}
+.fl .zPayerRow{display:flex;align-items:center;gap:12px;width:100%;min-height:52px;padding:8px 10px;border:0;border-radius:16px;background:transparent;color:var(--black);font:inherit;text-align:left;cursor:pointer}
+.fl .zPayerRow:hover{background:var(--page-bg)}
+.fl .zPayerRow.on{background:var(--tint)}
+.fl .zPayerRow .grow{flex:1;min-width:0;display:flex;align-items:baseline;gap:8px}
+.fl .zPayerRow b{font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fl .zPayerRow small{font-size:12px;color:var(--gray)}
+.fl .zPayerCheck{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;border:2px solid var(--line);flex:none}
+.fl .zPayerRow.on .zPayerCheck{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
+.fl .zPayerAmt{display:flex;align-items:center;gap:6px;flex:none}
+.fl .zPayerAmt input{width:110px;min-height:42px;border:1.5px solid var(--line);border-radius:12px;background:var(--page-bg);text-align:right;padding:0 10px;font:inherit;font-weight:700}
+.fl .zPayerAmt input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--tint)}
+.fl .zPayerAmt i{font-style:normal;font-weight:700;color:var(--gray);min-width:14px}
+.fl .zExpGrid .payersSection{display:block}
+
+/* ===== v17: stavka u jednom redu (naziv · cijena × komadi · ukupno) ===== */
+.fl .zDraftTop{display:grid;grid-template-columns:auto minmax(140px,1fr) auto auto;grid-template-areas:"no name mid del";align-items:center;gap:10px}
+.fl .zDraftTop .zDraftNo{grid-area:no}.fl .zDraftTop .zDraftName{grid-area:name}.fl .zDraftTop .zDraftDel{grid-area:del}
+.fl .zDraftTop .zDraftMid{grid-area:mid;padding-left:0;flex-wrap:nowrap;gap:6px}
+.fl .zDraftTop .zDraftTotal{min-width:86px;text-align:right;margin-left:4px}
+.fl .zDraftItem{container-type:inline-size}
+.fl .zDraftTop .zDraftPrice{width:104px}
+@container (max-width:600px){
+ .fl .zDraftTop{grid-template-columns:auto 1fr auto;grid-template-areas:"no name del" "mid mid mid";row-gap:10px;column-gap:8px}
+ .fl .zDraftTop .zDraftMid{flex-wrap:nowrap;gap:5px;min-width:0}
+ .fl .zDraftTop .zDraftPrice{width:88px;padding:0 8px}
+ .fl .zDraftTop .zDraftMid .rpQty button{width:30px}
+ .fl .zDraftTop .zDraftMid .rpQty input{width:30px}
+ .fl .zDraftTop .zDraftTotal{min-width:0;margin-left:auto;font-size:15px}
+}
+
+/* ===== v17: postavke grupe ===== */
+.fl .zGSet{display:grid;gap:14px;margin-top:4px}
+.fl .zGSetCard{padding:20px 22px!important;border-radius:24px;display:grid;gap:4px}
+.fl .zGSetHead{display:flex;align-items:center;gap:8px;margin:0 0 6px;font-size:13px;letter-spacing:.8px;text-transform:uppercase;font-weight:800;color:var(--gray)}
+.fl .zGSetHead svg{color:var(--accent)}
+.fl .zGSetRow{display:flex;align-items:center;gap:14px;padding:14px 0;border-top:1px solid var(--line)}
+.fl .zGSetHead+.zGSetRow,.fl .zGSetHead+.zGSetBlock,.fl .zGSetHint+.zGSetList{border-top:0}
+.fl .zGSetRow .grow,.fl .zGSetPerson .grow{flex:1;min-width:0;display:grid;gap:3px}
+.fl .zGSetRow b,.fl .zGSetBlock>b,.fl .zGSetField>b{font-size:15px;font-weight:800;display:flex;align-items:center}
+.fl .zGSetCard small{font-size:12.5px;color:var(--gray);line-height:1.4}
+.fl .zGSetRow select{width:auto;min-width:170px;max-width:52%;min-height:46px;border-radius:14px;border:1px solid var(--line);background:var(--page-bg);padding:0 12px;font-weight:700}
+.fl .zGSetBlock{display:grid;gap:10px;padding:14px 0;border-top:1px solid var(--line);margin:0}
+.fl .zGSetField{display:grid;gap:8px;margin:0}
+.fl .zGSetInline{display:flex;gap:10px;align-items:center}
+.fl .zGSetInline input{flex:1;min-width:0;min-height:48px;border-radius:14px;border:1px solid var(--line);background:var(--page-bg);padding:0 14px;font:inherit;font-weight:700}
+.fl .zGSetInline input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--tint)}
+.fl .zGSetInline .zBtn.sm,.fl .zGSetCard .zBtnD.sm,.fl .zGSetCard .zBtnG.sm{width:auto;min-height:48px;padding:0 20px;border-radius:24px;font-size:14px;flex:none;white-space:nowrap}
+.fl .zGSetInline .zBtn:disabled{opacity:.45}
+.fl .zIconGrid{display:flex;flex-wrap:wrap;gap:8px}
+.fl .zIconGrid button,.fl .zIconImg{width:48px;height:48px;border-radius:16px;border:2px solid transparent;background:var(--page-bg);font-size:22px;display:grid;place-items:center;cursor:pointer;padding:0}
+.fl .zIconGrid button:hover{border-color:var(--line)}
+.fl .zIconGrid .on{border-color:var(--accent);background:var(--tint)}
+.fl .zIconImg img{width:100%;height:100%;object-fit:cover;border-radius:14px}
+.fl .zGSetBtns{display:flex;flex-wrap:wrap;gap:8px}
+.fl .zGSetBtns .zPill{display:inline-flex;align-items:center}
+.fl .zGSetList{display:grid}
+.fl .zGSetPerson{display:flex;align-items:center;gap:12px;padding:12px 0;border-top:1px solid var(--line)}
+.fl .zGSetPerson:first-child{border-top:0}
+.fl .zGSetHint{margin-bottom:6px}
+@media(max-width:560px){
+ .fl .zGSetCard{padding:18px 16px!important}
+ .fl .zGSetRow{flex-wrap:wrap}.fl .zGSetRow select{max-width:100%;width:100%}
+ .fl .zGSetInline{flex-direction:column;align-items:stretch}
+ .fl .zGSetPerson{flex-wrap:wrap}.fl .zGSetPerson .zGSetBtns{width:100%;padding-left:46px}
+}
+
+/* ===== v17: izbornik sa zastavama / paletama ===== */
+.fl .zRich{position:relative;min-width:220px}
+.fl .zRichBtn{display:flex;align-items:center;gap:12px;width:100%;min-height:50px;padding:0 14px;border:1.5px solid var(--line);border-radius:16px;background:var(--panel-bg);color:var(--black);font:inherit;font-weight:700;font-size:15px;cursor:pointer;text-align:left}
+.fl .zRichBtn:hover{border-color:color-mix(in srgb,var(--accent) 45%,var(--line))}
+.fl .zRich.open .zRichBtn,.fl .zRichBtn:focus-visible{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--tint)}
+.fl .zRichLabel{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fl .zRichChev{color:var(--gray);flex:none;transition:transform .2s}
+.fl .zRich.open .zRichChev{transform:rotate(180deg)}
+.fl .zRichList{position:absolute;z-index:40;left:0;right:0;top:calc(100% + 6px);margin:0;padding:6px;list-style:none;background:var(--panel-bg);border:1px solid var(--line);border-radius:18px;box-shadow:0 18px 40px rgb(20 16 40/.16);max-height:340px;overflow:auto}
+.fl .zRichList li{display:flex;align-items:center;gap:12px;min-height:46px;padding:0 10px;border-radius:12px;cursor:pointer;font-weight:600}
+.fl .zRichList li.hi{background:var(--page-bg)}
+.fl .zRichList li.on{background:var(--tint);font-weight:800}
+.fl .zRichCheck{color:var(--accent);flex:none}
+.fl .zFlag{flex:none;border-radius:4px;box-shadow:0 0 0 1px rgb(0 0 0/.08)}
+.fl .zRichSw{border-radius:7px}.fl .zRichSw i{width:12px;height:22px}
+.fl .zSettingsList .settingsField .zRich{flex:0 1 260px}
+.fl .zSettingsList .appearanceSettings .zRich{width:100%}
+.fl .languageToggle .zFlag{width:22px;height:16px}
+
+/* ===== v17b: stavke na mobitelu ===== */
+@container (max-width:600px){
+ .fl .zDraftTop .zDraftMid{display:grid!important;grid-template-columns:minmax(0,1fr) auto auto auto;align-items:center;gap:8px;padding:10px 0 0;border-top:1px solid var(--line)}
+ .fl .zDraftTop .zDraftPrice{width:auto;height:46px;padding:0 12px;border-radius:14px}
+ .fl .zDraftTop .zDraftPrice input{font-size:16px}
+ .fl .zDraftTop .zDraftX{color:var(--gray);font-weight:700}
+ .fl .zDraftTop .zDraftMid .rpQty{height:46px;border-radius:23px}
+ .fl .zDraftTop .zDraftMid .rpQty button{width:36px;height:44px}
+ .fl .zDraftTop .zDraftMid .rpQty input{width:28px}
+ .fl .zDraftTop .zDraftTotal{min-width:72px;font-size:16px;text-align:right}
+ .fl .zDraftName input{min-height:46px;font-size:16px}
+ .fl .zDraftTop .zDraftDel{width:40px;height:40px;background:var(--page-bg)}
+ .fl .zDraftItem{padding:14px 14px 12px;gap:12px;border-radius:22px}
+ .fl .zDraftPeople{padding-left:0!important}
+ .fl .zDraftPeople .zPChip{height:40px}
+}
+@container (max-width:600px){
+ .fl .zDraftPeople:has(.zPChipStep){display:grid;grid-template-columns:1fr;gap:6px}
+ .fl .zDraftPeople .zPChipStep{width:100%;justify-content:flex-start;padding-right:6px}
+ .fl .zDraftPeople .zPChipStep>span{flex:1;text-align:left}
+ .fl .zDraftPeople:has(.zPChipStep) small{padding:2px 4px 0}
+}
+@media(max-width:1023px){.fl .zOffline{margin:max(10px,env(safe-area-inset-top)) 16px 4px;border-radius:14px}}
+
+/* ===== v20: desni stupac (saldo) ne smije skakati kad se otvori račun =====
+   Kartica je imala overflow:hidden pa je sticky (top:20px) računao od nje i gurao stupac 20px niže;
+   kad se račun otvori, stupac postane viši i "skoči" gore. Sticky sad računa od ekrana. */
+.fl .card:has(>.zSideCol){overflow:visible!important}
+
+/* ===== v20: profilna slika računa u avatarima sudionika ===== */
+.fl .zAv:has(>img),.fl .zPayerAv:has(>img),.fl .owedRow i:has(>img),.fl .zAvs i:has(>img){padding:0;overflow:hidden;background:var(--tint)}
+.fl .zAv>img,.fl .zPayerAv>img,.fl .owedRow i>img,.fl .zAvs i>img{width:100%;height:100%;object-fit:cover;border-radius:inherit;display:block}
+
+/* ===== v21: napusti grupu ===== */
+.fl .zLeave{display:flex;align-items:center;gap:14px;margin-top:18px;padding:16px 18px;border-radius:20px;background:var(--panel-bg);border:1.5px solid color-mix(in srgb,var(--debt) 22%,var(--line))}
+.fl .zLeave .grow{flex:1;min-width:0;display:grid;gap:3px}
+.fl .zLeave b{font-size:15px;font-weight:800}
+.fl .zLeave small{font-size:12.5px;color:var(--gray);line-height:1.4}
+.fl .zLeave .zBtnD{width:auto;min-height:44px;padding:0 18px;border-radius:22px;display:inline-flex;align-items:center;white-space:nowrap;flex:none}
+@media(max-width:560px){.fl .zLeave{flex-direction:column;align-items:stretch}.fl .zLeave .zBtnD{justify-content:center}}
+
+/* ===== v21: polish ===== */
+/* Placeholder ne smije izgledati kao upisana vrijednost */
+.fl input::placeholder,.fl textarea::placeholder{color:color-mix(in srgb,var(--gray) 65%,transparent)!important;font-weight:500!important;opacity:1}
+/* Dugovanja: imena u jednom redu, gumbi se na uskom ekranu spuštaju ispod */
+.fl .zSettleRow{flex-wrap:wrap;row-gap:8px}
+.fl .zSettleRow .grow{min-width:0;flex:1 1 150px}
+.fl .zSettleNames{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+@media(max-width:480px){.fl .zSettleRow>.zPill{flex:1 1 0;justify-content:center;text-align:center}.fl .zSettleRow>.zPill:first-of-type{margin-left:46px}}
+/* Filteri povijesti se prelamaju umjesto da izlaze izvan ekrana */
+.fl .zHistFilters{flex-wrap:wrap;overflow:visible}
+/* Kreiraj grupu: naslov sekcije sudionika kao ostale sekcije */
+.fl .zPartLabel{display:block;background:none!important;padding:14px 4px 6px!important;margin:0!important;font-size:12px;font-weight:800;letter-spacing:.8px;text-transform:uppercase;color:var(--gray);box-shadow:none!important}
+
+/* ===== v23: mobitel — bez praznog pomicanja =====
+   Prije: okvir (92px za donju navigaciju) + stranica (150px) = ~240px praznine, pa su se i kratke
+   stranice mogle pomicati. Sada: prostor za navigaciju daje samo okvir, a stranice bez navigacije ga nemaju. */
+@media(max-width:1023px){
+ .fl main.page,.fl .page.wide:has(.zExpenseTop){padding-bottom:8px}
+ .fl.dFrame:not(:has(.dTabs)) .dMain{padding-bottom:0}
+ .fl.dFrame:not(:has(.dTabs)) main.page:not(:has(.flActions)){padding-bottom:calc(24px + env(safe-area-inset-bottom))}
+ .fl .page:has(.flActions){padding-bottom:calc(112px + env(safe-area-inset-bottom))!important}
+}
+/* Razmak između salda i pretrage te između "Napusti grupu" i koda grupe */
+@media(max-width:1023px){.fl .zFilterBar{margin-top:14px}}
+.fl .zLeave{margin-bottom:14px}
+.fl .zEmptyNote{padding:18px 6px;margin:0;color:var(--gray);font-size:14px}
+/* Naslov računa: prvi u fokusu i veći */
+.fl .zExpGrid .rpTitle .zTitleInput,.fl .rpTitle .zTitleInput{min-height:62px!important;font-size:20px!important;font-weight:800!important;padding:0 18px!important;border-radius:20px!important;border:2px solid transparent!important;transition:border-color .15s,box-shadow .15s}
+.fl .rpTitle .zTitleInput:focus{outline:none;border-color:var(--accent)!important;box-shadow:0 0 0 4px var(--tint)!important}
+.fl .rpTitle .zTitleInput::placeholder{font-weight:600!important}
+.fl .rpTitle .rpCategory{width:62px!important;height:62px!important;border-radius:20px!important}
+.fl .rpTitle .rpCategory svg{width:26px;height:26px}
+@media(max-width:560px){.fl .rpTitle .zTitleInput{font-size:18px!important;padding:0 14px!important}.fl .rpTitle .zTitleInput::placeholder{font-size:16px}}

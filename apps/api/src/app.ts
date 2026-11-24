@@ -16,7 +16,8 @@ const allowedOrigins = [
   "http://localhost:8081",
   "https://split-it-web-three.vercel.app",
   "http://localhost:5173",
-  WEB_ORIGIN,
+  "http://127.0.0.1:5173",
+  ...WEB_ORIGIN.split(",").map((origin) => origin.trim()),
 ].filter(Boolean);
 
 app.use(

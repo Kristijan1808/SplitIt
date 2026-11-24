@@ -82,21 +82,17 @@ export function CreateGroupPage() {
   return (
     <main className="page">
       
-      <Link className="backLink" to="/">
-        <ArrowLeft size={18} /> {t("back")}
-      </Link>
-
-      <header className="editorHeading">        <h1>{t("createGroupTitle")}</h1>
-        <p className="muted">{t("groupNamesRepeat")}</p></header>
+      <div className="zTop"><Link className="zBack" to="/" aria-label={t("back")}>&#8249;</Link><h1 className="zH2" style={{ flex: 1, textAlign: "center" }}>{t("createGroupTitle")}</h1><span style={{ width: 44 }} /></div>
       <section className="card">
 
 
         {!createdCode ? (
           <form onSubmit={submit} className="form" noValidate>
-           <label>
-            {t("groupName")}
+           <label className="zField">
+            <b>{t("groupName")}</b>
             <input
               value={name}
+              placeholder={t("groupNamePlaceholder")}
               maxLength={80}
               aria-invalid={Boolean(fieldErrors.name)}
               onChange={(event) => {
@@ -107,11 +103,13 @@ export function CreateGroupPage() {
             {fieldErrors.name && <span className="validationMessage">{fieldErrors.name}</span>}
           </label>
 
-          <label>
-            {t("password")}
+          <label className="zField">
+            <b>{t("password")}</b>
             <input
               type="password"
               value={password}
+              placeholder={t("groupPasswordPlaceholder")}
+              autoComplete="new-password"
               maxLength={80}
               aria-invalid={Boolean(fieldErrors.password)}
               onChange={(event) => {
@@ -155,7 +153,7 @@ export function CreateGroupPage() {
               </p>
             ) : (
             <div>
-              <label>{t("participants")}</label>
+              <label className="zSectionLabel zPartLabel">{t("participants")}</label>
               <div className="peopleInputs">
                 {people.map((person, index) => (
                   <div className="inlineInput" key={index}>
@@ -175,7 +173,7 @@ export function CreateGroupPage() {
                   </div>
                 ))}
               </div>
-              <button type="button" className="secondaryButton add-participants-btn" onClick={() => setPeople([...people, ""])}>
+              <button type="button" className="zTextBtn add-participants-btn" onClick={() => setPeople([...people, ""])}>
                 <Plus size={18} /> {t("addParticipant")}
               </button>
             </div>
@@ -187,7 +185,7 @@ export function CreateGroupPage() {
                 {t("login")}
               </Link>
             )}
-            <button className="primaryButton" type="submit">
+            <button className="zBtn" type="submit">
               {t("createGroup")}
             </button>
           </form>

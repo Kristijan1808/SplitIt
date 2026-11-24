@@ -1,4 +1,4 @@
-import {participantIdentity} from "./participant-identity.js";
+import { participantIdentity, accountAvatars } from "./participant-identity.js";
 import {identityTarget} from "./identity-target.js";
 import {listCurrencies} from "./fx-provider.js";
 import {currencySchema} from "./currency.service.js";
@@ -6,10 +6,13 @@ import type {Request, RequestHandler} from "express";
 import {Router} from "express";
 import {Prisma} from "@prisma/client";
 import {z} from "zod";
+import {imageDataUrl} from "./image-data-url.js";
 import {randomBytes} from "node:crypto";
 import {getUserFromRequest,prisma} from "../core.js";
 import {billKeys,creatorKey,canManageBill} from "./bill-permissions.js";
 import {ensureCanViewGroup,ensureCanEditGroup} from "./access.service.js";
+import {calculateBalances} from "./balance-domain.js";
+import {groupDetailsInclude} from "../utils.js";
 export const failure=(message:string,status=400)=>Object.assign(new Error(message),{status});
 export async function actorPerson(req:Request,groupId:string,access:string){
  const id=req.get("X-SplitIt-Participant-Id");
@@ -27,8 +30,8 @@ export const groupGate:RequestHandler=async(req,res,next)=>{try{
   prisma.groupSession.findMany({where:{groupId:group.id,key:{in:billKeys(req)}}}),
   authUser?prisma.groupMember.findUnique({where:{groupId_userId:{groupId:group.id,userId:authUser.id}}}):null
  ]);
- res.locals.group=group;res.locals.admin=sessions.some(session=>["OWNER","ADMIN"].includes(session.role))||!!membership&&["OWNER","ADMIN"].includes(membership.role)||group.ownerUserId===authUser?.id;
- res.locals.owner=!!group.ownerKey&&billKeys(req).includes(group.ownerKey)||group.ownerUserId===authUser?.id;
+ res.locals.group=group;res.locals.admin=sessions.some(session=>["OWNER","ADMIN"].includes(session.role))||!!membership&&["OWNER","ADMIN"].includes(membership.role)||(!!authUser&&group.ownerUserId===authUser.id);
+ res.locals.owner=!!group.ownerKey&&billKeys(req).includes(group.ownerKey)||(!!authUser&&group.ownerUserId===authUser.id);
  next();
 }catch(e){next(e)}};
 export const adminGate:RequestHandler=(_req,res,next)=>res.locals.admin?next():next(failure("Ovu radnju može izvršiti administrator grupe.",403));
@@ -43,8 +46,9 @@ workflowRouter.get("/",wrap(async(req,res)=>{
  prisma.draftSelection.findMany({where:{draft:{groupId:g.id,confirmedExpenseId:null}}}),
  prisma.settlementTransfer.findMany({where:{groupId:g.id},orderBy:{createdAt:"desc"}}),
  prisma.groupSession.findMany({where:{groupId:g.id}})]);
+ const avatars=await accountAvatars(people);
  res.json({avatar:g.avatar,archived:g.archived,canAdmin:res.locals.admin,canOwn:res.locals.owner,
- people:people.map(p=>({id:p.id,name:p.name,role:sessions.find(s=>s.key===p.identityKey)?.role||"MEMBER",inactive:p.inactive,...participantIdentity(p,g.accessType,user?.id,keys)})),selections,
+ people:people.map(p=>({id:p.id,name:p.name,role:sessions.find(s=>s.key===p.identityKey)?.role||"MEMBER",inactive:p.inactive,avatar:p.userId?avatars.get(p.userId)??null:null,...participantIdentity(p,g.accessType,user?.id,keys)})),selections,
  transfers:transfers.map(p=>({...p,amount:Number(p.amount)}))});
 }));
 workflowRouter.post("/identity",wrap(async(req,res)=>{
@@ -78,7 +82,7 @@ workflowRouter.patch("/people/:id",adminGate,wrap(async(req,res)=>{
  res.json({ok:true});
 }));
 workflowRouter.patch("/settings",adminGate,wrap(async(req,res)=>{
- const body=z.object({currency:currencySchema.optional(),archived:z.boolean().optional(),avatar:z.enum(["👥","🏠","🍽️","✈️","🎉","🏖️","🚗","💼"]).optional()}).strict().parse(req.body);
+ const body=z.object({currency:currencySchema.optional(),archived:z.boolean().optional(),avatar:z.union([z.enum(["👥","🏠","🍽️","✈️","🎉","🏖️","🚗","💼"]),imageDataUrl]).optional()}).strict().parse(req.body);
  if(body.currency&&body.currency!==res.locals.group.currency&&!(await listCurrencies()).some(x=>x.code===body.currency))throw failure("Valuta nije dostupna.");
  await prisma.$transaction(async tx=>{
  const live=await tx.group.findUniqueOrThrow({where:{id:res.locals.group.id}});
@@ -88,7 +92,7 @@ workflowRouter.patch("/settings",adminGate,wrap(async(req,res)=>{
  }
  await tx.group.update({where:{id:live.id},data:body});
  },{isolationLevel:"Serializable"});
- await prisma.history.create({data:{groupId:res.locals.group.id,action:"UPDATE",entity:"GROUP",message:"Promijenjene su postavke grupe.",newValue:JSON.stringify(body)}});res.json({ok:true});
+ await prisma.history.create({data:{groupId:res.locals.group.id,action:"UPDATE",entity:"GROUP",message:"Promijenjene su postavke grupe.",newValue:JSON.stringify({...body,avatar:body.avatar?.startsWith("data:")?"[image]":body.avatar})}});res.json({ok:true});
 }));
 workflowRouter.post("/rotate-invite",adminGate,wrap(async(req,res)=>{
  const password=z.string().min(8).max(80).parse(req.body.password);
@@ -145,4 +149,27 @@ workflowRouter.patch("/people/:id/role",wrap(async(req,res)=>{
  if(!p?.identityKey)throw failure("Osoba najprije treba povezati svoj ime sudionika.");
  if(p.identityKey===res.locals.group.ownerKey)throw failure("Uloga vlasnika ne može se promijeniti ovdje.");
  await prisma.$transaction(async tx=>{await tx.groupSession.updateMany({where:{groupId:p.groupId,key:p.identityKey!},data:{role}});await tx.history.create({data:{groupId:p.groupId,entity:"PERSON",entityId:p.id,action:"UPDATE",message:`${p.name}: uloga ${role}`}})});res.json({ok:true});
+}));
+
+/** Napuštanje grupe: sudionik se deaktivira, a pristup s računa i uređaja se uklanja.
+ *  Računi, uplate i povijest ostaju. Vlasnik ne može napustiti grupu, a saldo mora biti 0. */
+workflowRouter.post("/leave",wrap(async(req,res)=>{
+ const g=res.locals.group,keys=billKeys(req),user=getUserFromRequest(req);
+ if(res.locals.owner)throw failure("Vlasnik ne može napustiti grupu. Možeš je arhivirati u postavkama grupe.",409);
+ const details=await prisma.group.findUniqueOrThrow({where:{id:g.id},include:groupDetailsInclude});
+ const me=details.people.find(p=>!p.inactive&&((user&&p.userId===user.id)||(!p.userId&&p.identityKey&&keys.includes(p.identityKey))));
+ if(me){
+  const transfers=await prisma.settlementTransfer.findMany({where:{groupId:g.id,voidedAt:null}});
+  const bal=calculateBalances(details.people,details.expenses,transfers).balances.find(b=>b.id===me.id)?.balance??0;
+  if(Math.abs(bal)>=0.005)throw failure(`Prije izlaska podmiri dugovanja (tvoj saldo je ${bal.toFixed(2).replace(".",",")} ${g.currency||"EUR"}).`,409);
+ }
+ await prisma.$transaction(async tx=>{
+  if(me){
+   await tx.person.update({where:{id:me.id},data:{inactive:true,...(me.userId?{}:{identityKey:null})}});
+   await tx.history.create({data:{groupId:g.id,entity:"PERSON",entityId:me.id,action:"UPDATE",message:`${me.name} je napustio/la grupu.`}});
+  }
+  if(user)await tx.groupMember.deleteMany({where:{groupId:g.id,userId:user.id}});
+  await tx.groupSession.deleteMany({where:{groupId:g.id,key:{in:keys}}});
+ });
+ res.json({ok:true});
 }));
